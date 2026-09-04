@@ -1,0 +1,33 @@
+{
+  "fixtureId": "engineering-notation-sampler",
+  "status": "synthetic-candidate",
+  "permissionStatus": "project-original",
+  "pilotApproval": "required",
+  "requiredFormats": ["html", "svg", "png", "pdf"],
+  "requiredThemes": ["default", "academic", "dark-presentation"],
+  "expectedContent": {
+    "title": "Engineering notation sampler",
+    "minimumHeadingCount": 5,
+    "equationIds": ["gaussian-integral", "arithmetic-series", "diffusion-equation"],
+    "equationCount": 3,
+    "tableCount": 1,
+    "tableCaption": "Representative material properties used by this fixture",
+    "tableAlignment": ["left", "center", "right"],
+    "tableRows": [
+      ["Aluminum", "2700", "205"],
+      ["Steel", "7850", "50"],
+      ["Glass", "2500", "1.0"]
+    ],
+    "mermaidCount": 1,
+    "mermaidNodes": ["Start", "Inspect setup", "Safe?", "Correct setup", "Record measurement", "Finish"],
+    "retainedHttpsLinks": ["https://www.nist.gov/pml/owm/si-units"]
+  },
+  "artifactRequirements": {
+    "selfContained": true,
+    "networkRequests": 0,
+    "equations": "Visual equations in every format; HTML and XHTML-SVG also retain MathML and TeX annotation.",
+    "table": "Caption, cell order, and alignment remain present in every format.",
+    "diagram": "Sanitized accessible SVG is embedded with every node and branch visible.",
+    "baselinePolicy": "Generate reviewed hashes and visual references only from an approved compiler fingerprint."
+  }
+}

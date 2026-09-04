@@ -1,0 +1,43 @@
+{
+  "fixtureId": "rc-low-pass",
+  "status": "synthetic-candidate",
+  "permissionStatus": "project-original",
+  "sourceSyntax": "illustrative-unfrozen",
+  "pilotApproval": "required",
+  "symbolConvention": {
+    "value": "iec",
+    "status": "provisional-test-value-not-pilot-ruling"
+  },
+  "circuit": {
+    "title": [{"kind": "text", "text": "RC low-pass filter"}],
+    "layout": {"flow": "left-to-right"},
+    "nodes": [
+      {"id": "gnd", "role": "reference"},
+      {"id": "vin", "role": "signal", "label": [{"kind": "text", "text": "Input"}]},
+      {"id": "vout", "role": "signal", "label": [{"kind": "text", "text": "Output"}]}
+    ],
+    "components": [
+      {"kind": "voltage-source", "ref": "V1", "mode": "dc", "value": {"coefficient": "5", "prefix": "none", "unit": "volt"}, "orientation": "top-to-bottom"},
+      {"kind": "resistor", "ref": "R1", "value": {"coefficient": "1", "prefix": "kilo", "unit": "ohm"}, "orientation": "left-to-right"},
+      {"kind": "capacitor", "ref": "C1", "value": {"coefficient": "100", "prefix": "nano", "unit": "farad"}, "orientation": "top-to-bottom"}
+    ],
+    "relations": [
+      {"componentRef": "V1", "terminal": "positive", "nodeId": "vin"},
+      {"componentRef": "V1", "terminal": "negative", "nodeId": "gnd"},
+      {"componentRef": "R1", "terminal": "a", "nodeId": "vin"},
+      {"componentRef": "R1", "terminal": "b", "nodeId": "vout"},
+      {"componentRef": "C1", "terminal": "a", "nodeId": "vout"},
+      {"componentRef": "C1", "terminal": "b", "nodeId": "gnd"}
+    ],
+    "annotations": [
+      {"kind": "voltage", "positiveNode": "vout", "negativeNode": "gnd", "content": [{"kind": "text", "text": "V"}, {"kind": "subscript", "text": "out"}]}
+    ]
+  },
+  "artifactRequirements": {
+    "requiredFormats": ["html", "svg", "png", "pdf"],
+    "requiredThemes": ["default", "academic", "dark-presentation"],
+    "semanticConnectivityIsOracle": true,
+    "mustRemainLegible": ["V1", "R1", "1 kOhm", "C1", "100 nF", "Input", "Output", "V_out"],
+    "baselinePolicy": "Generate reviewed hashes and visual references only after syntax, adapter, convention, and compiler fingerprints are approved."
+  }
+}

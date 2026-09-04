@@ -1,0 +1,26 @@
+{
+  "fixtureId": "cantilever-beam-lab",
+  "status": "synthetic-candidate",
+  "permissionStatus": "project-original",
+  "pilotApproval": "required",
+  "requiredFormats": ["html", "svg", "png", "pdf"],
+  "expectedContent": {
+    "title": "Cantilever beam deflection lab",
+    "equationIds": ["second-moment-area", "cantilever-deflection", "bending-stress"],
+    "equationCount": 3,
+    "tableCount": 1,
+    "tableCaption": "Cantilever load and end-deflection observations",
+    "tableAlignment": ["left", "center", "right"],
+    "tableRows": 4,
+    "mermaidCount": 1,
+    "mermaidDecisionLabels": ["Yes", "No"],
+    "mustPreserve": ["beam dimensions", "load units", "measured values", "model values", "ordered procedure"]
+  },
+  "artifactRequirements": {
+    "selfContained": true,
+    "networkRequests": 0,
+    "minimumReadableObjects": ["equation subscripts and powers", "table units", "Mermaid decision labels"],
+    "pagination": "No equation, table row, or diagram may overlap, clip, or disappear.",
+    "baselinePolicy": "Generate reviewed hashes and visual references only from an approved compiler fingerprint."
+  }
+}

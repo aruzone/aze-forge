@@ -1,0 +1,45 @@
+{
+  "fixtureId": "series-rlc",
+  "status": "synthetic-candidate",
+  "permissionStatus": "project-original",
+  "sourceSyntax": "illustrative-unfrozen",
+  "pilotApproval": "required",
+  "symbolConvention": {"value": "iec", "status": "provisional-test-value-not-pilot-ruling"},
+  "circuit": {
+    "title": [{"kind": "text", "text": "Series RLC response circuit"}],
+    "layout": {"flow": "left-to-right"},
+    "nodes": [
+      {"id": "gnd", "role": "reference"},
+      {"id": "vin", "role": "signal", "label": [{"kind": "text", "text": "Excitation"}]},
+      {"id": "after-r", "role": "signal"},
+      {"id": "after-l", "role": "signal", "label": [{"kind": "text", "text": "Capacitor input"}]}
+    ],
+    "components": [
+      {"kind": "voltage-source", "ref": "V1", "mode": "ac", "value": {"coefficient": "10", "prefix": "none", "unit": "volt"}, "orientation": "top-to-bottom"},
+      {"kind": "resistor", "ref": "R1", "value": {"coefficient": "100", "prefix": "none", "unit": "ohm"}, "orientation": "left-to-right"},
+      {"kind": "inductor", "ref": "L1", "value": {"coefficient": "10", "prefix": "milli", "unit": "henry"}, "orientation": "left-to-right"},
+      {"kind": "capacitor", "ref": "C1", "value": {"coefficient": "1", "prefix": "micro", "unit": "farad"}, "orientation": "top-to-bottom"}
+    ],
+    "relations": [
+      {"componentRef": "V1", "terminal": "positive", "nodeId": "vin"},
+      {"componentRef": "V1", "terminal": "negative", "nodeId": "gnd"},
+      {"componentRef": "R1", "terminal": "a", "nodeId": "vin"},
+      {"componentRef": "R1", "terminal": "b", "nodeId": "after-r"},
+      {"componentRef": "L1", "terminal": "a", "nodeId": "after-r"},
+      {"componentRef": "L1", "terminal": "b", "nodeId": "after-l"},
+      {"componentRef": "C1", "terminal": "a", "nodeId": "after-l"},
+      {"componentRef": "C1", "terminal": "b", "nodeId": "gnd"}
+    ],
+    "annotations": [
+      {"kind": "current", "componentRef": "R1", "terminal": "a", "direction": "into", "content": [{"kind": "text", "text": "I"}, {"kind": "subscript", "text": "loop"}]},
+      {"kind": "voltage", "positiveNode": "after-l", "negativeNode": "gnd", "content": [{"kind": "text", "text": "V"}, {"kind": "subscript", "text": "C"}]}
+    ]
+  },
+  "artifactRequirements": {
+    "requiredFormats": ["html", "svg", "png", "pdf"],
+    "requiredThemes": ["default", "academic", "dark-presentation"],
+    "semanticConnectivityIsOracle": true,
+    "mustRemainLegible": ["V1", "10 V", "R1", "100 Ohm", "L1", "10 mH", "C1", "1 uF", "I_loop", "V_C"],
+    "baselinePolicy": "Generate reviewed hashes and visual references only after syntax, adapter, convention, and compiler fingerprints are approved."
+  }
+}

@@ -1,0 +1,3 @@
+# Separate the semantic Document from source syntax and rendering
+
+AzeForge will expose a versioned, renderer-independent semantic Document with a flat top-level Block sequence, AzeForge-owned Markdown nodes, and open versioned envelopes for Plugin directives. Parsing always returns a recoverable ParsedDocument, validation narrows it to an AzeDocument, and only the latter can render; a separate private concrete syntax tree preserves comments and invalid text for formatting and explicit migrations. This costs an additional internal representation but prevents renderers from reinterpreting Source, keeps core independent of Plugins, and avoids contaminating the public semantic AST with formatting trivia.

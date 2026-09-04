@@ -1,0 +1,3 @@
+# Separate semantic Plugins from rendering adapters
+
+A Plugin owns parsing, validation, schema, and migration for one directive Block type; it does not render. Renderer-specific Block renderers convert that semantic data into opaque Fragments owned by a document Renderer, which alone controls composition, presentation, sanitization, and Artifact production. This deliberately replaces the blueprint's convenient `Plugin.render()` sketch: the split costs more registration machinery but prevents domain packages from branching over every output format, avoids a universal leaky render tree, and keeps Renderers from reinterpreting Source.

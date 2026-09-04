@@ -1,0 +1,91 @@
+{
+  "catalogVersion": 1,
+  "status": "synthetic-project-approved-candidate",
+  "purpose": "Clean-room fixture candidates approved for project use and pilot review; these are not real pilot materials or approved Artifact baselines.",
+  "provenance": {
+    "method": "Independently authored from general engineering facts and the AzeForge acceptance contracts.",
+    "thirdPartyWordingCopied": false,
+    "thirdPartyLayoutCopied": false,
+    "thirdPartyArtworkIncluded": false,
+    "permissionStatus": "project-original"
+  },
+  "projectApproval": {
+    "status": "approved",
+    "approvedBy": "kkumaresan",
+    "approvedOn": "2026-09-04",
+    "scope": "Approves the clean-room corpus as project-owned candidate material for implementation and pilot review.",
+    "doesNotRepresent": [
+      "engineering-lecturer approval",
+      "course-owner approval",
+      "Circuit syntax freeze",
+      "Artifact baseline approval",
+      "pilot environment or data-residency ruling"
+    ]
+  },
+  "gateImpact": {
+    "satisfiesIssue13": false,
+    "reason": "Issue #13 requires pilot-accessible real materials or explicit unavailability, expected Artifact links, environment facts, and pilot rulings.",
+    "canBecomePilotEvidenceWhen": [
+      "Two engineering lecturers review the complete set.",
+      "Each Circuit receives at least one explicit semantic and visual approval.",
+      "One course owner approves instructional usefulness and the selected symbol convention.",
+      "The final Circuit body syntax is frozen from the approved Source forms.",
+      "A qualifying compiler generates reviewed Artifact baselines and hashes.",
+      "Pilot platform, authoring-mode, object-mix, and data-residency facts are recorded."
+    ]
+  },
+  "technicalDocuments": [
+    {
+      "id": "engineering-notation-sampler",
+      "source": "technical/engineering-notation-sampler/source.draft.aze.md",
+      "expectations": "technical/engineering-notation-sampler/expected.json"
+    },
+    {
+      "id": "cantilever-beam-lab",
+      "source": "technical/cantilever-beam-lab/source.draft.aze.md",
+      "expectations": "technical/cantilever-beam-lab/expected.json"
+    },
+    {
+      "id": "thermal-cooling-lab",
+      "source": "technical/thermal-cooling-lab/source.draft.aze.md",
+      "expectations": "technical/thermal-cooling-lab/expected.json"
+    },
+    {
+      "id": "pipe-flow-lab",
+      "source": "technical/pipe-flow-lab/source.draft.aze.md",
+      "expectations": "technical/pipe-flow-lab/expected.json"
+    },
+    {
+      "id": "sensor-calibration-lab",
+      "source": "technical/sensor-calibration-lab/source.draft.aze.md",
+      "expectations": "technical/sensor-calibration-lab/expected.json"
+    }
+  ],
+  "circuits": [
+    {
+      "id": "rc-low-pass",
+      "source": "circuits/rc-low-pass/source.illustrative.aze.md",
+      "oracle": "circuits/rc-low-pass/expected.circuit.json"
+    },
+    {
+      "id": "series-rlc",
+      "source": "circuits/series-rlc/source.illustrative.aze.md",
+      "oracle": "circuits/series-rlc/expected.circuit.json"
+    },
+    {
+      "id": "rectifier-led",
+      "source": "circuits/rectifier-led/source.illustrative.aze.md",
+      "oracle": "circuits/rectifier-led/expected.circuit.json"
+    },
+    {
+      "id": "powered-op-amp",
+      "source": "circuits/powered-op-amp/source.illustrative.aze.md",
+      "oracle": "circuits/powered-op-amp/expected.circuit.json"
+    },
+    {
+      "id": "bjt-low-side-switch",
+      "source": "circuits/bjt-low-side-switch/source.illustrative.aze.md",
+      "oracle": "circuits/bjt-low-side-switch/expected.circuit.json"
+    }
+  ]
+}

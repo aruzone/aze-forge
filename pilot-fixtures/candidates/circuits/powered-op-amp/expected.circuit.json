@@ -1,0 +1,56 @@
+{
+  "fixtureId": "powered-op-amp",
+  "status": "synthetic-candidate",
+  "permissionStatus": "project-original",
+  "sourceSyntax": "illustrative-unfrozen",
+  "pilotApproval": "required",
+  "symbolConvention": {"value": "iec", "status": "provisional-test-value-not-pilot-ruling"},
+  "circuit": {
+    "title": [{"kind": "text", "text": "Powered non-inverting op-amp"}],
+    "layout": {"flow": "left-to-right"},
+    "nodes": [
+      {"id": "gnd", "role": "reference"},
+      {"id": "vin", "role": "signal", "label": [{"kind": "text", "text": "Input"}]},
+      {"id": "vminus", "role": "signal"},
+      {"id": "vout", "role": "signal", "label": [{"kind": "text", "text": "Output"}]},
+      {"id": "vcc", "role": "signal", "label": [{"kind": "text", "text": "+12 V rail"}]},
+      {"id": "vee", "role": "signal", "label": [{"kind": "text", "text": "-12 V rail"}]}
+    ],
+    "components": [
+      {"kind": "voltage-source", "ref": "V1", "mode": "dc", "value": {"coefficient": "1", "prefix": "none", "unit": "volt"}, "orientation": "top-to-bottom"},
+      {"kind": "voltage-source", "ref": "V2", "mode": "dc", "value": {"coefficient": "12", "prefix": "none", "unit": "volt"}, "orientation": "top-to-bottom"},
+      {"kind": "voltage-source", "ref": "V3", "mode": "dc", "value": {"coefficient": "12", "prefix": "none", "unit": "volt"}, "orientation": "bottom-to-top"},
+      {"kind": "op-amp", "ref": "U1", "model": [{"kind": "text", "text": "ideal teaching model"}], "orientation": "left-to-right"},
+      {"kind": "resistor", "ref": "R1", "value": {"coefficient": "10", "prefix": "kilo", "unit": "ohm"}, "orientation": "left-to-right"},
+      {"kind": "resistor", "ref": "R2", "value": {"coefficient": "10", "prefix": "kilo", "unit": "ohm"}, "orientation": "top-to-bottom"}
+    ],
+    "relations": [
+      {"componentRef": "V1", "terminal": "positive", "nodeId": "vin"},
+      {"componentRef": "V1", "terminal": "negative", "nodeId": "gnd"},
+      {"componentRef": "V2", "terminal": "positive", "nodeId": "vcc"},
+      {"componentRef": "V2", "terminal": "negative", "nodeId": "gnd"},
+      {"componentRef": "V3", "terminal": "positive", "nodeId": "gnd"},
+      {"componentRef": "V3", "terminal": "negative", "nodeId": "vee"},
+      {"componentRef": "U1", "terminal": "nonInverting", "nodeId": "vin"},
+      {"componentRef": "U1", "terminal": "inverting", "nodeId": "vminus"},
+      {"componentRef": "U1", "terminal": "output", "nodeId": "vout"},
+      {"componentRef": "U1", "terminal": "positiveSupply", "nodeId": "vcc"},
+      {"componentRef": "U1", "terminal": "negativeSupply", "nodeId": "vee"},
+      {"componentRef": "R1", "terminal": "a", "nodeId": "vout"},
+      {"componentRef": "R1", "terminal": "b", "nodeId": "vminus"},
+      {"componentRef": "R2", "terminal": "a", "nodeId": "vminus"},
+      {"componentRef": "R2", "terminal": "b", "nodeId": "gnd"}
+    ],
+    "annotations": [
+      {"kind": "voltage", "positiveNode": "vout", "negativeNode": "gnd", "content": [{"kind": "text", "text": "V"}, {"kind": "subscript", "text": "out"}]}
+    ]
+  },
+  "artifactRequirements": {
+    "requiredFormats": ["html", "svg", "png", "pdf"],
+    "requiredThemes": ["default", "academic", "dark-presentation"],
+    "semanticConnectivityIsOracle": true,
+    "stressFixture": true,
+    "mustRemainLegible": ["U1", "ideal teaching model", "+12 V rail", "-12 V rail", "R1", "R2", "10 kOhm", "V_out"],
+    "baselinePolicy": "Generate reviewed hashes and visual references only after syntax, adapter, convention, and compiler fingerprints are approved."
+  }
+}

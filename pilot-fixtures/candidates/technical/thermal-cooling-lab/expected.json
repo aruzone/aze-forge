@@ -1,0 +1,25 @@
+{
+  "fixtureId": "thermal-cooling-lab",
+  "status": "synthetic-candidate",
+  "permissionStatus": "project-original",
+  "pilotApproval": "required",
+  "requiredFormats": ["html", "svg", "png", "pdf"],
+  "expectedContent": {
+    "title": "First-order cooling experiment",
+    "equationIds": ["thermal-time-constant", "cooling-response", "heat-transfer-rate"],
+    "equationCount": 3,
+    "tableCount": 1,
+    "tableCaption": "Measured and predicted specimen temperature",
+    "tableAlignment": ["left", "center", "right"],
+    "tableRows": 4,
+    "mermaidCount": 1,
+    "mustPreserve": ["subscripted thermal quantities", "negative exponential", "temperature units", "measurement loop"]
+  },
+  "artifactRequirements": {
+    "selfContained": true,
+    "networkRequests": 0,
+    "minimumReadableObjects": ["equation subscripts", "degree-Celsius text", "Mermaid branch labels"],
+    "pagination": "The data table and acquisition diagram remain complete and non-overlapping.",
+    "baselinePolicy": "Generate reviewed hashes and visual references only from an approved compiler fingerprint."
+  }
+}

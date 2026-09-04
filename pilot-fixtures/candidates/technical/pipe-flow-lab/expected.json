@@ -1,0 +1,25 @@
+{
+  "fixtureId": "pipe-flow-lab",
+  "status": "synthetic-candidate",
+  "permissionStatus": "project-original",
+  "pilotApproval": "required",
+  "requiredFormats": ["html", "svg", "png", "pdf"],
+  "expectedContent": {
+    "title": "Pipe-flow pressure-loss lab",
+    "equationIds": ["pipe-area", "reynolds-number", "pressure-loss"],
+    "equationCount": 3,
+    "tableCount": 1,
+    "tableCaption": "Flow and pressure-loss observations",
+    "tableAlignment": ["left", "center", "right"],
+    "tableRows": 4,
+    "mermaidCount": 1,
+    "mustPreserve": ["Greek density and viscosity aliases", "squared diameter and velocity", "compound units", "two decision loops"]
+  },
+  "artifactRequirements": {
+    "selfContained": true,
+    "networkRequests": 0,
+    "minimumReadableObjects": ["equation powers", "table units", "Mermaid loop labels"],
+    "pagination": "The measurement table and flowchart remain visible once each without overlap.",
+    "baselinePolicy": "Generate reviewed hashes and visual references only from an approved compiler fingerprint."
+  }
+}

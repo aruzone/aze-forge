@@ -1,0 +1,3 @@
+# Limit P0 to trusted built-ins behind capability handles
+
+P0 and P0.5 load only reviewed built-in Plugins and rendering adapters through an explicit immutable Compiler registry; the CLI performs no package discovery. Rendering adapters declare exact capabilities and use root-confined file access, per-compile temporary storage, approved argv-only subprocesses, isolated browser contexts, and explicit network policy instead of ambient I/O on the supported path. Capability declarations are not a JavaScript sandbox, so third-party discovery remains out of scope until a real worker/process isolation and module-loading boundary exists; this trades early ecosystem flexibility for enforceable offline and untrusted-Source guarantees.

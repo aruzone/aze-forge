@@ -1,0 +1,25 @@
+{
+  "fixtureId": "sensor-calibration-lab",
+  "status": "synthetic-candidate",
+  "permissionStatus": "project-original",
+  "pilotApproval": "required",
+  "requiredFormats": ["html", "svg", "png", "pdf"],
+  "expectedContent": {
+    "title": "Linear sensor calibration lab",
+    "equationIds": ["linear-model", "calibration-residual", "calibration-rmse"],
+    "equationCount": 3,
+    "tableCount": 1,
+    "tableCaption": "Reference and indicated sensor values",
+    "tableAlignment": ["left", "center", "right"],
+    "tableRows": 5,
+    "mermaidCount": 1,
+    "mustPreserve": ["nested subscripts", "bounded summation", "square root", "negative table values", "two workflow decisions"]
+  },
+  "artifactRequirements": {
+    "selfContained": true,
+    "networkRequests": 0,
+    "minimumReadableObjects": ["subscripted residuals", "RMSE expression", "signed table values", "Mermaid branch labels"],
+    "pagination": "The calibration table and workflow remain complete and non-overlapping.",
+    "baselinePolicy": "Generate reviewed hashes and visual references only from an approved compiler fingerprint."
+  }
+}

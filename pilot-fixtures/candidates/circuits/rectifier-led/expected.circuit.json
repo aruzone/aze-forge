@@ -1,0 +1,48 @@
+{
+  "fixtureId": "rectifier-led",
+  "status": "synthetic-candidate",
+  "permissionStatus": "project-original",
+  "sourceSyntax": "illustrative-unfrozen",
+  "pilotApproval": "required",
+  "symbolConvention": {"value": "iec", "status": "provisional-test-value-not-pilot-ruling"},
+  "circuit": {
+    "title": [{"kind": "text", "text": "Half-wave rectifier with LED indicator"}],
+    "layout": {"flow": "left-to-right"},
+    "nodes": [
+      {"id": "gnd", "role": "reference"},
+      {"id": "ac-in", "role": "signal", "label": [{"kind": "text", "text": "AC input"}]},
+      {"id": "rectified", "role": "signal", "label": [{"kind": "text", "text": "Rectified output"}]},
+      {"id": "led-anode", "role": "signal"}
+    ],
+    "components": [
+      {"kind": "voltage-source", "ref": "V1", "mode": "ac", "value": {"coefficient": "12", "prefix": "none", "unit": "volt"}, "orientation": "top-to-bottom"},
+      {"kind": "diode", "ref": "D1", "model": [{"kind": "text", "text": "1N4007"}], "orientation": "left-to-right"},
+      {"kind": "capacitor", "ref": "C1", "value": {"coefficient": "470", "prefix": "micro", "unit": "farad"}, "orientation": "top-to-bottom"},
+      {"kind": "resistor", "ref": "R1", "value": {"coefficient": "1", "prefix": "kilo", "unit": "ohm"}, "orientation": "left-to-right"},
+      {"kind": "led", "ref": "LED1", "model": [{"kind": "text", "text": "red"}], "orientation": "top-to-bottom"}
+    ],
+    "relations": [
+      {"componentRef": "V1", "terminal": "positive", "nodeId": "ac-in"},
+      {"componentRef": "V1", "terminal": "negative", "nodeId": "gnd"},
+      {"componentRef": "D1", "terminal": "anode", "nodeId": "ac-in"},
+      {"componentRef": "D1", "terminal": "cathode", "nodeId": "rectified"},
+      {"componentRef": "C1", "terminal": "a", "nodeId": "rectified"},
+      {"componentRef": "C1", "terminal": "b", "nodeId": "gnd"},
+      {"componentRef": "R1", "terminal": "a", "nodeId": "rectified"},
+      {"componentRef": "R1", "terminal": "b", "nodeId": "led-anode"},
+      {"componentRef": "LED1", "terminal": "anode", "nodeId": "led-anode"},
+      {"componentRef": "LED1", "terminal": "cathode", "nodeId": "gnd"}
+    ],
+    "annotations": [
+      {"kind": "voltage", "positiveNode": "rectified", "negativeNode": "gnd", "content": [{"kind": "text", "text": "V"}, {"kind": "subscript", "text": "rect"}]},
+      {"kind": "current", "componentRef": "LED1", "terminal": "anode", "direction": "into", "content": [{"kind": "text", "text": "I"}, {"kind": "subscript", "text": "LED"}]}
+    ]
+  },
+  "artifactRequirements": {
+    "requiredFormats": ["html", "svg", "png", "pdf"],
+    "requiredThemes": ["default", "academic", "dark-presentation"],
+    "semanticConnectivityIsOracle": true,
+    "mustRemainLegible": ["D1", "1N4007", "C1", "470 uF", "R1", "1 kOhm", "LED1", "red", "V_rect", "I_LED"],
+    "baselinePolicy": "Generate reviewed hashes and visual references only after syntax, adapter, convention, and compiler fingerprints are approved."
+  }
+}

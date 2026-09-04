@@ -1,0 +1,54 @@
+{
+  "fixtureId": "bjt-low-side-switch",
+  "status": "synthetic-candidate",
+  "permissionStatus": "project-original",
+  "sourceSyntax": "illustrative-unfrozen",
+  "pilotApproval": "required",
+  "symbolConvention": {"value": "iec", "status": "provisional-test-value-not-pilot-ruling"},
+  "circuit": {
+    "title": [{"kind": "text", "text": "BJT low-side LED switch"}],
+    "layout": {"flow": "left-to-right"},
+    "nodes": [
+      {"id": "gnd", "role": "reference"},
+      {"id": "vcc", "role": "signal", "label": [{"kind": "text", "text": "+5 V rail"}]},
+      {"id": "drive", "role": "signal", "label": [{"kind": "text", "text": "Logic input"}]},
+      {"id": "base", "role": "signal"},
+      {"id": "led-anode", "role": "signal"},
+      {"id": "collector", "role": "signal", "label": [{"kind": "text", "text": "Switched output"}]}
+    ],
+    "components": [
+      {"kind": "voltage-source", "ref": "V1", "mode": "dc", "value": {"coefficient": "5", "prefix": "none", "unit": "volt"}, "orientation": "top-to-bottom"},
+      {"kind": "voltage-source", "ref": "V2", "mode": "dc", "value": {"coefficient": "3.3", "prefix": "none", "unit": "volt"}, "orientation": "top-to-bottom"},
+      {"kind": "resistor", "ref": "R1", "value": {"coefficient": "4.7", "prefix": "kilo", "unit": "ohm"}, "orientation": "left-to-right"},
+      {"kind": "resistor", "ref": "R2", "value": {"coefficient": "330", "prefix": "none", "unit": "ohm"}, "orientation": "top-to-bottom"},
+      {"kind": "led", "ref": "LED1", "model": [{"kind": "text", "text": "red"}], "orientation": "top-to-bottom"},
+      {"kind": "bjt", "ref": "Q1", "variant": "npn", "model": [{"kind": "text", "text": "2N3904"}], "orientation": "top-to-bottom"}
+    ],
+    "relations": [
+      {"componentRef": "V1", "terminal": "positive", "nodeId": "vcc"},
+      {"componentRef": "V1", "terminal": "negative", "nodeId": "gnd"},
+      {"componentRef": "V2", "terminal": "positive", "nodeId": "drive"},
+      {"componentRef": "V2", "terminal": "negative", "nodeId": "gnd"},
+      {"componentRef": "R1", "terminal": "a", "nodeId": "drive"},
+      {"componentRef": "R1", "terminal": "b", "nodeId": "base"},
+      {"componentRef": "R2", "terminal": "a", "nodeId": "vcc"},
+      {"componentRef": "R2", "terminal": "b", "nodeId": "led-anode"},
+      {"componentRef": "LED1", "terminal": "anode", "nodeId": "led-anode"},
+      {"componentRef": "LED1", "terminal": "cathode", "nodeId": "collector"},
+      {"componentRef": "Q1", "terminal": "collector", "nodeId": "collector"},
+      {"componentRef": "Q1", "terminal": "base", "nodeId": "base"},
+      {"componentRef": "Q1", "terminal": "emitter", "nodeId": "gnd"}
+    ],
+    "annotations": [
+      {"kind": "current", "componentRef": "Q1", "terminal": "collector", "direction": "into", "content": [{"kind": "text", "text": "I"}, {"kind": "subscript", "text": "C"}]},
+      {"kind": "node", "nodeId": "collector", "content": [{"kind": "text", "text": "V"}, {"kind": "subscript", "text": "out"}]}
+    ]
+  },
+  "artifactRequirements": {
+    "requiredFormats": ["html", "svg", "png", "pdf"],
+    "requiredThemes": ["default", "academic", "dark-presentation"],
+    "semanticConnectivityIsOracle": true,
+    "mustRemainLegible": ["V1", "5 V", "V2", "3.3 V", "R1", "4.7 kOhm", "R2", "330 Ohm", "LED1", "Q1", "2N3904", "I_C", "V_out"],
+    "baselinePolicy": "Generate reviewed hashes and visual references only after syntax, adapter, convention, and compiler fingerprints are approved."
+  }
+}
