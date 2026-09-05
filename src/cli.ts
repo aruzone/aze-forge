@@ -4,9 +4,20 @@ import { readFile, realpath } from "node:fs/promises";
 import { basename, dirname, extname, join, resolve } from "node:path";
 
 import { commitArtifact } from "./atomic-write.js";
+import { buildCapabilities, serializeCapabilities } from "./capabilities.js";
 import { createCompiler } from "./compiler.js";
 import { createDiagnostic } from "./diagnostics.js";
 import { createDiagnosticsReport } from "./diagnostics-json.js";
+import {
+  HELP_COMMANDS,
+  commandHelp,
+  globalHelp,
+  humanCapabilitiesReport,
+  humanVersionReport,
+  versionLine,
+} from "./help.js";
+import type { HelpCommand } from "./help.js";
+import { createVersionReport } from "./version.js";
 import type {
   Artifact,
   ArtifactFormat,
@@ -94,12 +105,40 @@ interface ServeArguments extends CommonArguments {
   readonly theme?: string;
 }
 
+interface CapabilitiesArguments {
+  readonly command: "capabilities";
+  readonly probe: boolean;
+  readonly machine: boolean;
+  readonly diagnosticsMode: DiagnosticsMode;
+}
+
+interface VersionArguments {
+  readonly command: "version";
+  readonly machine: boolean;
+  readonly diagnosticsMode: DiagnosticsMode;
+}
+
+interface HelpArguments {
+  readonly command: "help";
+  readonly topic?: HelpCommand;
+  readonly diagnosticsMode: DiagnosticsMode;
+}
+
+interface VersionLineArguments {
+  readonly command: "version-line";
+  readonly diagnosticsMode: DiagnosticsMode;
+}
+
 type CliArguments =
   | ValidateArguments
   | RenderArguments
   | WatchArguments
   | ServeArguments
-  | FormatArguments;
+  | FormatArguments
+  | CapabilitiesArguments
+  | VersionArguments
+  | HelpArguments
+  | VersionLineArguments;
 
 function requestedDiagnosticsMode(arguments_: readonly string[]): DiagnosticsMode {
   return arguments_.some(
@@ -121,6 +160,89 @@ function claimFormatFlag(name: "--stdin" | "--write" | "--check", current: boole
     throw new CliUsageError(`Option "${name}" was provided more than once.`);
   }
   return true;
+}
+function claimJsonFlag(current: boolean): boolean {
+  if (current) {
+    throw new CliUsageError('Option "--json" was provided more than once.');
+  }
+  return true;
+}
+
+function claimProbeFlag(current: boolean): boolean {
+  if (current) {
+    throw new CliUsageError('Option "--probe" was provided more than once.');
+  }
+  return true;
+}
+
+function machineFromJsonFlags(json: boolean, diagnosticsMode: DiagnosticsMode): boolean {
+  if (json && diagnosticsMode === "json") {
+    throw new CliUsageError('Options "--json" and "--diagnostics" cannot be combined.');
+  }
+  return json || diagnosticsMode === "json";
+}
+
+function parseCapabilitiesArguments(
+  rest: readonly string[],
+  diagnosticsMode: DiagnosticsMode,
+): CapabilitiesArguments {
+  let probe = false;
+  let json = false;
+  for (const option of rest) {
+    if (option === "--probe") {
+      probe = claimProbeFlag(probe);
+    } else if (option === "--json") {
+      json = claimJsonFlag(json);
+    } else if (option.startsWith("-")) {
+      throw new CliUsageError(`Unknown option "${option}".`);
+    } else {
+      throw new CliUsageError("Capabilities accepts no Source path.");
+    }
+  }
+  return {
+    command: "capabilities",
+    probe,
+    machine: machineFromJsonFlags(json, diagnosticsMode),
+    diagnosticsMode,
+  };
+}
+
+function parseVersionArguments(
+  rest: readonly string[],
+  diagnosticsMode: DiagnosticsMode,
+): VersionArguments {
+  let json = false;
+  for (const option of rest) {
+    if (option === "--json") {
+      json = claimJsonFlag(json);
+    } else if (option.startsWith("-")) {
+      throw new CliUsageError(`Unknown option "${option}".`);
+    } else {
+      throw new CliUsageError("Version accepts no Source path.");
+    }
+  }
+  return {
+    command: "version",
+    machine: machineFromJsonFlags(json, diagnosticsMode),
+    diagnosticsMode,
+  };
+}
+
+function parseHelpArguments(
+  topic: string | undefined,
+  rest: readonly string[],
+  diagnosticsMode: DiagnosticsMode,
+): HelpArguments {
+  if (rest.length > 0) {
+    throw new CliUsageError("Usage: azeforge help [command]");
+  }
+  if (topic === undefined) {
+    return { command: "help", diagnosticsMode };
+  }
+  if (!(HELP_COMMANDS as readonly string[]).includes(topic)) {
+    throw new CliUsageError(`Unknown command "${topic}".`);
+  }
+  return { command: "help", topic: topic as HelpCommand, diagnosticsMode };
 }
 
 function parseFormatArguments(
@@ -200,6 +322,52 @@ function parseArguments(
     index += 1;
   }
 
+  if (arguments_.length === 0) {
+    return { command: "help", diagnosticsMode };
+  }
+  if (
+    arguments_.includes("--help") ||
+    arguments_.includes("-h") ||
+    arguments_[0] === "help"
+  ) {
+    if (arguments_[0] === "help") {
+      return parseHelpArguments(
+        arguments_[1],
+        arguments_.slice(2),
+        diagnosticsMode,
+      );
+    }
+    const withoutHelp = arguments_.filter(
+      (token) => token !== "--help" && token !== "-h",
+    );
+    if (withoutHelp.length === 0) {
+      return { command: "help", diagnosticsMode };
+    }
+    if (
+      withoutHelp.length === 1 &&
+      (HELP_COMMANDS as readonly string[]).includes(withoutHelp[0] ?? "")
+    ) {
+      return {
+        command: "help",
+        topic: withoutHelp[0] as HelpCommand,
+        diagnosticsMode,
+      };
+    }
+    throw new CliUsageError('Option "--help" cannot be combined with other options.');
+  }
+  if (arguments_[0] === "--version") {
+    if (arguments_.length > 1) {
+      throw new CliUsageError('Option "--version" accepts no additional arguments.');
+    }
+    return { command: "version-line", diagnosticsMode };
+  }
+  if (arguments_[0] === "capabilities") {
+    return parseCapabilitiesArguments(arguments_.slice(1), diagnosticsMode);
+  }
+  if (arguments_[0] === "version") {
+    return parseVersionArguments(arguments_.slice(1), diagnosticsMode);
+  }
+
   const [command, sourcePath, ...rest] = arguments_;
   if (command === "format") {
     return parseFormatArguments(sourcePath, rest, diagnosticsMode);
@@ -222,7 +390,7 @@ function parseArguments(
     sourcePath.startsWith("-")
   ) {
     throw new CliUsageError(
-      "Usage: azeforge validate <source> | azeforge render <source> --output <artifact.html> | azeforge watch <source> --output <artifact.html> | azeforge serve <source> [--port <port>]",
+      "Usage: azeforge render <source> --output <artifact> | azeforge validate <source> | azeforge format <source> [--write | --check] | azeforge watch <source> --output <artifact> | azeforge serve <source> [--port <port>] | azeforge capabilities [--probe] [--json] | azeforge version [--json]",
     );
   }
   if (command === "validate") {
@@ -1007,6 +1175,50 @@ async function main(): Promise<void> {
   }
 
   try {
+    if (arguments_.command === "help") {
+      process.stderr.write(
+        arguments_.topic === undefined
+          ? globalHelp()
+          : commandHelp(arguments_.topic),
+      );
+      return;
+    }
+    if (arguments_.command === "version-line") {
+      process.stdout.write(versionLine());
+      return;
+    }
+    if (arguments_.command === "version") {
+      if (arguments_.machine) {
+        process.stdout.write(`${JSON.stringify(createVersionReport())}\n`);
+        return;
+      }
+      process.stderr.write(humanVersionReport(createVersionReport()));
+      return;
+    }
+    if (arguments_.command === "capabilities") {
+      let report;
+      try {
+        report = await buildCapabilities({
+          ...(arguments_.probe ? { probe: true as const } : {}),
+        });
+      } catch {
+        emitDiagnostics(arguments_.diagnosticsMode, "capabilities", false, [
+          createDiagnostic(
+            "azeforge.cli#operation-failed",
+            "error",
+            "No trustworthy capabilities manifest could be produced.",
+          ),
+        ]);
+        process.exitCode = 1;
+        return;
+      }
+      if (arguments_.machine) {
+        process.stdout.write(serializeCapabilities(report));
+        return;
+      }
+      process.stderr.write(humanCapabilitiesReport(report));
+      return;
+    }
     if (arguments_.command === "watch") {
       await runWatch(arguments_);
       return;
@@ -1196,7 +1408,7 @@ async function main(): Promise<void> {
                   "azeforge.source#read-failed",
                   "error",
                   "The Source could not be read.",
-                  { location: { source: arguments_.sourcePath ?? "<stdin>" } },
+                  { location: { source: "sourcePath" in arguments_ ? (arguments_.sourcePath ?? "<stdin>") : "<stdin>" } },
                 )
               : createDiagnostic(
                   "azeforge.cli#operation-failed",

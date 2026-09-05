@@ -22,9 +22,10 @@ import type {
 } from "./model.js";
 import { renderTableFragment } from "./table.js";
 
-const HTML_MIME_TYPE = "text/html; charset=utf-8";
-const HTML_PROFILE = "azeforge.html.self-contained/v1";
-const HTML_MAX_BYTES = 64 * 1024 * 1024;
+export const HTML_MIME_TYPE = "text/html; charset=utf-8";
+export const HTML_PROFILE = "azeforge.html.self-contained/v1";
+export const HTML_SERIALIZER = "azeforge-html/v2" as const;
+export const HTML_MAX_BYTES = 64 * 1024 * 1024;
 
 export class ArtifactLimitError extends Error {
   readonly byteLength: number;
@@ -215,7 +216,7 @@ export async function renderHtml(
   );
   const rendererFingerprint = sha256(
     canonicalJson({
-      renderer: { id: "html", version: "1.0.0", serializer: "azeforge-html/v2" },
+      renderer: { id: "html", version: "1.0.0", serializer: HTML_SERIALIZER },
       profile: HTML_PROFILE,
       ...(layout.fingerprintDependencies as Readonly<Record<string, JsonValue>>),
     }),

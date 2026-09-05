@@ -270,7 +270,7 @@ function validateTheme(theme: Theme): void {
   }
 }
 
-const DEFAULT_RENDER_TIMEOUT_MS = 5000;
+export const DEFAULT_RENDER_TIMEOUT_MS = 5000;
 
 class RenderTimeoutError extends Error {
   constructor() {

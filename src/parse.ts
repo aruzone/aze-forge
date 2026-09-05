@@ -726,7 +726,7 @@ function parseEquationEnvelope(
   diagnostics.push(...validated.diagnostics);
   return finishInvalid();
 }
-const MAX_NESTING_DEPTH = 8;
+export const MAX_NESTING_DEPTH = 8;
 
 function inlineSourceFromLines(lines: readonly SourceLine[]): string {
   let out = "";

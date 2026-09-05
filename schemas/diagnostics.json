@@ -1,0 +1,219 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "azeforge.diagnostics/v1",
+  "type": "object",
+  "required": [
+    "schema",
+    "schemaVersion",
+    "tool",
+    "command",
+    "success",
+    "diagnostics"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {
+      "const": "azeforge.diagnostics/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "tool": {
+      "type": "object",
+      "required": [
+        "name",
+        "version"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "const": "azeforge"
+        },
+        "version": {
+          "type": "string"
+        }
+      }
+    },
+    "command": {
+      "type": "string"
+    },
+    "success": {
+      "type": "boolean"
+    },
+    "diagnostics": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/diagnostic"
+      }
+    },
+    "contentHash": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "artifact": {
+      "type": "object"
+    }
+  },
+  "$defs": {
+    "position": {
+      "type": "object",
+      "required": [
+        "line",
+        "column",
+        "offset"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "line": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "column": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "offset": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "range": {
+      "type": "object",
+      "required": [
+        "start",
+        "end"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "start": {
+          "$ref": "#/$defs/position"
+        },
+        "end": {
+          "$ref": "#/$defs/position"
+        }
+      }
+    },
+    "location": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "type": "string"
+        },
+        "range": {
+          "$ref": "#/$defs/range"
+        }
+      }
+    },
+    "relatedLocation": {
+      "type": "object",
+      "required": [
+        "range",
+        "message"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "type": "string"
+        },
+        "range": {
+          "$ref": "#/$defs/range"
+        },
+        "message": {
+          "type": "string"
+        }
+      }
+    },
+    "fixEdit": {
+      "type": "object",
+      "required": [
+        "range",
+        "expectedText",
+        "replacementText"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "range": {
+          "$ref": "#/$defs/range"
+        },
+        "expectedText": {
+          "type": "string"
+        },
+        "replacementText": {
+          "type": "string"
+        }
+      }
+    },
+    "fix": {
+      "type": "object",
+      "required": [
+        "title",
+        "applicability",
+        "edits"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "title": {
+          "type": "string"
+        },
+        "applicability": {
+          "const": "safe"
+        },
+        "edits": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/fixEdit"
+          }
+        }
+      }
+    },
+    "diagnostic": {
+      "type": "object",
+      "required": [
+        "code",
+        "severity",
+        "message",
+        "data",
+        "relatedLocations"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "type": "string",
+          "pattern": "^[a-z0-9@/._-]+#[a-z0-9]+(?:-[a-z0-9]+)*$"
+        },
+        "severity": {
+          "enum": [
+            "error",
+            "warning",
+            "info"
+          ]
+        },
+        "message": {
+          "type": "string"
+        },
+        "data": {
+          "type": "object"
+        },
+        "location": {
+          "$ref": "#/$defs/location"
+        },
+        "suggestion": {
+          "type": "string"
+        },
+        "fix": {
+          "$ref": "#/$defs/fix"
+        },
+        "relatedLocations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/relatedLocation"
+          }
+        }
+      }
+    }
+  }
+}
