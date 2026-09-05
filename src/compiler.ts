@@ -39,6 +39,7 @@ import type {
   ValidationResult,
 } from "./model.js";
 import {
+  EquationSanitizerError,
   katexDependencyClosure,
   sanitizeKatexHtml,
 } from "./equation.js";
@@ -53,9 +54,11 @@ import {
 } from "./mermaid-browser.js";
 import {
   MERMAID_PLUGIN_TYPE,
+  MermaidSanitizerError,
   mermaidDependencyClosure,
   sanitizeMermaidFragment,
 } from "./mermaid.js";
+import { FragmentSecurityError } from "./html-fragment.js";
 import {
   freezeRegistryForCompiler,
   resolveRegistry,
@@ -277,13 +280,36 @@ class RenderTimeoutError extends Error {
 }
 
 function withRenderTimeout<T>(work: Promise<T>, timeoutMs: number): Promise<T> {
-  let timer: ReturnType<typeof setTimeout> | undefined;
+  let timer: NodeJS.Timeout | undefined;
   const timeout = new Promise<never>((_, reject) => {
     timer = setTimeout(() => reject(new RenderTimeoutError()), timeoutMs);
   });
   return Promise.race([work, timeout]).finally(() => {
     clearTimeout(timer);
   });
+}
+
+class BlockRendererSyncError extends Error {
+  readonly adapterId: string;
+  readonly blockType: string;
+
+  constructor(adapterId: string, blockType: string) {
+    super(`Block renderer "${adapterId}" must be synchronous.`);
+    this.name = "AdapterSyncError";
+    this.adapterId = adapterId;
+    this.blockType = blockType;
+  }
+}
+
+class CompilerCancelledError extends Error {
+  constructor() {
+    super("The operation was cancelled before publication.");
+    this.name = "CompilerCancelledError";
+  }
+}
+
+function throwIfCancelled(signal: AbortSignal | undefined): void {
+  if (signal?.aborted === true) throw new CompilerCancelledError();
 }
 
 function isCapabilityDenial(error: unknown): boolean {
@@ -630,7 +656,27 @@ async function renderEquationFragments(
                 adapterId: chosen.descriptor.id,
                 timeoutMs,
               },
-              suggestion: "Retry the operation or raise the host render timeout.",
+              suggestion: "Retry the operation or adjust the host render timeout.",
+            },
+          ),
+        );
+      } else if (
+        error instanceof EquationSanitizerError ||
+        error instanceof FragmentSecurityError
+      ) {
+        diagnostics.push(
+          createDiagnostic(
+            "azeforge.security#sanitizer-rewrite",
+            "error",
+            "A Fragment failed final sanitization; refusing to publish.",
+            {
+              location,
+              data: {
+                adapterId: chosen.descriptor.id,
+                blockType: "equation",
+              },
+              suggestion:
+                "Remove the unsafe construct or report this Source as a sanitizer failure.",
             },
           ),
         );
@@ -849,7 +895,7 @@ async function renderMermaidFragments(
                 adapterId: chosen.descriptor.id,
                 timeoutMs,
               },
-              suggestion: "Retry the operation or raise the host render timeout.",
+              suggestion: "Retry the operation or adjust the host render timeout.",
             },
           ),
         );
@@ -882,6 +928,26 @@ async function renderMermaidFragments(
                 engine: "HeadlessChrome",
               },
               suggestion: "Reinstall AzeForge browser dependencies and retry.",
+            },
+          ),
+        );
+      } else if (
+        error instanceof MermaidSanitizerError ||
+        error instanceof FragmentSecurityError
+      ) {
+        diagnostics.push(
+          createDiagnostic(
+            "azeforge.security#sanitizer-rewrite",
+            "error",
+            "A Fragment failed final sanitization; refusing to publish.",
+            {
+              location,
+              data: {
+                adapterId: chosen.descriptor.id,
+                blockType: MERMAID_PLUGIN_TYPE,
+              },
+              suggestion:
+                "Remove the unsafe construct or report this Source as a sanitizer failure.",
             },
           ),
         );
@@ -1069,7 +1135,9 @@ function checkPluginAdapters(
       ) => string | Promise<string>;
       renderCallout = (block, context) => {
         const result = render(block, context);
-        if (typeof result !== "string") throw new Error("Callout Block renderer must be synchronous.");
+        if (typeof result !== "string") {
+          throw new BlockRendererSyncError(chosen.descriptor.id, "callout");
+        }
         return result;
       };
     } else {
@@ -1079,7 +1147,9 @@ function checkPluginAdapters(
       ) => string | Promise<string>;
       renderTable = (block, context) => {
         const result = render(block, context);
-        if (typeof result !== "string") throw new Error("Table Block renderer must be synchronous.");
+        if (typeof result !== "string") {
+          throw new BlockRendererSyncError(chosen.descriptor.id, "table");
+        }
         return result;
       };
     }
@@ -1151,10 +1221,14 @@ export function createCompiler(options: CompilerOptions = {}): Compiler {
         }),
   });
   const renderTimeoutMs = options.renderTimeoutMs ?? DEFAULT_RENDER_TIMEOUT_MS;
-  if (!Number.isInteger(renderTimeoutMs) || renderTimeoutMs <= 0) {
+  if (
+    !Number.isInteger(renderTimeoutMs) ||
+    renderTimeoutMs <= 0 ||
+    renderTimeoutMs > DEFAULT_RENDER_TIMEOUT_MS
+  ) {
     throw new CompilerConfigurationError(
       "azeforge.config#render-timeout",
-      "Render timeout must be a positive integer number of milliseconds.",
+      "Render timeout must be a positive integer no greater than the default (5000 ms).",
     );
   }
 
@@ -1371,6 +1445,7 @@ export function createCompiler(options: CompilerOptions = {}): Compiler {
         };
       }
       try {
+        throwIfCancelled(compileOptions.signal);
         const equationPreflight = await renderEquationFragments(
           validation.document,
           selectedRenderer.id,
@@ -1409,6 +1484,7 @@ export function createCompiler(options: CompilerOptions = {}): Compiler {
             ),
           };
         }
+        throwIfCancelled(compileOptions.signal);
         const imageResolution = await resolveProjectImages(validation.document, {
           ...(compileOptions.projectRoot === undefined
             ? {}
@@ -1430,6 +1506,7 @@ export function createCompiler(options: CompilerOptions = {}): Compiler {
             ),
           };
         }
+        throwIfCancelled(compileOptions.signal);
         const renderedText = [
           ...(validation.document.metadata.title === undefined
             ? []
@@ -1552,16 +1629,74 @@ export function createCompiler(options: CompilerOptions = {}): Compiler {
                         : { location: { source: compileOptions.sourceName } }),
                     },
                   )
-                : createDiagnostic(
-                    "azeforge.renderer#unexpected-failure",
-                    "error",
-                    `The ${compileOptions.format.toUpperCase()} Renderer failed unexpectedly.`,
-                    {
-                      ...(compileOptions.sourceName === undefined
-                        ? {}
-                        : { location: { source: compileOptions.sourceName } }),
-                    },
-                  );
+                : isCapabilityDenial(error)
+                  ? createDiagnostic(
+                      "azeforge.security#capability-denied",
+                      "error",
+                      `The ${compileOptions.format.toUpperCase()} Renderer was denied a capability; refusing to publish.`,
+                      {
+                        data: {
+                          format: compileOptions.format,
+                          rendererId: selectedRenderer.id,
+                        },
+                        ...(compileOptions.sourceName === undefined
+                          ? {}
+                          : { location: { source: compileOptions.sourceName } }),
+                      },
+                    )
+                  : error instanceof EquationSanitizerError ||
+                      error instanceof MermaidSanitizerError ||
+                      error instanceof FragmentSecurityError
+                    ? createDiagnostic(
+                        "azeforge.security#sanitizer-rewrite",
+                        "error",
+                        "A Fragment failed final sanitization; refusing to publish.",
+                        {
+                          data: { format: compileOptions.format },
+                          suggestion:
+                            "Remove the unsafe construct or report this Source as a sanitizer failure.",
+                          ...(compileOptions.sourceName === undefined
+                            ? {}
+                            : { location: { source: compileOptions.sourceName } }),
+                        },
+                      )
+                    : error instanceof BlockRendererSyncError
+                      ? createDiagnostic(
+                          "azeforge.renderer#adapter-sync",
+                          "error",
+                          `Block renderer "${error.adapterId}" must be synchronous.`,
+                          {
+                            data: {
+                              adapterId: error.adapterId,
+                              blockType: error.blockType,
+                            },
+                            suggestion: "Register a synchronous Block renderer.",
+                            ...(compileOptions.sourceName === undefined
+                              ? {}
+                              : { location: { source: compileOptions.sourceName } }),
+                          },
+                        )
+                      : error instanceof CompilerCancelledError
+                        ? createDiagnostic(
+                            "azeforge.compiler#cancelled",
+                            "error",
+                            "The operation was cancelled before publication.",
+                            {
+                              ...(compileOptions.sourceName === undefined
+                                ? {}
+                                : { location: { source: compileOptions.sourceName } }),
+                            },
+                          )
+                        : createDiagnostic(
+                            "azeforge.renderer#unexpected-failure",
+                            "error",
+                            `The ${compileOptions.format.toUpperCase()} Renderer failed unexpectedly.`,
+                            {
+                              ...(compileOptions.sourceName === undefined
+                                ? {}
+                                : { location: { source: compileOptions.sourceName } }),
+                            },
+                          );
         return {
           diagnostics: normalizeAndLimitDiagnostics(
             [validation.diagnostics, [rendererFailure]],

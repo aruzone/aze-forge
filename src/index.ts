@@ -28,6 +28,7 @@ export {
   HTML_RENDERER_VERSION,
   KATEX_VERSION,
   KatexCssError,
+  EquationSanitizerError,
   equationDataSchema,
   equationHtmlBlockRenderer,
   equationPlugin,
@@ -63,6 +64,7 @@ export {
   validateMermaidBody,
 } from "./mermaid.js";
 export {
+  BrowserCapabilityError,
   MermaidCapabilityError,
   renderMermaidInBrowser,
 } from "./mermaid-browser.js";
@@ -197,3 +199,4 @@ export {
   tableSourceSchema,
 } from "./table.js";
 export { isSafeLinkTarget, parseInlineFragment } from "./markdown.js";
+export { FragmentSecurityError, renderInlineHtml } from "./html-fragment.js";

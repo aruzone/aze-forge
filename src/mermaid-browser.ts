@@ -57,12 +57,29 @@ export class MermaidBrowserParseError extends Error {
   }
 }
 
-export class MermaidCapabilityError extends Error {
+export class BrowserCapabilityError extends Error {
   readonly code = "AZE_CAPABILITY_DENIED";
 
   constructor(message: string) {
     super(message);
+    this.name = "BrowserCapabilityError";
+  }
+}
+
+export class MermaidCapabilityError extends BrowserCapabilityError {
+  constructor(message: string) {
+    super(message);
     this.name = "MermaidCapabilityError";
+  }
+}
+
+export function throwIfDeniedBrowserRequest(
+  deniedRequest: string | undefined,
+): void {
+  if (deniedRequest !== undefined) {
+    throw new BrowserCapabilityError(
+      `Layout requested an external resource: ${deniedRequest}`,
+    );
   }
 }
 

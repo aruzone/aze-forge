@@ -386,6 +386,7 @@ export interface CompileOptions extends ParseOptions {
   readonly theme?: string;
   readonly allowRawLatex?: boolean;
   readonly projectRoot?: string;
+  readonly signal?: AbortSignal;
 }
 
 export interface CompileResult {

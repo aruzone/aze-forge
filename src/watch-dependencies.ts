@@ -1,7 +1,9 @@
 import { realpath } from "node:fs/promises";
 import { extname, resolve } from "node:path";
 
+import { isAbsoluteSource, isContained, isRemoteSource } from "./assets.js";
 import type { AzeDocument, Inline, ParsedBlock } from "./model.js";
+
 
 const SUPPORTED_IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".svg"]);
 
@@ -52,22 +54,6 @@ export function collectImageSources(document: AzeDocument): string[] {
   const out: string[] = [];
   collectBlockSources(document.blocks, out);
   return out;
-}
-
-function isRemoteSource(src: string): boolean {
-  return src.startsWith("//") || /^[A-Za-z][A-Za-z0-9+.-]*:/.test(src);
-}
-
-function isAbsoluteSource(src: string): boolean {
-  return (
-    src.startsWith("/") ||
-    /^[A-Za-z]:[\\/]/.test(src) ||
-    src.startsWith("\\\\")
-  );
-}
-
-function isContained(root: string, candidate: string): boolean {
-  return candidate === root || candidate.startsWith(`${root}/`);
 }
 
 export interface WatchPaths {

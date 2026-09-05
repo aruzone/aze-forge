@@ -99,16 +99,16 @@ function collectBlockImages(blocks: readonly AzeBlock[], out: ImageTarget[]): vo
   }
 }
 
-function isContained(root: string, candidate: string): boolean {
+export function isContained(root: string, candidate: string): boolean {
   const distance = relative(root, candidate);
   return distance !== "" && !distance.startsWith("..") && !isAbsolute(distance);
 }
 
-function isRemoteSource(src: string): boolean {
+export function isRemoteSource(src: string): boolean {
   return src.startsWith("//") || /^[A-Za-z][A-Za-z0-9+.-]*:/.test(src);
 }
 
-function isAbsoluteSource(src: string): boolean {
+export function isAbsoluteSource(src: string): boolean {
   return (
     isAbsolute(src) ||
     src.startsWith("/") ||
@@ -218,7 +218,7 @@ function parseSvgLength(value: string): number | undefined {
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
-type SvgCheck = "ok" | "malformed" | "animated" | "active" | "external" | "dimensions";
+export type SvgCheck = "ok" | "malformed" | "animated" | "active" | "external" | "dimensions";
 
 function hasExternalSvgReference(body: string): boolean {
   const references = body.matchAll(
@@ -233,7 +233,7 @@ function hasExternalSvgReference(body: string): boolean {
   return false;
 }
 
-function checkSvg(text: string): SvgCheck {
+export function checkSvg(text: string): SvgCheck {
   const body = stripSvgPreamble(text);
   if (!/^<svg[\s>]/.test(body)) return "malformed";
   if (/<!DOCTYPE/i.test(body) || /<!ENTITY/i.test(body)) return "malformed";

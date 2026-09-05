@@ -11,6 +11,7 @@ import { escapeHtml } from "./html-fragment.js";
 import {
   CHROME_HEADLESS_SHELL_VERSION,
   launchPinnedBrowser,
+  throwIfDeniedBrowserRequest,
 } from "./mermaid-browser.js";
 import { mermaidHtmlBlockRenderer } from "./mermaid.js";
 import type {
@@ -226,9 +227,7 @@ async function measureSettledLayout(
       await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
       return [first, measure()];
     });
-    if (deniedRequest !== undefined) {
-      throw new Error(`Layout requested an external resource: ${deniedRequest}`);
-    }
+    throwIfDeniedBrowserRequest(deniedRequest);
     const [first, second] = heights;
     if (
       first === undefined ||

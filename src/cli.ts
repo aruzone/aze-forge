@@ -518,6 +518,17 @@ async function canonicalDestinationPath(path: string): Promise<string> {
   }
 }
 
+async function assertArtifactSeparate(
+  sourcePath: string,
+  artifactPath: string,
+): Promise<void> {
+  const canonicalSourcePath = await realpath(sourcePath);
+  const canonicalArtifactPath = await canonicalDestinationPath(artifactPath);
+  if (canonicalSourcePath === canonicalArtifactPath) {
+    throw new CliUsageError("The Artifact destination cannot replace its Source.");
+  }
+}
+
 function emitDiagnostics(
   diagnosticsMode: DiagnosticsMode,
   command: string,
@@ -719,6 +730,10 @@ async function runWatch(watchArguments: WatchArguments): Promise<void> {
     let artifact = outcome.artifact;
     if (success && artifact !== undefined) {
       try {
+        await assertArtifactSeparate(
+          watchArguments.sourcePath,
+          watchArguments.artifactPath,
+        );
         await commitArtifact(watchArguments.artifactPath, artifact.bytes);
       } catch {
         success = false;
@@ -1130,8 +1145,13 @@ async function main(): Promise<void> {
       process.stdout.write(result.artifact.bytes);
     } else if (arguments_.artifactPath !== undefined) {
       try {
+        await assertArtifactSeparate(
+          arguments_.sourcePath,
+          arguments_.artifactPath,
+        );
         await commitArtifact(arguments_.artifactPath, result.artifact.bytes);
-      } catch {
+      } catch (error) {
+        if (error instanceof CliUsageError) throw error;
         throw new ArtifactCommitError();
       }
     }
