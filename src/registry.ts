@@ -4,9 +4,13 @@ import {
   equationPlugin,
   htmlRendererDescriptor,
 } from "./equation.js";
+import {
+  mermaidHtmlBlockRenderer,
+  mermaidPlugin,
+} from "./mermaid.js";
 import type {
   AzeBlockPlugin,
-  EquationBlockRenderer,
+  BlockRenderer,
   RendererDescriptor,
 } from "./model.js";
 
@@ -19,14 +23,17 @@ const NAMESPACE = /^[a-z][a-z0-9]*(?:\.[a-z][a-z0-9]*)*$/;
 
 export interface ResolvedRegistry {
   readonly plugins: readonly AzeBlockPlugin[];
-  readonly blockRenderers: readonly EquationBlockRenderer[];
+  readonly blockRenderers: readonly BlockRenderer[];
   readonly renderers: readonly RendererDescriptor[];
 }
 
 export function getBuiltInRegistry(): ResolvedRegistry {
   return Object.freeze({
-    plugins: Object.freeze([equationPlugin]),
-    blockRenderers: Object.freeze([equationHtmlBlockRenderer]),
+    plugins: Object.freeze([equationPlugin, mermaidPlugin]),
+    blockRenderers: Object.freeze([
+      equationHtmlBlockRenderer,
+      mermaidHtmlBlockRenderer,
+    ]),
     renderers: Object.freeze([htmlRendererDescriptor]),
   });
 }
@@ -90,10 +97,9 @@ function isSchemaObject(value: unknown): value is Record<string, unknown> {
     value.type === "object"
   );
 }
-
 export function validateRegistry(
   plugins: readonly AzeBlockPlugin[],
-  blockRenderers: readonly EquationBlockRenderer[],
+  blockRenderers: readonly BlockRenderer[],
   renderers: readonly RendererDescriptor[],
 ): void {
   const violations: Violation[] = [];
@@ -309,7 +315,7 @@ export function validateRegistry(
 
 export function resolveRegistry(options: {
   readonly plugins?: readonly AzeBlockPlugin[];
-  readonly blockRenderers?: readonly EquationBlockRenderer[];
+  readonly blockRenderers?: readonly BlockRenderer[];
   readonly renderers?: readonly RendererDescriptor[];
 }): ResolvedRegistry {
   const builtIn = getBuiltInRegistry();

@@ -1,4 +1,5 @@
 import { KATEX_VERSION, getKatexCss } from "./equation.js";
+import { MERMAID_VERSION } from "./mermaid.js";
 import type { EmbeddedFontFace } from "./font.js";
 import { artifactBytesHash, canonicalJson, sha256 } from "./hash.js";
 import type {
@@ -37,15 +38,18 @@ function documentTitle(document: AzeDocument): string {
   const firstHeading = document.blocks.find((block) => block.kind === "heading");
   return firstHeading?.children.map((child) => child.value).join("") ?? "AzeForge document";
 }
-
 function renderBlocks(
   document: AzeDocument,
   equationFragments: ReadonlyMap<number, string> = new Map(),
+  mermaidFragments: ReadonlyMap<number, string> = new Map(),
 ): string {
   return document.blocks
     .map((block, index) => {
       if (block.kind === "equation") {
         return equationFragments.get(index) ?? "<figure class=\"aze-equation\"></figure>";
+      }
+      if (block.kind === "mermaid") {
+        return mermaidFragments.get(index) ?? "<figure class=\"aze-mermaid\"></figure>";
       }
       const text = block.children.map((child) => escapeHtml(child.value)).join("");
       if (block.kind === "heading") {
@@ -60,7 +64,7 @@ function embeddedFontCss(fontFaces: readonly EmbeddedFontFace[]): string {
   return fontFaces
     .map(
       (font) =>
-        `@font-face{font-family:Inter;font-style:normal;font-weight:${font.weight};font-display:block;src:url(data:font/woff2;base64,${font.data}) format(\"woff2\");unicode-range:${font.unicodeRange}}`,
+        `@font-face{font-family:Inter;font-style:normal;font-weight:${font.weight};font-display:block;src:url(data:font/woff2;base64,${font.data}) format("woff2");unicode-range:${font.unicodeRange}}`,
     )
     .join("");
 }
@@ -77,6 +81,8 @@ export async function renderHtml(
   fontFaces: readonly EmbeddedFontFace[],
   equationFragments: ReadonlyMap<number, string> = new Map(),
   equationDependencyClosure: JsonValue = { katex: KATEX_VERSION },
+  mermaidFragments: ReadonlyMap<number, string> = new Map(),
+  mermaidDependencyClosure: JsonValue = { mermaid: MERMAID_VERSION },
 ): Promise<Artifact> {
   const rendererFingerprint = sha256(
     canonicalJson({
@@ -89,11 +95,12 @@ export async function renderHtml(
         sourceHash,
       })),
       equations: equationDependencyClosure,
+      mermaid: mermaidDependencyClosure,
     }),
   );
   const title = escapeHtml(documentTitle(document));
-  const css = `${embeddedFontCss(fontFaces)}${themeCss(theme)}${getKatexCss()}.aze-equation{margin:1em 0;text-align:center}.aze-equation[data-align="left"]{text-align:left}.aze-equation[data-align="right"]{text-align:right}`;
-  const html = `<!doctype html>\n<html lang="und"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:; font-src data:"><meta name="azeforge-content-hash" content="${contentHash}"><title>${title}</title><style>${css}</style></head><body><main><article>${renderBlocks(document, equationFragments)}</article></main></body></html>\n`;
+  const css = `${embeddedFontCss(fontFaces)}${themeCss(theme)}${getKatexCss()}.aze-equation{margin:1em 0;text-align:center}.aze-equation[data-align="left"]{text-align:left}.aze-equation[data-align="right"]{text-align:right}.aze-mermaid{margin:1em 0;text-align:center}.aze-mermaid svg{max-width:100%;height:auto}`;
+  const html = `<!doctype html>\n<html lang="und"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:; font-src data:"><meta name="azeforge-content-hash" content="${contentHash}"><title>${title}</title><style>${css}</style></head><body><main><article>${renderBlocks(document, equationFragments, mermaidFragments)}</article></main></body></html>\n`;
   const bytes = new TextEncoder().encode(html);
   if (bytes.byteLength > HTML_MAX_BYTES) {
     throw new ArtifactLimitError(bytes.byteLength);

@@ -67,12 +67,28 @@ export interface EquationBlock {
   readonly align?: "left" | "center" | "right";
 }
 
+export interface MermaidBlock {
+  readonly kind: "mermaid";
+  readonly range: SourceRange;
+  readonly id?: string;
+  readonly pluginVersion: string;
+  readonly diagramType: string;
+  readonly source: string;
+  readonly title?: string;
+  readonly description?: string;
+}
+
 export type ParsedBlock =
   | HeadingBlock
   | ParagraphBlock
   | EquationBlock
+  | MermaidBlock
   | InvalidBlock;
-export type AzeBlock = HeadingBlock | ParagraphBlock | EquationBlock;
+export type AzeBlock =
+  | HeadingBlock
+  | ParagraphBlock
+  | EquationBlock
+  | MermaidBlock;
 export type ArtifactFormat = "html" | "svg" | "png" | "pdf";
 
 export interface DocumentMetadata {
@@ -250,6 +266,20 @@ export interface EquationBlockRenderer {
   ) => string | Promise<string>;
 }
 
+export interface MermaidBlockRenderer {
+  readonly descriptor: BlockRendererDescriptor;
+  readonly render: (
+    block: MermaidBlock,
+    context: Readonly<{
+      sourceName?: string;
+      ordinal?: number;
+      theme?: Theme;
+    }>,
+  ) => string | Promise<string>;
+}
+
+export type BlockRenderer = EquationBlockRenderer | MermaidBlockRenderer;
+
 export interface CompilerPolicy {
   readonly disabledBlockRendererIds?: readonly string[];
   readonly disabledRendererIds?: readonly string[];
@@ -260,7 +290,7 @@ export interface CompilerOptions {
   readonly defaultTheme?: string;
   readonly diagnosticLimits?: DiagnosticLimitOptions;
   readonly plugins?: readonly AzeBlockPlugin[];
-  readonly blockRenderers?: readonly EquationBlockRenderer[];
+  readonly blockRenderers?: readonly BlockRenderer[];
   readonly renderers?: readonly RendererDescriptor[];
   readonly policy?: CompilerPolicy;
   readonly renderTimeoutMs?: number;

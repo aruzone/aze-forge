@@ -7,6 +7,12 @@ import {
   parseEquationHeader,
   validateEquationBody,
 } from "./equation.js";
+import {
+  MERMAID_PLUGIN_TYPE,
+  mermaidPlugin,
+  parseMermaidHeader,
+  validateMermaidBody,
+} from "./mermaid.js";
 import type {
   ArtifactFormat,
   Diagnostic,
@@ -718,6 +724,83 @@ function parseEquationEnvelope(
   diagnostics.push(...validated.diagnostics);
   return finishInvalid();
 }
+function parseMermaidEnvelope(
+  source: string,
+  lines: readonly SourceLine[],
+  openIndex: number,
+  closingIndex: number,
+  first: SourceLine,
+  last: SourceLine,
+  options: ParseOptions,
+  diagnostics: Diagnostic[],
+): ParsedBlock {
+  const blockRange = rangeFromLines(first, last);
+  const raw = source.slice(first.startIndex, last.endIndex);
+  const startIndex = diagnostics.length;
+  const finishInvalid = (): ParsedBlock => ({
+    kind: "invalid",
+    raw,
+    range: blockRange,
+    diagnosticIndexes: Array.from(
+      { length: diagnostics.length - startIndex },
+      (_, offset) => startIndex + offset,
+    ),
+    originalType: MERMAID_PLUGIN_TYPE,
+  });
+  const entries: {
+    readonly key: string;
+    readonly value: string;
+    readonly range: SourceRange;
+  }[] = [];
+  let cursor = openIndex + 1;
+  while (cursor < closingIndex) {
+    const header = lines[cursor];
+    if (header === undefined) break;
+    if (/^[ \t]*$/.test(lineText(header))) {
+      cursor += 1;
+      continue;
+    }
+    const match = /^[ \t]*([A-Za-z][A-Za-z0-9-]*)[ \t]*:(.*)$/.exec(
+      lineText(header),
+    );
+    if (match === null) break;
+    const key = match[1] ?? "";
+    const rawValue = match[2] ?? "";
+    const value = rawValue.trim();
+    const colonIndex = header.text.indexOf(":");
+    const valueStart =
+      colonIndex + 1 + (rawValue.length - rawValue.trimStart().length);
+    entries.push({
+      key,
+      value,
+      range: rangeFromLineSlice(header, valueStart, valueStart + value.length),
+    });
+    cursor += 1;
+  }
+  while (cursor < closingIndex) {
+    const blank = lines[cursor];
+    if (blank !== undefined && !/^[ \t]*$/.test(lineText(blank))) break;
+    cursor += 1;
+  }
+  const bodyLines = lines.slice(cursor, closingIndex);
+  const body = bodyLines.map((entry) => lineText(entry)).join("\n");
+  const bodyRanges = bodyLines.map((entry) => rangeFromLines(entry, entry));
+  const header = parseMermaidHeader(entries, blockRange, options.sourceName);
+  if (header.diagnostics.length > 0) {
+    diagnostics.push(...header.diagnostics);
+    return finishInvalid();
+  }
+  const validated = validateMermaidBody({
+    header,
+    body,
+    bodyRanges,
+    blockRange,
+    sourceName: options.sourceName,
+  });
+  if (validated.block !== undefined) return validated.block;
+  diagnostics.push(...validated.diagnostics);
+  return finishInvalid();
+}
 function parseBlocks(
   source: string,
   lines: readonly SourceLine[],
@@ -781,6 +864,25 @@ function parseBlocks(
             last,
             options,
             allowRawLatex,
+            diagnostics,
+          ),
+        );
+        continue;
+      }
+      if (
+        closed &&
+        originalType === MERMAID_PLUGIN_TYPE &&
+        activeTypes.includes(MERMAID_PLUGIN_TYPE)
+      ) {
+        blocks.push(
+          parseMermaidEnvelope(
+            source,
+            lines,
+            openIndex,
+            closingIndex,
+            first,
+            last,
+            options,
             diagnostics,
           ),
         );
@@ -1104,7 +1206,7 @@ export function parseSource(source: string, options: ParseOptions = {}): ParseRe
     options,
   );
   if (versionDiagnostic !== undefined) diagnostics.push(versionDiagnostic);
-  const activePlugins = options.plugins ?? [equationPlugin];
+  const activePlugins = options.plugins ?? [equationPlugin, mermaidPlugin];
   const activeTypes = [...new Set(activePlugins.map((plugin) => plugin.descriptor.type))].sort();
   const blocks = parseBlocks(
     source,
