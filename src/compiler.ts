@@ -13,9 +13,12 @@ import {
 import type { EmbeddedFontFace } from "./font.js";
 import { formatSource } from "./format.js";
 import { documentContentHash } from "./hash.js";
+import { inlineTextValue } from "./markdown.js";
 import type {
   AzeBlock,
   AzeDocument,
+  BlockRendererContext,
+  CalloutBlock,
   CompileOptions,
   CompileResult,
   Compiler,
@@ -25,9 +28,12 @@ import type {
   FormatOptions,
   FormatResult,
   JsonValue,
+  ParsedBlock,
   ParseOptions,
   ParseResult,
+  TableBlock,
   Theme,
+  SourceRange,
   ValidationResult,
 } from "./model.js";
 import {
@@ -35,7 +41,20 @@ import {
   katexDependencyClosure,
   sanitizeKatexHtml,
 } from "./equation.js";
-import type { EquationBlock } from "./model.js";
+import type {
+  EquationBlock,
+  MermaidBlock,
+  MermaidBlockRenderer,
+} from "./model.js";
+import {
+  MermaidBrowserParseError,
+  MermaidBrowserUnavailableError,
+} from "./mermaid-browser.js";
+import {
+  MERMAID_PLUGIN_TYPE,
+  mermaidDependencyClosure,
+  sanitizeMermaidFragment,
+} from "./mermaid.js";
 import {
   freezeRegistryForCompiler,
   resolveRegistry,
@@ -67,14 +86,9 @@ function validateParsed(
       ),
     };
   }
-  const blockRanges = parsed.document.blocks.map(({ range }) => range);
-
+  const blockRanges = collectBlockRanges(parsed.document.blocks);
   const referenceDiagnostics = validateBlockIds(
-    parsed.document.blocks.flatMap((block) =>
-      block.kind === "invalid" || block.id === undefined
-        ? []
-        : [{ id: block.id, range: block.range }],
-    ),
+    collectBlockIds(parsed.document.blocks),
   );
   if (referenceDiagnostics.some(({ severity }) => severity === "error")) {
     return {
@@ -86,9 +100,7 @@ function validateParsed(
     };
   }
 
-  const invalidBlockDiagnostics = parsed.document.blocks.some(
-    (block) => block.kind === "invalid",
-  )
+  const invalidBlockDiagnostics = containsInvalidBlock(parsed.document.blocks)
     ? [
         createDiagnostic(
           "azeforge.document#invalid-block",
@@ -258,31 +270,144 @@ function isCapabilityDenial(error: unknown): boolean {
 }
 
 interface EquationTarget {
-  readonly index: number;
   readonly block: EquationBlock;
+}
+function walkBlocks(
+  blocks: readonly ParsedBlock[],
+  visit: (block: ParsedBlock) => void,
+): void {
+  for (const block of blocks) {
+    visit(block);
+    if (block.kind === "blockquote" || block.kind === "callout") {
+      walkBlocks(block.children as readonly AzeBlock[], visit);
+    } else if (block.kind === "list") {
+      for (const item of block.items) {
+        walkBlocks(item.blocks as readonly AzeBlock[], visit);
+      }
+    }
+  }
 }
 
 function equationTargets(document: AzeDocument): readonly EquationTarget[] {
   const targets: EquationTarget[] = [];
-  document.blocks.forEach((block, index) => {
-    if (block.kind === "equation") targets.push({ index, block });
+  walkBlocks(document.blocks, (block) => {
+    if (block.kind === "equation") targets.push({ block });
   });
   return targets;
+}
+interface MermaidTarget {
+  readonly block: MermaidBlock;
+  readonly ordinal: number;
+}
+
+function mermaidTargets(document: AzeDocument): readonly MermaidTarget[] {
+  const targets: MermaidTarget[] = [];
+  walkBlocks(document.blocks, (block) => {
+    if (block.kind === "mermaid") {
+      targets.push({ block, ordinal: targets.length });
+    }
+  });
+  return targets;
+}
+
+
+function pluginBlocks(document: AzeDocument, blockType: string): readonly ParsedBlock[] {
+  const targets: ParsedBlock[] = [];
+  walkBlocks(document.blocks, (block) => {
+    if (block.kind === blockType) targets.push(block);
+  });
+  return targets;
+}
+
+function collectBlockIds(blocks: readonly ParsedBlock[]): { id: string; range: SourceRange }[] {
+  const occurrences: { id: string; range: SourceRange }[] = [];
+  walkBlocks(blocks, (block) => {
+    if (block.kind !== "invalid" && block.id !== undefined) {
+      occurrences.push({ id: block.id, range: block.range });
+    }
+  });
+  return occurrences;
+}
+function containsInvalidBlock(blocks: readonly ParsedBlock[]): boolean {
+  let found = false;
+  walkBlocks(blocks, (block) => {
+    if (block.kind === "invalid") found = true;
+  });
+  return found;
+}
+
+function collectBlockRanges(blocks: readonly ParsedBlock[]): SourceRange[] {
+  const ranges: SourceRange[] = [];
+  walkBlocks(blocks, (block) => {
+    ranges.push(block.range);
+  });
+  return ranges;
+}
+
+function collectRenderText(blocks: readonly AzeBlock[], out: string[]): void {
+  for (const block of blocks) {
+    switch (block.kind) {
+      case "equation":
+        out.push(block.source);
+        break;
+      case "mermaid":
+        out.push(block.source);
+        if (block.title !== undefined) out.push(block.title);
+        if (block.description !== undefined) out.push(block.description);
+        break;
+      case "heading":
+      case "paragraph":
+        out.push(inlineTextValue(block.children));
+        break;
+      case "code":
+        out.push(block.value);
+        if (block.language !== undefined) out.push(block.language);
+        break;
+      case "thematicBreak":
+        break;
+      case "blockquote":
+      case "callout":
+        if (block.kind === "callout" && block.title !== undefined) {
+          out.push(inlineTextValue(block.title));
+        }
+        collectRenderText(block.children as readonly AzeBlock[], out);
+        break;
+      case "list":
+        for (const item of block.items) {
+          collectRenderText(item.blocks as readonly AzeBlock[], out);
+        }
+        break;
+      case "table":
+        if (block.caption !== undefined) {
+          out.push(inlineTextValue(block.caption));
+        }
+        for (const cell of block.data.header) {
+          out.push(inlineTextValue(cell));
+        }
+        for (const row of block.data.rows) {
+          for (const cell of row) {
+            out.push(inlineTextValue(cell));
+          }
+        }
+        break;
+    }
+  }
 }
 
 function groupedAdapterDiagnostic(
   code: string,
   message: string,
-  targets: readonly EquationTarget[],
+  targets: readonly { readonly block: { readonly range: SourceRange } }[],
   sourceName: string | undefined,
   data: Readonly<Record<string, JsonValue>>,
   suggestion: string,
+  noun = "equation",
 ): Diagnostic {
   const first = targets[0];
   const rest = targets.slice(1).map(({ block }) => ({
     ...(sourceName === undefined ? {} : { source: sourceName }),
     range: block.range,
-    message: "Another affected equation Block is here.",
+    message: `Another affected ${noun} Block is here.`,
   }));
   return createDiagnostic(code, "error", message, {
     ...(first === undefined
@@ -306,7 +431,7 @@ async function renderEquationFragments(
   sourceName: string | undefined,
   timeoutMs: number,
 ): Promise<{
-  readonly fragments: ReadonlyMap<number, string>;
+  readonly fragments: ReadonlyMap<EquationBlock, string>;
   readonly diagnostics: readonly Diagnostic[];
 }> {
   const targets = equationTargets(document);
@@ -444,7 +569,13 @@ async function renderEquationFragments(
       ],
     };
   }
-  const fragments = new Map<number, string>();
+  // Safe: candidates were filtered to blockType "equation", so the render
+  // implementation accepts EquationBlock even though the registry union is wider.
+  const renderEquation = chosen.render as (
+    block: EquationBlock,
+    context: Readonly<{ sourceName?: string }>,
+  ) => string | Promise<string>;
+  const fragments = new Map<EquationBlock, string>();
   const diagnostics: Diagnostic[] = [];
   for (const target of targets) {
     const location = {
@@ -454,13 +585,13 @@ async function renderEquationFragments(
     try {
       const fragment = await withRenderTimeout(
         Promise.resolve(
-          chosen.render(target.block, {
+          renderEquation(target.block, {
             ...(sourceName === undefined ? {} : { sourceName }),
           }),
         ),
         timeoutMs,
       );
-      fragments.set(target.index, sanitizeKatexHtml(fragment));
+      fragments.set(target.block, sanitizeKatexHtml(fragment));
     } catch (error) {
       if (error instanceof RenderTimeoutError) {
         diagnostics.push(
@@ -509,6 +640,426 @@ async function renderEquationFragments(
     }
   }
   return { fragments, diagnostics };
+}
+async function renderMermaidFragments(
+  document: AzeDocument,
+  registry: ResolvedRegistry,
+  policy: CompilerPolicy,
+  sourceName: string | undefined,
+  timeoutMs: number,
+  theme: Theme,
+): Promise<{
+  readonly fragments: ReadonlyMap<MermaidBlock, string>;
+  readonly diagnostics: readonly Diagnostic[];
+}> {
+  const targets = mermaidTargets(document);
+  if (targets.length === 0) {
+    return { fragments: new Map(), diagnostics: [] };
+  }
+  const renderer = registry.renderers.find(
+    (entry) => entry.id === HTML_RENDERER_ID,
+  );
+  if (renderer === undefined) {
+    return {
+      fragments: new Map(),
+      diagnostics: [
+        groupedAdapterDiagnostic(
+          "azeforge.renderer#adapter-missing",
+          "No HTML Renderer is registered for mermaid Blocks.",
+          targets,
+          sourceName,
+          { blockType: MERMAID_PLUGIN_TYPE, rendererId: HTML_RENDERER_ID },
+          "Register the built-in HTML Renderer.",
+        ),
+      ],
+    };
+  }
+  if (policy.disabledRendererIds?.includes(renderer.id) === true) {
+    return {
+      fragments: new Map(),
+      diagnostics: [
+        groupedAdapterDiagnostic(
+          "azeforge.renderer#adapter-disabled",
+          `HTML Renderer "${renderer.id}" is disabled by host policy.`,
+          targets,
+          sourceName,
+          { rendererId: renderer.id },
+          "Enable the Renderer in Compiler policy.",
+        ),
+      ],
+    };
+  }
+  const candidates = registry.blockRenderers.filter(
+    (entry) =>
+      entry.descriptor.blockType === MERMAID_PLUGIN_TYPE &&
+      entry.descriptor.rendererId === HTML_RENDERER_ID,
+  );
+  if (candidates.length === 0) {
+    return {
+      fragments: new Map(),
+      diagnostics: [
+        groupedAdapterDiagnostic(
+          "azeforge.renderer#adapter-missing",
+          "No Block renderer is registered for mermaid Blocks.",
+          targets,
+          sourceName,
+          { blockType: MERMAID_PLUGIN_TYPE, rendererId: HTML_RENDERER_ID },
+          "Register the built-in mermaid HTML Block renderer.",
+        ),
+      ],
+    };
+  }
+  const compatible = candidates.filter(
+    (entry) =>
+      targets.every((target) =>
+        satisfiesSemverRange(
+          target.block.pluginVersion,
+          entry.descriptor.pluginVersionRange,
+        ),
+      ) &&
+      satisfiesSemverRange(
+        renderer.version,
+        entry.descriptor.rendererVersionRange,
+      ),
+  );
+  if (compatible.length === 0) {
+    const candidate = candidates[0];
+    return {
+      fragments: new Map(),
+      diagnostics: [
+        groupedAdapterDiagnostic(
+          "azeforge.renderer#adapter-incompatible",
+          "The registered mermaid Block renderer is incompatible with this Document.",
+          targets,
+          sourceName,
+          {
+            blockType: MERMAID_PLUGIN_TYPE,
+            ...(candidate === undefined
+              ? {}
+              : {
+                  adapterId: candidate.descriptor.id,
+                  pluginVersionRange: candidate.descriptor.pluginVersionRange,
+                  rendererVersionRange:
+                    candidate.descriptor.rendererVersionRange,
+                }),
+          },
+          "Register a Block renderer compatible with mermaid v1 and HTML v1.",
+        ),
+      ],
+    };
+  }
+  if (compatible.length > 1) {
+    return {
+      fragments: new Map(),
+      diagnostics: [
+        groupedAdapterDiagnostic(
+          "azeforge.renderer#adapter-ambiguous",
+          "More than one Block renderer matches mermaid Blocks.",
+          targets,
+          sourceName,
+          {
+            blockType: MERMAID_PLUGIN_TYPE,
+            adapterIds: compatible.map((entry) => entry.descriptor.id),
+          },
+          "Register exactly one matching Block renderer.",
+        ),
+      ],
+    };
+  }
+  const chosen = compatible[0];
+  if (chosen === undefined) {
+    return { fragments: new Map(), diagnostics: [] };
+  }
+  if (
+    policy.disabledBlockRendererIds?.includes(chosen.descriptor.id) === true
+  ) {
+    return {
+      fragments: new Map(),
+      diagnostics: [
+        groupedAdapterDiagnostic(
+          "azeforge.renderer#adapter-disabled",
+          `Block renderer "${chosen.descriptor.id}" is disabled by host policy.`,
+          targets,
+          sourceName,
+          { adapterId: chosen.descriptor.id },
+          "Enable the Block renderer in Compiler policy.",
+        ),
+      ],
+    };
+  }
+  const fragments = new Map<MermaidBlock, string>();
+  const diagnostics: Diagnostic[] = [];
+  for (const target of targets) {
+    const location = {
+      ...(sourceName === undefined ? {} : { source: sourceName }),
+      range: target.block.range,
+    };
+    try {
+      const fragment = await withRenderTimeout(
+        Promise.resolve(
+          (chosen.render as MermaidBlockRenderer["render"])(target.block, {
+            ...(sourceName === undefined ? {} : { sourceName }),
+            ordinal: target.ordinal,
+            theme,
+          }),
+        ),
+        timeoutMs,
+      );
+      fragments.set(
+        target.block,
+        sanitizeMermaidFragment(fragment, { ordinal: target.ordinal }),
+      );
+    } catch (error) {
+      if (error instanceof RenderTimeoutError) {
+        diagnostics.push(
+          createDiagnostic(
+            "azeforge.renderer#timeout",
+            "error",
+            `Block renderer "${chosen.descriptor.id}" timed out.`,
+            {
+              location,
+              data: {
+                adapterId: chosen.descriptor.id,
+                timeoutMs,
+              },
+              suggestion: "Retry the operation or raise the host render timeout.",
+            },
+          ),
+        );
+      } else if (error instanceof MermaidBrowserParseError) {
+        diagnostics.push(
+          createDiagnostic(
+            "azeforge.mermaid#invalid-syntax",
+            "error",
+            "The mermaid diagram could not be parsed.",
+            {
+              location,
+              suggestion: "Check node brackets, arrows, and participant declarations.",
+              data: {
+                diagramType: target.block.diagramType,
+                detail: error.message,
+              },
+            },
+          ),
+        );
+      } else if (error instanceof MermaidBrowserUnavailableError) {
+        diagnostics.push(
+          createDiagnostic(
+            "azeforge.renderer#adapter-missing",
+            "error",
+            "The pinned Mermaid browser engine is unavailable.",
+            {
+              location,
+              data: {
+                blockType: MERMAID_PLUGIN_TYPE,
+                engine: "HeadlessChrome",
+              },
+              suggestion: "Reinstall AzeForge browser dependencies and retry.",
+            },
+          ),
+        );
+      } else if (isCapabilityDenial(error)) {
+        diagnostics.push(
+          createDiagnostic(
+            "azeforge.security#capability-denied",
+            "error",
+            `Block renderer "${chosen.descriptor.id}" was denied a capability.`,
+            {
+              location,
+              data: { adapterId: chosen.descriptor.id },
+            },
+          ),
+        );
+      } else {
+        diagnostics.push(
+          createDiagnostic(
+            "azeforge.renderer#unexpected-failure",
+            "error",
+            "The mermaid Block renderer failed unexpectedly.",
+            {
+              location,
+              data: {
+                adapterId: chosen.descriptor.id,
+                blockType: MERMAID_PLUGIN_TYPE,
+              },
+            },
+          ),
+        );
+      }
+    }
+  }
+  return { fragments, diagnostics };
+}
+
+interface PluginAdapterResolution {
+  readonly diagnostics: readonly Diagnostic[];
+  readonly renderCallout?: (
+    block: CalloutBlock,
+    context: BlockRendererContext,
+  ) => string;
+  readonly renderTable?: (
+    block: TableBlock,
+    context: BlockRendererContext,
+  ) => string;
+}
+
+function checkPluginAdapters(
+  document: AzeDocument,
+  registry: ResolvedRegistry,
+  policy: CompilerPolicy,
+  sourceName: string | undefined,
+): PluginAdapterResolution {
+  const diagnostics: Diagnostic[] = [];
+  let renderCallout:
+    | ((block: CalloutBlock, context: BlockRendererContext) => string)
+    | undefined;
+  let renderTable:
+    | ((block: TableBlock, context: BlockRendererContext) => string)
+    | undefined;
+  for (const entry of [
+    { blockType: "callout", pluginVersion: "1.0.0" },
+    { blockType: "table", pluginVersion: "1.0.0" },
+  ] as const) {
+    const blocks = pluginBlocks(document, entry.blockType);
+    if (blocks.length === 0) continue;
+    const targets = blocks.map((block) => ({ block }));
+    const renderer = registry.renderers.find((item) => item.id === "html");
+    if (renderer === undefined) {
+      diagnostics.push(
+        groupedAdapterDiagnostic(
+          "azeforge.renderer#adapter-missing",
+          `No HTML Renderer is registered for ${entry.blockType} Blocks.`,
+          targets,
+          sourceName,
+          { blockType: entry.blockType, rendererId: "html" },
+          "Register the built-in HTML Renderer.",
+          entry.blockType,
+        ),
+      );
+      continue;
+    }
+    if (policy.disabledRendererIds?.includes(renderer.id) === true) {
+      diagnostics.push(
+        groupedAdapterDiagnostic(
+          "azeforge.renderer#adapter-disabled",
+          `HTML Renderer "${renderer.id}" is disabled by host policy.`,
+          targets,
+          sourceName,
+          { rendererId: renderer.id },
+          "Enable the Renderer in Compiler policy.",
+          entry.blockType,
+        ),
+      );
+      continue;
+    }
+    const candidates = registry.blockRenderers.filter(
+      (item) =>
+        item.descriptor.blockType === entry.blockType &&
+        item.descriptor.rendererId === "html",
+    );
+    if (candidates.length === 0) {
+      diagnostics.push(
+        groupedAdapterDiagnostic(
+          "azeforge.renderer#adapter-missing",
+          `No Block renderer is registered for ${entry.blockType} Blocks.`,
+          targets,
+          sourceName,
+          { blockType: entry.blockType, rendererId: "html" },
+          `Register the built-in ${entry.blockType} HTML Block renderer.`,
+          entry.blockType,
+        ),
+      );
+      continue;
+    }
+    const compatible = candidates.filter(
+      (item) =>
+        satisfiesSemverRange(entry.pluginVersion, item.descriptor.pluginVersionRange) &&
+        satisfiesSemverRange(renderer.version, item.descriptor.rendererVersionRange),
+    );
+    if (compatible.length === 0) {
+      const candidate = candidates[0];
+      diagnostics.push(
+        groupedAdapterDiagnostic(
+          "azeforge.renderer#adapter-incompatible",
+          `The registered ${entry.blockType} Block renderer is incompatible with this Document.`,
+          targets,
+          sourceName,
+          {
+            blockType: entry.blockType,
+            ...(candidate === undefined
+              ? {}
+              : {
+                  adapterId: candidate.descriptor.id,
+                  pluginVersionRange: candidate.descriptor.pluginVersionRange,
+                  rendererVersionRange: candidate.descriptor.rendererVersionRange,
+                }),
+          },
+          `Register a Block renderer compatible with ${entry.blockType} v1 and HTML v1.`,
+          entry.blockType,
+        ),
+      );
+      continue;
+    }
+    if (compatible.length > 1) {
+      diagnostics.push(
+        groupedAdapterDiagnostic(
+          "azeforge.renderer#adapter-ambiguous",
+          `More than one Block renderer matches ${entry.blockType} Blocks.`,
+          targets,
+          sourceName,
+          {
+            blockType: entry.blockType,
+            adapterIds: compatible.map((item) => item.descriptor.id),
+          },
+          "Register exactly one matching Block renderer.",
+          entry.blockType,
+        ),
+      );
+      continue;
+    }
+    const chosen = compatible[0];
+    if (chosen === undefined) continue;
+    if (policy.disabledBlockRendererIds?.includes(chosen.descriptor.id) === true) {
+      diagnostics.push(
+        groupedAdapterDiagnostic(
+          "azeforge.renderer#adapter-disabled",
+          `Block renderer "${chosen.descriptor.id}" is disabled by host policy.`,
+          targets,
+          sourceName,
+          { adapterId: chosen.descriptor.id },
+          "Enable the Block renderer in Compiler policy.",
+          entry.blockType,
+        ),
+      );
+      continue;
+    }
+    if (entry.blockType === "callout") {
+      const render = chosen.render as (
+        block: CalloutBlock,
+        context: BlockRendererContext,
+      ) => string | Promise<string>;
+      renderCallout = (block, context) => {
+        const result = render(block, context);
+        if (typeof result !== "string") throw new Error("Callout Block renderer must be synchronous.");
+        return result;
+      };
+    } else {
+      const render = chosen.render as (
+        block: TableBlock,
+        context: BlockRendererContext,
+      ) => string | Promise<string>;
+      renderTable = (block, context) => {
+        const result = render(block, context);
+        if (typeof result !== "string") throw new Error("Table Block renderer must be synchronous.");
+        return result;
+      };
+    }
+  }
+  return {
+    diagnostics,
+    ...(renderCallout === undefined ? {} : { renderCallout }),
+    ...(renderTable === undefined ? {} : { renderTable }),
+  };
 }
 
 export function createCompiler(options: CompilerOptions = {}): Compiler {
@@ -694,19 +1245,38 @@ export function createCompiler(options: CompilerOptions = {}): Compiler {
         };
       }
       try {
-        const preflight = await renderEquationFragments(
+        const equationPreflight = await renderEquationFragments(
           validation.document,
           registry,
           policy,
           compileOptions.sourceName,
           renderTimeoutMs,
         );
-        if (preflight.diagnostics.length > 0) {
+        const mermaidPreflight = await renderMermaidFragments(
+          validation.document,
+          registry,
+          policy,
+          compileOptions.sourceName,
+          renderTimeoutMs,
+          theme,
+        );
+        const pluginPreflight = checkPluginAdapters(
+          validation.document,
+          registry,
+          policy,
+          compileOptions.sourceName,
+        );
+        const preflightDiagnostics = [
+          ...equationPreflight.diagnostics,
+          ...mermaidPreflight.diagnostics,
+          ...pluginPreflight.diagnostics,
+        ];
+        if (preflightDiagnostics.length > 0) {
           return {
             diagnostics: normalizeAndLimitDiagnostics(
-              [validation.diagnostics, preflight.diagnostics],
+              [validation.diagnostics, preflightDiagnostics],
               diagnosticLimits,
-              validation.document.blocks.map(({ range }) => range),
+              collectBlockRanges(validation.document.blocks),
             ),
           };
         }
@@ -714,12 +1284,9 @@ export function createCompiler(options: CompilerOptions = {}): Compiler {
           ...(validation.document.metadata.title === undefined
             ? []
             : [validation.document.metadata.title]),
-          ...validation.document.blocks.flatMap((block) =>
-            block.kind === "equation"
-              ? [block.source]
-              : block.children.map((child) => child.value),
-          ),
+
         ];
+        collectRenderText(validation.document.blocks, renderedText);
         assertInterFontCoverage(renderedText);
         fontFacesPromise ??= loadInterFontFaces();
         const fontFaces = await fontFacesPromise;
@@ -729,8 +1296,18 @@ export function createCompiler(options: CompilerOptions = {}): Compiler {
           contentHash,
           theme,
           fontFaces,
-          preflight.fragments,
+          equationPreflight.fragments,
           katexDependencyClosure(),
+          mermaidPreflight.fragments,
+          mermaidDependencyClosure(),
+          {
+            ...(pluginPreflight.renderCallout === undefined
+              ? {}
+              : { renderCallout: pluginPreflight.renderCallout }),
+            ...(pluginPreflight.renderTable === undefined
+              ? {}
+              : { renderTable: pluginPreflight.renderTable }),
+          },
         );
         return {
           diagnostics: validation.diagnostics,

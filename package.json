@@ -27,11 +27,19 @@
   },
   "dependencies": {
     "@fontsource/inter": "5.3.0",
+    "@puppeteer/browsers": "3.2.2",
     "katex": "0.18.5",
+    "mermaid": "11.17.2",
+    "puppeteer": "25.10.0",
+    "puppeteer-core": "25.10.0",
+    "saxes": "6.0.0",
     "yaml": "2.9.0"
   },
   "devDependencies": {
     "@types/node": "24.3.0",
     "typescript": "5.9.2"
+  },
+  "allowScripts": {
+    "puppeteer@25.10.0": true
   }
 }

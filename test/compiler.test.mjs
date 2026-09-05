@@ -153,8 +153,8 @@ test("escaped and inline-code HTML literals remain valid Source text", async () 
   assert.deepEqual(result.diagnostics, []);
   assert.ok(result.artifact);
   const html = new TextDecoder().decode(result.artifact.bytes);
-  assert.match(html, /Escaped \\&lt;div&gt;/);
-  assert.match(html, /`&lt;span&gt;`/);
+  assert.match(html, /Escaped &lt;div&gt;/);
+  assert.match(html, /<code>&lt;span&gt;<\/code>/);
 });
 
 test("Renderer preflight failures produce diagnostics without partial results", async () => {
@@ -254,7 +254,7 @@ After
   assert.deepEqual(invalid?.diagnosticIndexes, [0]);
   assert.deepEqual(parsed.diagnostics[0]?.data, {
     type: "mystery",
-    availableTypes: ["equation"],
+    availableTypes: ["callout", "equation", "mermaid", "table"],
   });
   assert.equal(
     parsed.diagnostics[0]?.code,
@@ -421,11 +421,17 @@ azemark: 1
     [
       {
         code: "azeforge.source#unknown-directive",
-        data: { type: "one", availableTypes: ["equation"] },
+        data: {
+          type: "one",
+          availableTypes: ["callout", "equation", "mermaid", "table"],
+        },
       },
       {
         code: "azeforge.source#unknown-directive",
-        data: { type: "two", availableTypes: ["equation"] },
+        data: {
+          type: "two",
+          availableTypes: ["callout", "equation", "mermaid", "table"],
+        },
       },
       {
         code: "azeforge.diagnostics#truncated",
