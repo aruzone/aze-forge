@@ -4,15 +4,45 @@ AzeForge currently compiles AzeMark prose into deterministic, self-contained HTM
 
 ## Supported syntax
 
-The current compiler supports:
-
 - AzeMark v1 YAML front matter
 - ATX headings such as `# Heading`
 - Setext headings
 - paragraphs
 - plain inline text
+- equation directive Blocks (readable aliases plus trusted-local raw LaTeX)
 
-Directive envelopes are recovered as `InvalidBlock` values until Plugins are registered. Raw HTML is denied and never rendered as text or markup. Lists, equations, Mermaid, images, and other Markdown constructs are not implemented yet.
+Readable equation example:
+
+```text
+:::: equation
+id: euler
+number: true
+align: center
+
+F(omega) =
+  integral t=-infinity..infinity of
+  f(t) exp(-i omega t) dt
+::::
+```
+
+Header attributes are `id`, `number: true|false`, `align: left|center|right`,
+and `syntax: readable|latex` (default `readable`). Readable aliases cover
+Greek letters, `sqrt`/`frac`/`root`, `sum`/`product`, `integral`, `limit`,
+derivatives, `matrix`, `cases`, and relations/sets; they render through
+pinned KaTeX (`0.18.5`, offline `htmlAndMathml`, `trust: false`, bounded,
+sanitized). Raw LaTeX is denied by default with
+`azeforge.security#raw-latex-disabled` and renders only with
+`--allow-raw-latex` on `validate` or `render`:
+
+```text
+:::: equation
+syntax: latex
+
+\frac{a}{b}
+::::
+```
+
+Directive envelopes are recovered as `InvalidBlock` values until Plugins are registered. Raw HTML is denied and never rendered as text or markup. Lists, Mermaid, images, and other Markdown constructs are not implemented yet.
 
 ## Build
 
@@ -197,4 +227,60 @@ Repeat the probes with CRLF line endings and a BOM prefix; diagnostic ranges, co
 ```bash
 npm run typecheck
 npm test
+```
+
+`npm test` rebuilds `dist/` and runs the full suite (`test/*.test.mjs`).
+Bare `node --test` reuses the last build, so rebuild after editing `src/`.
+Target one layer while working:
+
+```bash
+npm run build
+npm run test:compiler
+npm run test:cli
+node --test test/equation.test.mjs
+```
+
+`test/equation.test.mjs` is the equation seam: versioned Blocks, alias
+coverage, ranged diagnostics, raw-LaTeX policy, adapter failure modes,
+registry rejection, descriptor conformance, and real CLI calls.
+
+Probe equations by hand:
+
+```bash
+cat >/tmp/eq.aze.md <<'EOF'
+---
+azemark: 1
+title: Equation check
+---
+
+:::: equation
+id: euler
+
+F(omega) = integral x=0..infinity of x^2 dx
+::::
+EOF
+
+node dist/cli.js validate /tmp/eq.aze.md && echo VALID
+node dist/cli.js render /tmp/eq.aze.md --output /tmp/eq.html
+grep -o 'class="katex"\|<math\|<annotation' /tmp/eq.html | sort | uniq -c
+```
+
+Probe the raw-LaTeX gate (denied by default, trusted-local opt-in):
+
+```bash
+cat >/tmp/raw.aze.md <<'EOF'
+---
+azemark: 1
+---
+
+:::: equation
+syntax: latex
+
+\frac{a}{b}
+::::
+EOF
+
+node dist/cli.js validate /tmp/raw.aze.md; echo "exit=$? (expect 1)"
+node dist/cli.js validate /tmp/raw.aze.md --allow-raw-latex && echo ALLOWED
+node dist/cli.js render /tmp/raw.aze.md --output /tmp/raw.html --allow-raw-latex
 ```
