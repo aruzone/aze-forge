@@ -50,7 +50,7 @@ interface RenderArguments extends CommonArguments {
   readonly command: "render";
   readonly artifactPath?: string;
   readonly stdout: boolean;
-  readonly format: "html";
+  readonly format: "html" | "svg";
   readonly theme?: string;
 }
 
@@ -240,14 +240,14 @@ function parseArguments(
     );
   }
   if (stdout && format === undefined) {
-    throw new CliUsageError("Render --stdout requires --format html.");
+    throw new CliUsageError("Render --stdout requires an explicit --format.");
   }
   const extension =
     artifactPath === undefined ? "" : extname(artifactPath).toLowerCase();
   const inferredFormat = FORMAT_BY_EXTENSION[extension];
   const selectedFormat = format ?? inferredFormat;
   if (
-    selectedFormat !== "html" ||
+    (selectedFormat !== "html" && selectedFormat !== "svg") ||
     (format !== undefined && inferredFormat !== undefined && format !== inferredFormat)
   ) {
     throw new CliUsageError("The Artifact format and destination extension disagree.");
@@ -258,7 +258,7 @@ function parseArguments(
     diagnosticsMode,
     ...(artifactPath === undefined ? {} : { artifactPath }),
     stdout,
-    format: "html",
+    format: selectedFormat,
     allowRawLatex,
     ...(theme === undefined ? {} : { theme }),
   };

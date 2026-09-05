@@ -10,6 +10,10 @@ import {
   mermaidHtmlBlockRenderer,
   mermaidPlugin,
 } from "./mermaid.js";
+import {
+  svgBlockRenderers,
+  svgRendererDescriptor,
+} from "./render-svg.js";
 import type {
   AnyBlockRenderer,
   AzeBlockPlugin,
@@ -21,6 +25,11 @@ const SEMVER = /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$/;
 const PLUGIN_TYPE = /^(?:@[a-z0-9-]+(?:\/[a-z][a-z0-9-]*)?|[a-z][a-z0-9]*(?:-[a-z0-9]+)*)$/;
 const ADAPTER_ID =
   /^(?:@[a-z0-9-]+(?:\/[a-z][a-z0-9-.]*)?|[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*(?:\/[a-z0-9]+(?:[.-][a-z0-9]+)*)?)$/;
+const RENDERER_CAPABILITY: Readonly<Record<string, true>> = {
+  browser: true,
+  filesystem: true,
+  subprocess: true,
+};
 const NAMESPACE = /^[a-z][a-z0-9]*(?:\.[a-z][a-z0-9]*)*$/;
 
 export interface ResolvedRegistry {
@@ -42,8 +51,9 @@ export function getBuiltInRegistry(): ResolvedRegistry {
       calloutHtmlBlockRenderer,
       mermaidHtmlBlockRenderer,
       tableHtmlBlockRenderer,
+      ...svgBlockRenderers,
     ]),
-    renderers: Object.freeze([htmlRendererDescriptor]),
+    renderers: Object.freeze([htmlRendererDescriptor, svgRendererDescriptor]),
   });
 }
 
@@ -220,6 +230,20 @@ export function validateRegistry(
       });
     }
     seenRendererKeys.add(key);
+    if (
+      !Array.isArray(renderer.capabilities) ||
+      renderer.capabilities.some(
+        (capability, index) =>
+          RENDERER_CAPABILITY[capability] !== true ||
+          renderer.capabilities.indexOf(capability) !== index,
+      )
+    ) {
+      violations.push({
+        key: `${key}:capabilities`,
+        code: "azeforge.config#invalid-renderer-capability",
+        message: `Renderer "${renderer.id}" has invalid capability declarations.`,
+      });
+    }
     for (const format of renderer.formats) {
       const owner = formatOwners.get(format);
       if (owner !== undefined && owner !== renderer.id) {

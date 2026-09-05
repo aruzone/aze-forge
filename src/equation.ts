@@ -664,6 +664,7 @@ export const htmlRendererDescriptor: RendererDescriptor = Object.freeze({
   id: HTML_RENDERER_ID,
   version: HTML_RENDERER_VERSION,
   formats: Object.freeze(["html"] as const),
+  capabilities: Object.freeze([]),
 });
 export function katexDependencyClosure(): Record<string, JsonValue> {
   return {

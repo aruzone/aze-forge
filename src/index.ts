@@ -76,6 +76,13 @@ export {
   satisfiesSemverRange,
   validateRegistry,
 } from "./registry.js";
+export {
+  SVG_RENDERER_ID,
+  SVG_RENDERER_VERSION,
+  sanitizeWholeDocumentSvg,
+  svgBlockRenderers,
+  svgRendererDescriptor,
+} from "./render-svg.js";
 export { academicTheme, builtInThemes, darkPresentationTheme, defaultTheme } from "./theme.js";
 export type {
   AnyBlockRenderer,
@@ -113,6 +120,7 @@ export type {
   EquationBlockRenderer,
   BlockRenderer,
   HeadingBlock,
+  HtmlArtifactMetadata,
   MermaidBlock,
   MermaidBlockRenderer,
   ImageInline,
@@ -143,6 +151,7 @@ export type {
   TextInline,
   ThematicBreakBlock,
   Theme,
+  SvgArtifactMetadata,
   ValidationResult,
 } from "./model.js";
 export {
