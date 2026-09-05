@@ -669,7 +669,11 @@ function parseEquationEnvelope(
   let cursor = openIndex + 1;
   while (cursor < closingIndex) {
     const header = lines[cursor];
-    if (header === undefined || /^[ \t]*$/.test(lineText(header))) break;
+    if (header === undefined) break;
+    if (/^[ \t]*$/.test(lineText(header))) {
+      cursor += 1;
+      continue;
+    }
     const match = /^[ \t]*([A-Za-z][A-Za-z0-9-]*)[ \t]*:(.*)$/.exec(
       lineText(header),
     );
@@ -1010,11 +1014,12 @@ function directiveIdOccurrences(
       const header = lines[headerIndex];
       if (
         header === undefined ||
-        /^[ \t]*$/.test(header.text) ||
         /^ {0,3}:{4,}[ \t]*$/.test(lineText(header))
       ) {
         break;
       }
+      if (/^[ \t]*$/.test(header.text)) continue;
+      if (!/^[ \t]*[A-Za-z][A-Za-z0-9-]*[ \t]*:/.test(header.text)) break;
       const idMatch = /^[ \t]*id[ \t]*:[ \t]*(.*?)[ \t]*$/.exec(header.text);
       const id = idMatch?.[1];
       if (id === undefined) continue;

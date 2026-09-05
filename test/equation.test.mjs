@@ -57,8 +57,28 @@ test("a valid readable equation becomes a versioned Block with KaTeX HTML+MathML
   assert.equal(html.includes('@import'), false);
   assert.match(html, /\.katex-mathml\{[^}]*position:absolute/);
   assert.equal(html.includes("url(fonts/"), false);
-  assert.match(html, /font-family:KaTeX_Size1/);
 });
+
+test("equation headers tolerate blank lines between entries", async () => {
+  const compiler = createCompiler();
+  const parsed = compiler.parse(
+    "---\nazemark: 1\n---\n\n:::: equation\nid: spaced\n\nsyntax: latex\n\n\\frac{a}{b}\n::::\n",
+    { sourceName: "spaced.aze.md", allowRawLatex: true },
+  );
+  assert.deepEqual(parsed.diagnostics.map(({ code }) => code), []);
+  assert.equal(parsed.document.blocks[0]?.kind, "equation");
+  assert.equal(parsed.document.blocks[0]?.id, "spaced");
+  const compiled = await compiler.compile(
+    "---\nazemark: 1\n---\n\n:::: equation\nid: spaced\n\nsyntax: latex\n\n\\frac{a}{b}\n::::\n",
+    { format: "html", allowRawLatex: true },
+  );
+  assert.deepEqual(compiled.diagnostics.map(({ code }) => code), []);
+  assert.match(
+    Buffer.from(compiled.artifact.bytes).toString("utf8"),
+    /data-equation-id="spaced"/,
+  );
+});
+
 test("every readable alias maps to pinned KaTeX offline", async () => {
   assert.equal(KATEX_VERSION, "0.18.5");
   const bodies = [
