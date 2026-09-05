@@ -148,6 +148,15 @@ export interface ValidationResult {
   readonly diagnostics: readonly Diagnostic[];
 }
 
+export interface FormatOptions {
+  readonly sourceName?: string;
+}
+
+export interface FormatResult {
+  readonly source?: string;
+  readonly diagnostics: readonly Diagnostic[];
+}
+
 export interface Theme {
   readonly id: string;
   readonly version: string;
@@ -269,5 +278,6 @@ export interface CompilerOptions {
 export interface Compiler {
   parse(source: string, options?: ParseOptions): ParseResult;
   validate(parsed: ParseResult): ValidationResult;
+  format(source: string, options?: FormatOptions): FormatResult;
   compile(source: string, options: CompileOptions): Promise<CompileResult>;
 }
