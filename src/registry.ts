@@ -1,12 +1,14 @@
+import { calloutHtmlBlockRenderer, calloutPlugin } from "./callout.js";
 import { CompilerConfigurationError } from "./configuration-error.js";
 import {
   equationHtmlBlockRenderer,
   equationPlugin,
   htmlRendererDescriptor,
 } from "./equation.js";
+import { tableHtmlBlockRenderer, tablePlugin } from "./table.js";
 import type {
+  AnyBlockRenderer,
   AzeBlockPlugin,
-  EquationBlockRenderer,
   RendererDescriptor,
 } from "./model.js";
 
@@ -19,14 +21,18 @@ const NAMESPACE = /^[a-z][a-z0-9]*(?:\.[a-z][a-z0-9]*)*$/;
 
 export interface ResolvedRegistry {
   readonly plugins: readonly AzeBlockPlugin[];
-  readonly blockRenderers: readonly EquationBlockRenderer[];
+  readonly blockRenderers: readonly AnyBlockRenderer[];
   readonly renderers: readonly RendererDescriptor[];
 }
 
 export function getBuiltInRegistry(): ResolvedRegistry {
   return Object.freeze({
-    plugins: Object.freeze([equationPlugin]),
-    blockRenderers: Object.freeze([equationHtmlBlockRenderer]),
+    plugins: Object.freeze([equationPlugin, calloutPlugin, tablePlugin]),
+    blockRenderers: Object.freeze([
+      equationHtmlBlockRenderer,
+      calloutHtmlBlockRenderer,
+      tableHtmlBlockRenderer,
+    ]),
     renderers: Object.freeze([htmlRendererDescriptor]),
   });
 }
@@ -93,7 +99,7 @@ function isSchemaObject(value: unknown): value is Record<string, unknown> {
 
 export function validateRegistry(
   plugins: readonly AzeBlockPlugin[],
-  blockRenderers: readonly EquationBlockRenderer[],
+  blockRenderers: readonly AnyBlockRenderer[],
   renderers: readonly RendererDescriptor[],
 ): void {
   const violations: Violation[] = [];
@@ -309,7 +315,7 @@ export function validateRegistry(
 
 export function resolveRegistry(options: {
   readonly plugins?: readonly AzeBlockPlugin[];
-  readonly blockRenderers?: readonly EquationBlockRenderer[];
+  readonly blockRenderers?: readonly AnyBlockRenderer[];
   readonly renderers?: readonly RendererDescriptor[];
 }): ResolvedRegistry {
   const builtIn = getBuiltInRegistry();
