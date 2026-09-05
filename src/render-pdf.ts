@@ -26,16 +26,16 @@ import { tableHtmlBlockRenderer } from "./table.js";
 
 export const PDF_RENDERER_ID = "pdf" as const;
 export const PDF_RENDERER_VERSION = "1.0.0" as const;
-const PDF_MIME_TYPE = "application/pdf" as const;
-const PDF_PROFILE = "azeforge.pdf.paged/v1" as const;
-const PDF_SERIALIZER = "azeforge-pdf/v1" as const;
+export const PDF_MIME_TYPE = "application/pdf" as const;
+export const PDF_PROFILE = "azeforge.pdf.paged/v1" as const;
+export const PDF_SERIALIZER = "azeforge-pdf/v1" as const;
 const PDF_PRODUCER = `AzeForge pdf/1.0.0 (HeadlessChrome/${CHROME_HEADLESS_SHELL_VERSION})` as const;
 const PDF_CREATOR = "AzeForge" as const;
 export const PDF_REQUIRED_CAPABILITIES = Object.freeze(["pdf-paged"] as const);
 export const PDF_MAX_BYTES = 128 * 1024 * 1024;
 export const PDF_MAX_PAGES = 200;
-const PDF_MAX_HTML_BYTES = 64 * 1024 * 1024;
-const PDF_PRINT_TIMEOUT_MS = 30_000;
+export const PDF_MAX_HTML_BYTES = 64 * 1024 * 1024;
+export const PDF_PRINT_TIMEOUT_MS = 30_000;
 const ALLOWED_REQUEST = /^(?:about:blank|data:(?:font\/woff2|image\/(?:png|jpeg|svg\+xml));base64,)/;
 const ATOMIC_SELECTOR = ".aze-equation,.aze-mermaid,figure,img";
 /**

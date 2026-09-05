@@ -28,12 +28,12 @@ import { tableHtmlBlockRenderer } from "./table.js";
 
 export const SVG_RENDERER_ID = "svg" as const;
 export const SVG_RENDERER_VERSION = "1.0.0" as const;
-const SVG_MIME_TYPE = "image/svg+xml" as const;
-const SVG_PROFILE = "azeforge.svg.foreign-object/v1" as const;
-const SVG_SERIALIZER = "azeforge-svg/v1" as const;
-const SVG_MAX_BYTES = 64 * 1024 * 1024;
-const SVG_MAX_HEIGHT_PX = 100_000;
-const REQUIRED_CAPABILITIES = Object.freeze([
+export const SVG_MIME_TYPE = "image/svg+xml" as const;
+export const SVG_PROFILE = "azeforge.svg.foreign-object/v1" as const;
+export const SVG_SERIALIZER = "azeforge-svg/v1" as const;
+export const SVG_MAX_BYTES = 64 * 1024 * 1024;
+export const SVG_MAX_HEIGHT_PX = 100_000;
+export const SVG_REQUIRED_CAPABILITIES = Object.freeze([
   "svg2",
   "xhtml-foreign-object",
 ] as const);
@@ -274,7 +274,7 @@ export async function renderSvg(
         wholeDocument: SVG_PROFILE,
         nestedSvg: "azeforge-mermaid-svg/v2",
       },
-      requiredCapabilities: REQUIRED_CAPABILITIES,
+      requiredCapabilities: SVG_REQUIRED_CAPABILITIES,
       ...(layout.fingerprintDependencies as Readonly<Record<string, JsonValue>>),
     }),
   );
@@ -282,7 +282,7 @@ export async function renderSvg(
     canonicalJson({
       contentHash,
       profile: SVG_PROFILE,
-      requiredCapabilities: REQUIRED_CAPABILITIES,
+      requiredCapabilities: SVG_REQUIRED_CAPABILITIES,
     }),
   );
   const xhtmlBody = canonicalXhtmlBody(layout.body);
@@ -307,7 +307,7 @@ export async function renderSvg(
       theme: { id: theme.id, version: theme.version },
       cssDimensions: { ...theme.geometry },
       pixelDimensions: { width, height },
-      requiredCapabilities: REQUIRED_CAPABILITIES,
+      requiredCapabilities: SVG_REQUIRED_CAPABILITIES,
     },
   };
 }

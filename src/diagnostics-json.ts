@@ -1,16 +1,12 @@
-import type {
-  ArtifactMetadata,
-  ContentHash,
-  Diagnostic,
-  JsonValue,
-} from "./model.js";
+import type { ArtifactMetadata, ContentHash, Diagnostic, JsonValue } from "./model.js";
+import { TOOL_VERSION } from "./tool-version.js";
 
 export const DIAGNOSTICS_SCHEMA_ID = "azeforge.diagnostics/v1" as const;
 
 export interface DiagnosticsReport {
   readonly schema: typeof DIAGNOSTICS_SCHEMA_ID;
   readonly schemaVersion: 1;
-  readonly tool: Readonly<{ name: "azeforge"; version: "0.1.0" }>;
+  readonly tool: Readonly<{ name: "azeforge"; version: typeof TOOL_VERSION }>;
   readonly command: string;
   readonly success: boolean;
   readonly diagnostics: readonly Diagnostic[];
@@ -32,7 +28,7 @@ export function createDiagnosticsReport(
   return {
     schema: DIAGNOSTICS_SCHEMA_ID,
     schemaVersion: 1,
-    tool: { name: "azeforge", version: "0.1.0" },
+    tool: { name: "azeforge", version: TOOL_VERSION },
     command,
     success,
     diagnostics,
@@ -43,7 +39,7 @@ export function createDiagnosticsReport(
   };
 }
 
-export const diagnosticsJsonSchema: JsonValue = {
+export const diagnosticsJsonSchema: JsonValue = Object.freeze({
   $schema: "https://json-schema.org/draft/2020-12/schema",
   $id: DIAGNOSTICS_SCHEMA_ID,
   type: "object",
@@ -168,4 +164,4 @@ export const diagnosticsJsonSchema: JsonValue = {
       },
     },
   },
-};
+});

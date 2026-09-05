@@ -14,9 +14,9 @@ import type {
   SourceRange,
 } from "./model.js";
 
-const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
-const MAX_IMAGE_DIMENSION_PX = 10000;
-const MAX_IMAGE_PIXELS = 25_000_000;
+export const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+export const MAX_IMAGE_DIMENSION_PX = 10000;
+export const MAX_IMAGE_PIXELS = 25_000_000;
 
 const EXTENSION_MEDIA_TYPES: Readonly<Record<string, AssetManifestEntry["mediaType"]>> = {
   ".png": "image/png",

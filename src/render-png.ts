@@ -27,14 +27,14 @@ import { tableHtmlBlockRenderer } from "./table.js";
 
 export const PNG_RENDERER_ID = "png" as const;
 export const PNG_RENDERER_VERSION = "1.0.0" as const;
-const PNG_MIME_TYPE = "image/png" as const;
-const PNG_PROFILE = "azeforge.png.continuous/v1" as const;
-const PNG_SERIALIZER = "azeforge-png/v1" as const;
+export const PNG_MIME_TYPE = "image/png" as const;
+export const PNG_PROFILE = "azeforge.png.continuous/v1" as const;
+export const PNG_SERIALIZER = "azeforge-png/v1" as const;
 export const PNG_DEVICE_SCALE_FACTOR = 2 as const;
-const PNG_MAX_BYTES = 64 * 1024 * 1024;
-const PNG_MAX_CSS_HEIGHT_PX = 100_000;
-const PNG_MAX_PIXEL_DIMENSION = 32_768;
-const PNG_MAX_PIXELS = 50_000_000;
+export const PNG_MAX_BYTES = 64 * 1024 * 1024;
+export const PNG_MAX_CSS_HEIGHT_PX = 100_000;
+export const PNG_MAX_PIXEL_DIMENSION = 32_768;
+export const PNG_MAX_PIXELS = 50_000_000;
 const PNG_SRGB_INTENT = 0;
 const PNG_DEFLATE_LEVEL = 9;
 export const PNG_REQUIRED_CAPABILITIES = Object.freeze([

@@ -1,4 +1,5 @@
 export { createCompiler } from "./compiler.js";
+export { DEFAULT_RENDER_TIMEOUT_MS } from "./compiler.js";
 export { CompilerConfigurationError } from "./configuration-error.js";
 export { DIAGNOSTICS_SCHEMA_ID, diagnosticsJsonSchema } from "./diagnostics-json.js";
 export type { DiagnosticsReport } from "./diagnostics-json.js";
@@ -200,3 +201,72 @@ export {
 } from "./table.js";
 export { isSafeLinkTarget, parseInlineFragment } from "./markdown.js";
 export { FragmentSecurityError, renderInlineHtml } from "./html-fragment.js";
+export {
+  CAPABILITY_COMMANDS,
+  CAPABILITY_FORMATS,
+  buildCapabilities,
+  probeBrowserAvailability,
+  serializeCapabilities,
+} from "./capabilities.js";
+export type { CapabilitiesReport, EngineAvailability } from "./capabilities.js";
+export {
+  CAPABILITIES_SCHEMA_ID,
+  CAPABILITIES_SCHEMA_VERSION,
+  capabilitiesJsonSchema,
+} from "./capabilities-json.js";
+export { TOOL_VERSION } from "./tool-version.js";
+export {
+  VERSION_SCHEMA_ID,
+  VERSION_SCHEMA_VERSION,
+  createVersionReport,
+  publicSchemaVersions,
+  versionJsonSchema,
+} from "./version.js";
+export type { VersionReport, VersionedSchema } from "./version.js";
+export {
+  HELP_COMMANDS,
+  commandHelp,
+  globalHelp,
+  humanCapabilitiesReport,
+  humanVersionReport,
+  versionLine,
+} from "./help.js";
+export type { HelpCommand } from "./help.js";
+export { DEFAULT_DIAGNOSTIC_LIMITS } from "./diagnostics.js";
+export { MAX_NESTING_DEPTH } from "./parse.js";
+export {
+  MAX_IMAGE_BYTES,
+  MAX_IMAGE_DIMENSION_PX,
+  MAX_IMAGE_PIXELS,
+} from "./assets.js";
+export {
+  HTML_MAX_BYTES,
+  HTML_MIME_TYPE,
+  HTML_PROFILE,
+  HTML_SERIALIZER,
+} from "./render-html.js";
+export {
+  SVG_MAX_BYTES,
+  SVG_MAX_HEIGHT_PX,
+  SVG_MIME_TYPE,
+  SVG_PROFILE,
+  SVG_SERIALIZER,
+  SVG_REQUIRED_CAPABILITIES,
+} from "./render-svg.js";
+export {
+  PNG_MAX_BYTES,
+  PNG_MAX_CSS_HEIGHT_PX,
+  PNG_MAX_PIXEL_DIMENSION,
+  PNG_MAX_PIXELS,
+  PNG_MIME_TYPE,
+  PNG_PROFILE,
+  PNG_SERIALIZER,
+} from "./render-png.js";
+export {
+  PDF_MAX_HTML_BYTES,
+  PDF_MIME_TYPE,
+  PDF_PRINT_TIMEOUT_MS,
+  PDF_PROFILE,
+  PDF_SERIALIZER,
+} from "./render-pdf.js";
+export { resolvePinnedBrowserExecutable } from "./mermaid-browser.js";

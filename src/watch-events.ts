@@ -1,9 +1,5 @@
-import type {
-  ArtifactMetadata,
-  ContentHash,
-  Diagnostic,
-} from "./model.js";
-
+import type { ArtifactMetadata, ContentHash, Diagnostic } from "./model.js";
+import { TOOL_VERSION } from "./tool-version.js";
 export const WATCH_EVENT_SCHEMA_ID = "azeforge.event/v1" as const;
 
 export type WatchCommand = "watch" | "serve";
@@ -12,7 +8,7 @@ export type WatchEventKind = "started" | "result" | "stopped";
 interface WatchEventBase {
   readonly schema: typeof WATCH_EVENT_SCHEMA_ID;
   readonly schemaVersion: 1;
-  readonly tool: Readonly<{ name: "azeforge"; version: "0.1.0" }>;
+  readonly tool: Readonly<{ name: "azeforge"; version: typeof TOOL_VERSION }>;
   readonly command: WatchCommand;
   readonly seq: number;
   readonly kind: WatchEventKind;
@@ -53,7 +49,7 @@ export interface WatchStoppedEvent extends WatchEventBase {
 export type WatchEvent = WatchStartedEvent | WatchResultEvent | WatchStoppedEvent;
 
 function toolIdentity(): WatchEventBase["tool"] {
-  return { name: "azeforge", version: "0.1.0" };
+  return { name: "azeforge", version: TOOL_VERSION };
 }
 
 function baseEvent(command: WatchCommand, seq: number): Omit<WatchEventBase, "kind"> {

@@ -337,13 +337,17 @@ async function renderAndSettle(
   }, input);
 }
 
+export function resolvePinnedBrowserExecutable(): string {
+  return computeExecutablePath({
+    cacheDir: BROWSER_CACHE_DIRECTORY,
+    browser: BrowserKind.CHROMEHEADLESSSHELL,
+    buildId: CHROME_HEADLESS_SHELL_VERSION,
+  });
+}
+
 const pinnedCapabilities: BrowserCapabilities = Object.freeze({
   resolveExecutable(): string {
-    return computeExecutablePath({
-      cacheDir: BROWSER_CACHE_DIRECTORY,
-      browser: BrowserKind.CHROMEHEADLESSSHELL,
-      buildId: CHROME_HEADLESS_SHELL_VERSION,
-    });
+    return resolvePinnedBrowserExecutable();
   },
   loadMermaidScript,
   loadFontCss,
