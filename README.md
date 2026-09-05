@@ -166,6 +166,32 @@ echo $?
 
 `cmp` produces no output and exits with status `0`.
 
+## Watch a Source
+
+```bash
+node dist/cli.js watch \
+  /tmp/manual.aze.md \
+  --output /tmp/manual.html
+```
+
+`watch` compiles immediately, then fully recompiles after coalesced changes to
+the Source or its project images. Compiles are serialized; a failed cycle
+preserves the last successful Artifact and keeps watching. Add
+`--diagnostics json` to stream `azeforge.event/v1` NDJSON records on stdout
+instead of human diagnostics on stderr.
+
+## Serve a preview
+
+```bash
+node dist/cli.js serve /tmp/manual.aze.md --port 0
+# serve: listening on http://127.0.0.1:62545/ for /tmp/manual.aze.md
+```
+
+`serve` binds only loopback (ephemeral port by default) and shows the current
+HTML preview or the current diagnostics, never stale content. The preview
+wraps the exact Artifact bytes in an unhashable reload shell; only preview,
+SSE, and opaque asset routes exist. Stop with `SIGINT` or `SIGTERM`.
+
 ## Check deterministic output
 
 ```bash
