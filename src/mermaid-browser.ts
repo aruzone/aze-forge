@@ -249,12 +249,26 @@ async function renderAndSettle(
       "shape-rendering",
       "visibility",
     ] as const;
+    // Pass 1: snapshot computed presentation while Mermaid's selectors
+    // still match. Mutating ancestors first (class removal below) would
+    // otherwise break descendant selectors such as `.node rect`, and the
+    // fallback inherited paint is visibly wrong (solid boxes, lost halos).
+    const snapshot = new Map<Element, Record<string, string>>();
     for (const element of [svg, ...svg.querySelectorAll("*")]) {
       if (element.localName === "style") continue;
       const computed = getComputedStyle(element);
+      const values: Record<string, string> = {};
       for (const property of presentationProperties) {
         const value = computed.getPropertyValue(property).trim();
-        if (value !== "") element.setAttribute(property, value);
+        if (value !== "") values[property] = value;
+      }
+      snapshot.set(element, values);
+    }
+    // Pass 2: freeze the snapshot into attributes, then drop hooks.
+    for (const [element, values] of snapshot) {
+      for (const property of presentationProperties) {
+        const value = values[property];
+        if (value !== undefined) element.setAttribute(property, value);
       }
       for (const attribute of [...element.attributes]) {
         if (
