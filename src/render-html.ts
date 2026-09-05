@@ -61,7 +61,7 @@ interface RenderContext {
   ) => string;
 }
 
-function documentTitle(document: AzeDocument): string {
+export function documentTitle(document: AzeDocument): string {
   const metadataTitle = document.metadata.title?.trim();
   if (metadataTitle !== undefined && metadataTitle !== "") return metadataTitle;
   const firstHeading = document.blocks.find((block) => block.kind === "heading");

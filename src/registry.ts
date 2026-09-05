@@ -15,6 +15,10 @@ import {
   svgRendererDescriptor,
 } from "./render-svg.js";
 import {
+  pdfBlockRenderers,
+  pdfRendererDescriptor,
+} from "./render-pdf.js";
+import {
   pngBlockRenderers,
   pngRendererDescriptor,
 } from "./render-png.js";
@@ -57,11 +61,13 @@ export function getBuiltInRegistry(): ResolvedRegistry {
       tableHtmlBlockRenderer,
       ...svgBlockRenderers,
       ...pngBlockRenderers,
+      ...pdfBlockRenderers,
     ]),
     renderers: Object.freeze([
       htmlRendererDescriptor,
       svgRendererDescriptor,
       pngRendererDescriptor,
+      pdfRendererDescriptor,
     ]),
   });
 }

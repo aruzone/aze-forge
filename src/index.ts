@@ -77,6 +77,22 @@ export {
   validateRegistry,
 } from "./registry.js";
 export {
+  PDF_MAX_BYTES,
+  PDF_MAX_PAGES,
+  PDF_MAX_TEMP_BYTES,
+  PDF_RENDERER_ID,
+  PDF_RENDERER_VERSION,
+  PDF_REQUIRED_CAPABILITIES,
+  PdfArtifactLimitError,
+  canonicalizePdf,
+  pdfBlockRenderers,
+  pdfPageGeometryForTheme,
+  pdfPagedCss,
+  pinnedPdfBrowserCapability,
+  pdfRendererDescriptor,
+  renderPdf,
+} from "./render-pdf.js";
+export {
   PNG_DEVICE_SCALE_FACTOR,
   PNG_RENDERER_ID,
   PNG_RENDERER_VERSION,
@@ -150,6 +166,7 @@ export type {
   FormatResult,
   ParsedDocument,
   PluginDescriptor,
+  PdfArtifactMetadata,
   PngArtifactMetadata,
   RelatedLocation,
   RendererDescriptor,

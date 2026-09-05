@@ -63,7 +63,12 @@ import {
 } from "./registry.js";
 import type { ResolvedRegistry } from "./registry.js";
 import { parseSource } from "./parse.js";
-import { ArtifactLimitError, createHtmlLayout, renderHtml } from "./render-html.js";
+import { ArtifactLimitError, createHtmlLayout, documentTitle, renderHtml } from "./render-html.js";
+import {
+  pinnedPdfBrowserCapability,
+  PdfArtifactLimitError,
+  renderPdf,
+} from "./render-pdf.js";
 import {
   pinnedSvgBrowserCapability,
   renderSvg,
@@ -83,6 +88,7 @@ const BUILT_IN_RENDERER_VERSION_BY_FORMAT = {
   html: "1.0.0",
   svg: "1.0.0",
   png: "1.0.0",
+  pdf: "1.0.0",
 } as const;
 
 function validateParsed(
@@ -1231,7 +1237,7 @@ export function createCompiler(options: CompilerOptions = {}): Compiler {
       if (validation.document === undefined) {
         return { diagnostics: validation.diagnostics };
       }
-      if (compileOptions.format !== "html" && compileOptions.format !== "svg" && compileOptions.format !== "png") {
+      if (compileOptions.format !== "html" && compileOptions.format !== "svg" && compileOptions.format !== "png" && compileOptions.format !== "pdf") {
         const unsupportedFormat = createDiagnostic(
           "azeforge.renderer#format-unsupported",
           "error",
@@ -1478,13 +1484,25 @@ export function createCompiler(options: CompilerOptions = {}): Compiler {
                   imageResolution.manifest,
                   pinnedSvgBrowserCapability,
                 )
-              : await renderPng(
-                  htmlLayout,
-                  contentHash,
-                  theme,
-                  imageResolution.manifest,
-                  pinnedPngBrowserCapability,
-                );
+              : compileOptions.format === "png"
+                ? await renderPng(
+                    htmlLayout,
+                    contentHash,
+                    theme,
+                    imageResolution.manifest,
+                    pinnedPngBrowserCapability,
+                  )
+                : await renderPdf(
+                    htmlLayout,
+                    contentHash,
+                    theme,
+                    imageResolution.manifest,
+                    pinnedPdfBrowserCapability,
+                    {
+                      title: documentTitle(imageResolution.document),
+                      authors: imageResolution.document.metadata.authors,
+                    },
+                  );
         return {
           diagnostics: validation.diagnostics,
           document: validation.document,
@@ -1507,7 +1525,8 @@ export function createCompiler(options: CompilerOptions = {}): Compiler {
               )
             : error instanceof ArtifactLimitError ||
                 error instanceof SvgArtifactLimitError ||
-                error instanceof PngArtifactLimitError
+                error instanceof PngArtifactLimitError ||
+                error instanceof PdfArtifactLimitError
               ? createDiagnostic(
                   "azeforge.renderer#artifact-limit",
                   "error",
