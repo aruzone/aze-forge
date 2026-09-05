@@ -274,6 +274,9 @@ export interface CanonicalPdf {
  * document ID from the full render identity, strips XMP metadata the P0
  * profile does not claim, and rebuilds the cross-reference table so
  * identical renders hash identically.
+ * Blink also emits per-session structure-tree element IDs (`/ID (node…)`);
+ * these are replaced with deterministic per-object IDs so identical renders
+ * hash identically.
  */
 function isPdfDocumentId(value: string): boolean {
   return /^[0-9a-f]{32}$/.test(value);
@@ -373,12 +376,30 @@ export function canonicalizePdf(
     chunks.push(chunk);
     position += chunk.length;
   };
+  // Blink numbers structure-tree element IDs per browser session. Map each
+  // session-local node token to its defining object number so both
+  // definitions (`/ID (node…)`) and references (`/Headers [(node…)]`)
+  // rewrite to the same deterministic ID.
+  const structIdByNode = new Map<string, number>();
+  for (const object of objects) {
+    for (const match of object.raw.matchAll(/\/ID \(node(\d+)\)/g)) {
+      structIdByNode.set(match[1] as string, object.num);
+    }
+  }
   for (const object of objects) {
     if (object.num === droppedMetadata) continue;
     if (object.num === infoNum) {
       emit(object.num, infoRaw);
     } else if (object.num === rootNum) {
       emit(object.num, catalog);
+    } else if (object.raw.includes("/Type /StructElem") && object.raw.includes("(node")) {
+      emit(
+        object.num,
+        object.raw.replace(/\(node(\d+)\)/g, (_, digits: string) => {
+          const defining = structIdByNode.get(digits);
+          return defining === undefined ? `(node${digits})` : `(azeforge-struct-${defining})`;
+        }),
+      );
     } else {
       emit(object.num, object.raw);
     }

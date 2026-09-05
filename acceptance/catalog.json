@@ -1,0 +1,693 @@
+{
+  "schema": "azeforge.acceptance/v1",
+  "schemaVersion": 1,
+  "catalog": {
+    "id": "azeforge.acceptance/v1",
+    "version": 1
+  },
+  "entries": [
+    {
+      "id": "P0-DOC-001",
+      "gate": "p0",
+      "area": "document",
+      "given": "Valid Engineering-notation Source",
+      "when": "the compiler parses and validates it",
+      "then": [
+        "an error-free versioned serializable Document is produced"
+      ],
+      "evidence": "automated",
+      "required": true,
+      "contracts": [
+        "#6"
+      ]
+    },
+    {
+      "id": "P0-DOC-002",
+      "gate": "p0",
+      "area": "document",
+      "given": "Source with invalid regions",
+      "when": "the compiler parses it",
+      "then": [
+        "valid regions recover into the Document",
+        "errors prevent AzeDocument and Artifact production"
+      ],
+      "evidence": "automated",
+      "required": true,
+      "contracts": [
+        "#6"
+      ]
+    },
+    {
+      "id": "P0-DOC-003",
+      "gate": "p0",
+      "area": "document",
+      "given": "Source with metadata, version, or unknown-directive failures",
+      "when": "the compiler reports Diagnostics",
+      "then": [
+        "each Diagnostic carries the correct SourceRange and lists alternatives"
+      ],
+      "evidence": "automated",
+      "required": true,
+      "contracts": [
+        "#6",
+        "#9"
+      ]
+    },
+    {
+      "id": "P0-DOC-004",
+      "gate": "p0",
+      "area": "document",
+      "given": "Two Sources differing only in trivia, paths, diagnostics, ranges, or render options",
+      "when": "both Documents are hashed",
+      "then": [
+        "both contentHashes are equal"
+      ],
+      "evidence": "automated",
+      "required": true,
+      "contracts": [
+        "#6",
+        "ADR 0002"
+      ]
+    },
+    {
+      "id": "P0-DIAG-001",
+      "gate": "p0",
+      "area": "diagnostics",
+      "given": "A failing compilation",
+      "when": "an author reads the human Diagnostic report",
+      "then": [
+        "every Diagnostic is line-specific and author-facing"
+      ],
+      "evidence": "automated",
+      "required": true,
+      "contracts": [
+        "#9"
+      ]
+    },
+    {
+      "id": "P0-DIAG-002",
+      "gate": "p0",
+      "area": "diagnostics",
+      "given": "A failing compilation",
+      "when": "a tool reads the JSON Diagnostic report",
+      "then": [
+        "stable code, data, range, order, and fix semantics are preserved"
+      ],
+      "evidence": "automated",
+      "required": true,
+      "contracts": [
+        "#9"
+      ]
+    },
+    {
+      "id": "P0-DIAG-003",
+      "gate": "p0",
+      "area": "diagnostics",
+      "given": "Malformed input or a component fault",
+      "when": "the compiler handles it",
+      "then": [
+        "the fault is bounded, redacted, and contained without crashing"
+      ],
+      "evidence": "automated",
+      "required": true,
+      "contracts": [
+        "#9"
+      ]
+    },
+    {
+      "id": "P0-PLUGIN-001",
+      "gate": "p0",
+      "area": "plugin",
+      "given": "The built-in registry, schemas, versions, and capabilities",
+      "when": "they are constructed",
+      "then": [
+        "construction is deterministic",
+        "ambiguous registrations are rejected with a stable error"
+      ],
+      "evidence": "automated",
+      "required": true,
+      "contracts": [
+        "#7"
+      ]
+    },
+    {
+      "id": "P0-PLUGIN-002",
+      "gate": "p0",
+      "area": "plugin",
+      "given": "A Plugin, Block renderer, or Renderer fault",
+      "when": "the fault fires mid-render",
+      "then": [
+        "partial Artifacts are discarded",
+        "ordered Diagnostics are preserved"
+      ],
+      "evidence": "automated",
+      "required": true,
+      "contracts": [
+        "#7"
+      ]
+    },
+    {
+      "id": "P0-CLI-001",
+      "gate": "p0",
+      "area": "cli",
+      "given": "A Source render",
+      "when": "it succeeds or fails",
+      "then": [
+        "success atomically commits exactly one requested Artifact",
+        "failure preserves the prior Artifact"
+      ],
+      "evidence": "automated",
+      "required": true,
+      "contracts": [
+        "#8"
+      ]
+    },
+    {
+      "id": "P0-CLI-002",
+      "gate": "p0",
+      "area": "cli",
+      "given": "Stdin, stdout, format, and destination modes",
+      "when": "they are exercised",
+      "then": [
+        "behavior matches the CLI contract including binary-terminal denial"
+      ],
+      "evidence": "automated",
+      "required": true,
+      "contracts": [
+        "#8"
+      ]
+    },
+    {
+      "id": "P0-CLI-003",
+      "gate": "p0",
+      "area": "cli",
+      "given": "Validate and format commands",
+      "when": "they run",
+      "then": [
+        "each executes only its specified layers and write modes"
+      ],
+      "evidence": "automated",
+      "required": true,
+      "contracts": [
+        "#8"
+      ]
+    },
+    {
+      "id": "P0-CLI-004",
+      "gate": "p0",
+      "area": "cli",
+      "given": "A watched Source with discovered and missing dependencies",
+      "when": "it changes and breaks",
+      "then": [
+        "rebuilds serialize",
+        "failure preserves the prior Artifact"
+      ],
+      "evidence": "automated",
+      "required": true,
+      "contracts": [
+        "#8"
+      ]
+    },
+    {
+      "id": "P0-CLI-005",
+      "gate": "p0",
+      "area": "cli",
+      "given": "A served Source",
+      "when": "it is previewed",
+      "then": [
+        "the server is loopback-only and constrained",
+        "it exposes current Diagnostics rather than stale content"
+      ],
+      "evidence": "automated",
+      "required": true,
+      "contracts": [
+        "#8"
+      ]
+    },
+    {
+      "id": "P0-CLI-006",
+      "gate": "p0",
+      "area": "cli",
+      "given": "Every CLI command",
+      "when": "it exits",
+      "then": [
+        "exit codes, stdout purity, finite JSON, NDJSON lifecycle, quiet mode, and signal cleanup match the CLI contract"
+      ],
+      "evidence": "automated",
+      "required": true,
+      "contracts": [
+        "#8"
+      ]
+    },
+    {
+      "id": "P0-CLI-007",
+      "gate": "p0",
+      "area": "cli",
+      "given": "Capability and version reports",
+      "when": "they are requested",
+      "then": [
+        "they are complete, deterministic, local-only, and truthful"
+      ],
+      "evidence": "automated",
+      "required": true,
+      "contracts": [
+        "#8"
+      ]
+    },
+    {
+      "id": "P0-EQN-001",
+      "gate": "p0",
+      "area": "equation",
+      "given": "Readable equation Blocks",
+      "when": "they render",
+      "then": [
+        "HTML carries visual plus MathML pairs and visual Artifacts stay consistent"
+      ],
+      "evidence": "automated",
+      "required": true,
+      "contracts": [
+        "#7"
+      ]
+    },
+    {
+      "id": "P0-EQN-002",
+      "gate": "p0",
+      "area": "equation",
+      "given": "Invalid equations and raw LaTeX",
+      "when": "they are compiled",
+      "then": [
+        "invalid equations diagnose precisely",
+        "raw LaTeX is denied by default and bounded when explicitly trusted"
+      ],
+      "evidence": "automated",
+      "required": true,
+      "contracts": [
+        "#7",
+        "#9"
+      ]
+    },
+    {
+      "id": "P0-MMD-001",
+      "gate": "p0",
+      "area": "mermaid",
+      "given": "A Mermaid Block",
+      "when": "it renders offline",
+      "then": [
+        "the SVG is deterministic, sanitized, and accessible",
+        "active or invalid content fails safely"
+      ],
+      "evidence": "automated",
+      "required": true,
+      "contracts": [
+        "#7",
+        "#9"
+      ]
+    },
+    {
+      "id": "P0-OUT-001",
+      "gate": "p0",
+      "area": "artifact",
+      "given": "The Golden report under all three Themes",
+      "when": "it renders to HTML, SVG, PNG, and PDF",
+      "then": [
+        "every semantic object is present with format-appropriate proof"
+      ],
+      "evidence": "automated",
+      "required": true,
+      "contracts": [
+        "#10",
+        "#12"
+      ]
+    },
+    {
+      "id": "P0-OUT-002",
+      "gate": "p0",
+      "area": "artifact",
+      "given": "Every rendered Artifact",
+      "when": "its bytes and manifest are inspected",
+      "then": [
+        "it is self-contained, profile/MIME/geometry-correct, and truthfully hashed"
+      ],
+      "evidence": "automated",
+      "required": true,
+      "contracts": [
+        "#10",
+        "ADR 0002"
+      ]
+    },
+    {
+      "id": "P0-OUT-003",
+      "gate": "p0",
+      "area": "artifact",
+      "given": "Pagination boundary fixtures",
+      "when": "they render to PDF",
+      "then": [
+        "every keep, split, scaling, and oversize-error rule holds"
+      ],
+      "evidence": "automated",
+      "required": true,
+      "contracts": [
+        "#10"
+      ]
+    },
+    {
+      "id": "P0-OUT-004",
+      "gate": "p0",
+      "area": "artifact",
+      "given": "Reference fixtures compiled twice in fresh directories under one fingerprint",
+      "when": "both builds are compared",
+      "then": [
+        "contentHash, assetManifestHash, renderer fingerprint, Artifact bytes, and artifactHash are equal",
+        "trivia and path moves preserve identity while semantic, Theme, asset, and dependency changes invalidate only the specified identities"
+      ],
+      "evidence": "automated",
+      "required": true,
+      "contracts": [
+        "#10",
+        "ADR 0002"
+      ]
+    },
+    {
+      "id": "P0-OUT-005",
+      "gate": "p0",
+      "area": "artifact",
+      "given": "A missing browser or format adapter",
+      "when": "an affected format is requested",
+      "then": [
+        "a structured remedy is reported",
+        "unaffected formats remain usable"
+      ],
+      "evidence": "automated",
+      "required": true,
+      "contracts": [
+        "#10"
+      ]
+    },
+    {
+      "id": "P0-SEC-001",
+      "gate": "p0",
+      "area": "security",
+      "given": "Traversal and symlink escapes",
+      "when": "they are attempted",
+      "then": [
+        "the root confinement rejects them without leaking host paths"
+      ],
+      "evidence": "automated",
+      "required": true,
+      "contracts": [
+        "#9"
+      ]
+    },
+    {
+      "id": "P0-SEC-002",
+      "gate": "p0",
+      "area": "security",
+      "given": "An offline compilation",
+      "when": "its requests are observed",
+      "then": [
+        "no non-loopback request or external name resolution occurs"
+      ],
+      "evidence": "automated",
+      "required": true,
+      "contracts": [
+        "#9"
+      ]
+    },
+    {
+      "id": "P0-SEC-003",
+      "gate": "p0",
+      "area": "security",
+      "given": "Raw or embedded active content, unsafe protocols, malformed assets, and unsafe sanitizer rewrites",
+      "when": "they are compiled",
+      "then": [
+        "each is rejected"
+      ],
+      "evidence": "automated",
+      "required": true,
+      "contracts": [
+        "#9"
+      ]
+    },
+    {
+      "id": "P0-SEC-004",
+      "gate": "p0",
+      "area": "security",
+      "given": "Capability, time, memory, Diagnostic, asset, temp, and Artifact bounds",
+      "when": "a bound is exceeded",
+      "then": [
+        "compilation fails closed without partial Artifacts"
+      ],
+      "evidence": "automated",
+      "required": true,
+      "contracts": [
+        "#9"
+      ]
+    },
+    {
+      "id": "P0-COMPAT-001",
+      "gate": "p0",
+      "area": "compatibility",
+      "given": "Supported Node and OS combinations",
+      "when": "the suite runs",
+      "then": [
+        "all pass and system fonts, locales, and timezones do not alter Artifact eligibility"
+      ],
+      "evidence": "automated",
+      "required": true,
+      "contracts": [
+        "#10"
+      ]
+    },
+    {
+      "id": "P0-AUTHOR-001",
+      "gate": "p0",
+      "area": "author",
+      "given": "A temporary copy of the Golden report",
+      "when": "the modify-equation and table-value loop runs",
+      "then": [
+        "edits change content and Artifact identities while presence checks still pass",
+        "the missing-dx step fails line-specifically without committing an Artifact",
+        "restoration passes"
+      ],
+      "evidence": "automated",
+      "required": true,
+      "contracts": [
+        "#12"
+      ]
+    },
+    {
+      "id": "P05-CIR-001",
+      "gate": "p0.5",
+      "area": "circuit",
+      "given": "Five approved Circuit Sources",
+      "when": "they normalize",
+      "then": [
+        "each matches its exact semantic oracle and content hash"
+      ],
+      "evidence": "manual",
+      "required": true,
+      "contracts": [
+        "#11"
+      ]
+    },
+    {
+      "id": "P05-CIR-002",
+      "gate": "p0.5",
+      "area": "circuit",
+      "given": "The closed component, value, and annotation union",
+      "when": "focused conformance runs",
+      "then": [
+        "every member passes"
+      ],
+      "evidence": "manual",
+      "required": true,
+      "contracts": [
+        "#11"
+      ]
+    },
+    {
+      "id": "P05-CIR-003",
+      "gate": "p0.5",
+      "area": "circuit",
+      "given": "Unknown, duplicate, terminal, quantity, limit, and convention failures",
+      "when": "they are compiled",
+      "then": [
+        "stable typed ranged Diagnostics are emitted"
+      ],
+      "evidence": "manual",
+      "required": true,
+      "contracts": [
+        "#11",
+        "#9"
+      ]
+    },
+    {
+      "id": "P05-CIR-004",
+      "gate": "p0.5",
+      "area": "circuit",
+      "given": "Unused nodes and disconnected residual subgraphs",
+      "when": "they are compiled",
+      "then": [
+        "each warns without cascades"
+      ],
+      "evidence": "manual",
+      "required": true,
+      "contracts": [
+        "#11"
+      ]
+    },
+    {
+      "id": "P05-CIR-005",
+      "gate": "p0.5",
+      "area": "circuit",
+      "given": "Circuit topology",
+      "when": "it is derived",
+      "then": [
+        "only explicit terminal-node relations create connectivity"
+      ],
+      "evidence": "manual",
+      "required": true,
+      "contracts": [
+        "#11"
+      ]
+    },
+    {
+      "id": "P05-CIR-006",
+      "gate": "p0.5",
+      "area": "circuit",
+      "given": "Directional hints, limits, labels, reference ground, and unsupported layout",
+      "when": "they are compiled",
+      "then": [
+        "behavior matches the Circuit contract"
+      ],
+      "evidence": "manual",
+      "required": true,
+      "contracts": [
+        "#11"
+      ]
+    },
+    {
+      "id": "P05-OUT-001",
+      "gate": "p0.5",
+      "area": "circuit-artifact",
+      "given": "Five Circuits under the required convention and Theme matrix",
+      "when": "they render canonical accessible SVG",
+      "then": [
+        "every cell passes"
+      ],
+      "evidence": "manual",
+      "required": true,
+      "contracts": [
+        "#11"
+      ]
+    },
+    {
+      "id": "P05-OUT-002",
+      "gate": "p0.5",
+      "area": "circuit-artifact",
+      "given": "Five Circuits embedded through four formats",
+      "when": "they render",
+      "then": [
+        "labels stay legible after semantic connectivity passes"
+      ],
+      "evidence": "manual",
+      "required": true,
+      "contracts": [
+        "#11",
+        "#10"
+      ]
+    },
+    {
+      "id": "P05-OUT-003",
+      "gate": "p0.5",
+      "area": "circuit-artifact",
+      "given": "Canonical Circuit SVG bytes across claimed pilot platforms",
+      "when": "they are compared",
+      "then": [
+        "bytes match under the pinned closure"
+      ],
+      "evidence": "manual",
+      "required": true,
+      "contracts": [
+        "#11"
+      ]
+    },
+    {
+      "id": "P05-ADAPTER-001",
+      "gate": "p0.5",
+      "area": "circuit-adapter",
+      "given": "The selected Circuit adapter",
+      "when": "probes run",
+      "then": [
+        "restricted execution, cleanup, timeout, budget, and availability all pass"
+      ],
+      "evidence": "manual",
+      "required": true,
+      "contracts": [
+        "#11"
+      ]
+    },
+    {
+      "id": "P05-ADAPTER-002",
+      "gate": "p0.5",
+      "area": "circuit-adapter",
+      "given": "Missing, disabled, or incompatible engines",
+      "when": "a Circuit render is requested",
+      "then": [
+        "a structured exact remedy is reported",
+        "non-Circuit Documents never probe the adapter"
+      ],
+      "evidence": "manual",
+      "required": true,
+      "contracts": [
+        "#11"
+      ]
+    },
+    {
+      "id": "P05-PLATFORM-001",
+      "gate": "p0.5",
+      "area": "circuit-platform",
+      "given": "Every supported-pilot-platform manifest row",
+      "when": "installation and remedy rehearsal run",
+      "then": [
+        "every row passes"
+      ],
+      "evidence": "manual",
+      "required": true,
+      "contracts": [
+        "#11"
+      ]
+    },
+    {
+      "id": "P05-SYNTAX-001",
+      "gate": "p0.5",
+      "area": "circuit-syntax",
+      "given": "Five lecturer-reviewed Source and semantic pairs",
+      "when": "they are approved",
+      "then": [
+        "they freeze Circuit body syntax 1.0.0 as the conformance corpus"
+      ],
+      "evidence": "manual",
+      "required": true,
+      "contracts": [
+        "#11"
+      ]
+    },
+    {
+      "id": "P05-PILOT-001",
+      "gate": "p0.5",
+      "area": "circuit-pilot",
+      "given": "The five-fixture set with immutable evidence",
+      "when": "lecturers review it",
+      "then": [
+        "two lecturers approve the set",
+        "one course owner approves usefulness and convention"
+      ],
+      "evidence": "manual",
+      "required": true,
+      "contracts": [
+        "#11"
+      ]
+    }
+  ]
+}

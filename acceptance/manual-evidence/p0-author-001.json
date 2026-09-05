@@ -1,0 +1,19 @@
+{
+  "schema": "azeforge.acceptance-manual-evidence/v1",
+  "acceptanceId": "P0-AUTHOR-001",
+  "status": "pending-collection",
+  "note": "Before P0 release, one target author who did not implement the parser completes the modify, diagnose, and repair loop without Source-code or parser-internal help. The automated loop is proven by scripts/acceptance.mjs and test/acceptance.test.mjs; this record carries the independent human walkthrough.",
+  "required": [
+    "participantRole",
+    "consentedIdentifier",
+    "fixtureContentHash",
+    "fixtureArtifactHashes",
+    "commands",
+    "result",
+    "unresolvedNotes",
+    "date",
+    "compilerFingerprint",
+    "os"
+  ],
+  "record": null
+}

@@ -1,4 +1,8 @@
 import {
+  ACCEPTANCE_SCHEMA_ID,
+  ACCEPTANCE_SCHEMA_VERSION,
+} from "./acceptance.js";
+import {
   CALLOUT_PLUGIN_VERSION,
   calloutDataSchema,
   calloutSourceSchema,
@@ -46,6 +50,7 @@ export function publicSchemaVersions(): readonly VersionedSchema[] {
     { id: DIAGNOSTICS_SCHEMA_ID, version: 1 },
     { id: CAPABILITIES_SCHEMA_ID, version: 1 },
     { id: VERSION_SCHEMA_ID, version: 1 },
+    { id: ACCEPTANCE_SCHEMA_ID, version: ACCEPTANCE_SCHEMA_VERSION },
     { id: WATCH_EVENT_SCHEMA_ID, version: 1 },
     { id: schemaId(equationSourceSchema), version: EQUATION_PLUGIN_VERSION },
     { id: schemaId(equationDataSchema), version: EQUATION_PLUGIN_VERSION },

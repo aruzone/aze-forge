@@ -1,4 +1,18 @@
 export { createCompiler } from "./compiler.js";
+export {
+  ACCEPTANCE_CATALOG_ID,
+  ACCEPTANCE_CATALOG_VERSION,
+  ACCEPTANCE_ENTRIES,
+  ACCEPTANCE_SCHEMA_ID,
+  ACCEPTANCE_SCHEMA_VERSION,
+  AUTOMATED_P0_IDS,
+  REQUIRED_P0_IDS,
+  acceptanceJsonSchema,
+  checkAcceptanceCoverage,
+  createAcceptanceCatalog,
+} from "./acceptance.js";
+export type { AcceptanceCatalogDocument, AcceptanceEntry } from "./acceptance.js";
+export type { AcceptanceEvidence, AcceptanceGate } from "./acceptance.js";
 export { DEFAULT_RENDER_TIMEOUT_MS } from "./compiler.js";
 export { CompilerConfigurationError } from "./configuration-error.js";
 export { DIAGNOSTICS_SCHEMA_ID, diagnosticsJsonSchema } from "./diagnostics-json.js";
