@@ -155,6 +155,43 @@ CLI exit statuses:
 - `1`: an accepted operation failed on Source or component diagnostics
 - `2`: arguments or options could not form an operation
 
+## Test invalid Source recovery
+
+Exercise the recovery seam with malformed UTF-8, malformed front matter, duplicate IDs, unknown directives, raw HTML, CRLF, and multi-error Source:
+
+```bash
+node dist/cli.js validate /tmp/bad.aze.md; echo "exit=$?"
+node dist/cli.js validate /tmp/bad.aze.md --diagnostics json > /tmp/report.json; echo "exit=$?"
+node dist/cli.js render /tmp/bad.aze.md --output /tmp/bad.html --diagnostics json; echo "exit=$?"
+```
+
+Exit `2` is reserved for malformed operations (bad flags or arguments). Exit `1` means an accepted operation failed on Source or component diagnostics. Exit `0` with no stdout or stderr means a valid Source.
+
+Confirm the JSON report is the single finite `azeforge.diagnostics/v1` document on stdout while human diagnostics stay on stderr, and validate it against the exported `diagnosticsJsonSchema` (JSON Schema 2020-12):
+
+```bash
+node dist/cli.js render /tmp/bad.aze.md --output /tmp/bad.html --diagnostics json 2>/tmp/stderr.txt | tee /tmp/report.json
+test ! -s /tmp/stderr.txt && echo "stderr clean in json mode"
+```
+
+Confirm a failed render never commits an Artifact by pre-seeding the destination:
+
+```bash
+echo "last successful Artifact" > /tmp/out.html
+node dist/cli.js render /tmp/bad.aze.md --output /tmp/out.html; echo "exit=$?"
+grep -qx "last successful Artifact" /tmp/out.html && echo "artifact preserved"
+```
+
+Probe raw HTML denial, which must report `azeforge.security#raw-html-disabled`, exit `1`, and never render the markup:
+
+```bash
+printf -- '---\nazemark: 1\n---\n\nBefore\n\n<div>\n\nAfter\n' > /tmp/html.aze.md
+node dist/cli.js render /tmp/html.aze.md --output /tmp/html.html --diagnostics json
+grep -i '<script\|<div' /tmp/html.html || echo "no raw html rendered"
+```
+
+Repeat the probes with CRLF line endings and a BOM prefix; diagnostic ranges, columns, and offsets must still line up in the JSON report.
+
 ## Automated checks
 
 ```bash
