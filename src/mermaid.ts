@@ -478,15 +478,12 @@ function namespaceMermaidIds(svg: string, ordinal: number): string {
     return ` id="${firstNew.get(old) ?? `${prefix}-n-0`}-r${seen}"`;
   });
   const resolveReference = (old: string): string => firstNew.get(old) ?? old;
+  // url() and aria references are live (marker and accessibility hooks);
+  // href/xlink:href are rejected unconditionally by the sanitizer, so no
+  // rewriting for them exists here by design.
   const withReferences = out
     .replaceAll(/url\(#([^)]+)\)/g, (_whole: string, old: string) =>
       `url(#${resolveReference(old)})`,
-    )
-    .replaceAll(/href="#([^"]+)"/g, (_whole: string, old: string) =>
-      `href="#${resolveReference(old)}"`,
-    )
-    .replaceAll(/xlink:href="#([^"]+)"/g, (_whole: string, old: string) =>
-      `xlink:href="#${resolveReference(old)}"`,
     )
     .replaceAll(
       /aria-(labelledby|describedby)="([^"]*)"/g,

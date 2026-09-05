@@ -247,6 +247,24 @@ test("invalid diagrams produce one scoped diagnostic and no Artifact", async () 
   );
 });
 
+test("throwing mermaid renderer fails closed with unexpected-failure", async () => {
+  const throwing = {
+    descriptor: { ...mermaidHtmlBlockRenderer.descriptor },
+    render: () => {
+      throw new Error("boom");
+    },
+  };
+  const compiled = await createCompiler({
+    blockRenderers: [throwing],
+  }).compile(sourceWith(`${FLOWCHART}`), { format: "html" });
+  assert.deepEqual(
+    compiled.diagnostics.map(({ code }) => code),
+    ["azeforge.renderer#unexpected-failure"],
+  );
+  assert.equal(compiled.artifact, undefined);
+  assert.equal(compiled.document, undefined);
+});
+
 test("active content and external resources are rejected, never rewritten", async () => {
   const compiler = createCompiler();
   const active = sourceWith(

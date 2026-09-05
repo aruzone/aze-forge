@@ -839,6 +839,18 @@ async function renderMermaidFragments(
       } else if (isCapabilityDenial(error)) {
         diagnostics.push(
           createDiagnostic(
+            "azeforge.security#capability-denied",
+            "error",
+            `Block renderer "${chosen.descriptor.id}" was denied a capability.`,
+            {
+              location,
+              data: { adapterId: chosen.descriptor.id },
+            },
+          ),
+        );
+      } else {
+        diagnostics.push(
+          createDiagnostic(
             "azeforge.renderer#unexpected-failure",
             "error",
             "The mermaid Block renderer failed unexpectedly.",
