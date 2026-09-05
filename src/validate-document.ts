@@ -71,18 +71,51 @@ function hasValidCommonBlockFields(
   );
 }
 
-function hasTextChildren(value: unknown): boolean {
-  return (
-    Array.isArray(value) &&
-    value.every(
-      (child) =>
-        isObjectRecord(child) &&
-        hasOnlyKeys(child, ["kind", "value"]) &&
-        child.kind === "text" &&
-        typeof child.value === "string",
-    )
-  );
+function isInlineNode(value: unknown): boolean {
+  if (!isObjectRecord(value)) return false;
+  if (value.kind === "text" || value.kind === "code") {
+    return (
+      hasOnlyKeys(value, ["kind", "value"]) && typeof value.value === "string"
+    );
+  }
+  if (value.kind === "emphasis" || value.kind === "strong") {
+    return (
+      hasOnlyKeys(value, ["kind", "children"]) &&
+      Array.isArray(value.children) &&
+      (value.children as unknown[]).every((child) => isInlineNode(child))
+    );
+  }
+  if (value.kind === "break") {
+    return hasOnlyKeys(value, ["kind"]);
+  }
+  if (value.kind === "link") {
+    return (
+      hasOnlyKeys(value, ["kind", "href", "children", "title", "range"]) &&
+      typeof value.href === "string" &&
+      (value.href as string).length > 0 &&
+      Array.isArray(value.children) &&
+      (value.children as unknown[]).every((child) => isInlineNode(child)) &&
+      (value.title === undefined || typeof value.title === "string") &&
+      (value.range === undefined || isSourceRange(value.range))
+    );
+  }
+  if (value.kind === "image") {
+    return (
+      hasOnlyKeys(value, ["kind", "src", "alt", "title", "range"]) &&
+      typeof value.src === "string" &&
+      (value.src as string).length > 0 &&
+      typeof value.alt === "string" &&
+      (value.title === undefined || typeof value.title === "string") &&
+      (value.range === undefined || isSourceRange(value.range))
+    );
+  }
+  return false;
 }
+
+function hasInlineChildren(value: unknown): boolean {
+  return Array.isArray(value) && value.every((child) => isInlineNode(child));
+}
+
 
 function isParsedBlock(value: unknown): value is ParsedBlock {
   if (!isObjectRecord(value)) return false;
@@ -92,13 +125,89 @@ function isParsedBlock(value: unknown): value is ParsedBlock {
       Number.isInteger(value.level) &&
       (value.level as number) >= 1 &&
       (value.level as number) <= 6 &&
-      hasTextChildren(value.children)
+      hasInlineChildren(value.children)
     );
   }
   if (value.kind === "paragraph") {
     return (
       hasValidCommonBlockFields(value, ["kind", "children", "range", "id"]) &&
-      hasTextChildren(value.children)
+      hasInlineChildren(value.children)
+    );
+  }
+  if (value.kind === "thematicBreak") {
+    return hasValidCommonBlockFields(value, ["kind", "range", "id"]);
+  }
+  if (value.kind === "blockquote") {
+    return (
+      hasValidCommonBlockFields(value, ["kind", "children", "range", "id"]) &&
+      Array.isArray(value.children) &&
+      (value.children as unknown[]).every((child) => isParsedBlock(child))
+    );
+  }
+  if (value.kind === "list") {
+    return (
+      hasValidCommonBlockFields(value, ["kind", "ordered", "items", "range", "id", "start"]) &&
+      typeof value.ordered === "boolean" &&
+      Array.isArray(value.items) &&
+      (value.items as unknown[]).every(
+        (item) =>
+          isObjectRecord(item) &&
+          hasOnlyKeys(item, ["blocks", "range"]) &&
+          Array.isArray(item.blocks) &&
+          (item.blocks as unknown[]).every((child) => isParsedBlock(child)) &&
+          isSourceRange(item.range),
+      ) &&
+      (value.start === undefined ||
+        (Number.isInteger(value.start) && (value.start as number) >= 0))
+    );
+  }
+  if (value.kind === "code") {
+    return (
+      hasValidCommonBlockFields(value, ["kind", "value", "range", "id", "language"]) &&
+      typeof value.value === "string" &&
+      (value.language === undefined || typeof value.language === "string")
+    );
+  }
+  if (value.kind === "table") {
+    return (
+      hasValidCommonBlockFields(value, ["kind", "data", "range", "id", "caption", "pluginVersion"]) &&
+      isObjectRecord(value.data) &&
+      hasOnlyKeys(value.data, ["align", "header", "rows"]) &&
+      Array.isArray(value.data.align) &&
+      (value.data.align as unknown[]).every(
+        (entry) =>
+          entry === null || entry === "left" || entry === "center" || entry === "right",
+      ) &&
+      Array.isArray(value.data.header) &&
+      (value.data.header as unknown[]).every(
+        (cell) => Array.isArray(cell) && (cell as unknown[]).every((node) => isInlineNode(node)),
+      ) &&
+      Array.isArray(value.data.rows) &&
+      (value.data.rows as unknown[]).every(
+        (row) =>
+          Array.isArray(row) &&
+          (row as unknown[]).every(
+            (cell) => Array.isArray(cell) && (cell as unknown[]).every((node) => isInlineNode(node)),
+          ),
+      ) &&
+      (value.data.header as unknown[]).length === (value.data.align as unknown[]).length &&
+      (value.caption === undefined ||
+        (Array.isArray(value.caption) &&
+          (value.caption as unknown[]).every((node) => isInlineNode(node)))) &&
+      (value.pluginVersion === undefined || value.pluginVersion === "1.0.0")
+    );
+  }
+  if (value.kind === "callout") {
+    return (
+      hasValidCommonBlockFields(value, ["kind", "variant", "children", "range", "id", "title", "pluginVersion"]) &&
+      typeof value.variant === "string" &&
+      (value.variant as string).length > 0 &&
+      Array.isArray(value.children) &&
+      (value.children as unknown[]).every((child) => isParsedBlock(child)) &&
+      (value.title === undefined ||
+        (Array.isArray(value.title) &&
+          (value.title as unknown[]).every((node) => isInlineNode(node)))) &&
+      value.pluginVersion === "1.0.0"
     );
   }
   if (value.kind === "equation") {

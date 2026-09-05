@@ -1,12 +1,15 @@
 import { isAlias, isScalar, parseDocument, visit } from "yaml";
 
 import { createDiagnostic } from "./diagnostics.js";
+import { CALLOUT_PLUGIN_TYPE, CALLOUT_PLUGIN_VERSION, CALLOUT_VARIANTS, calloutPlugin } from "./callout.js";
+import { TABLE_PLUGIN_TYPE, TABLE_PLUGIN_VERSION, tablePlugin } from "./table.js";
 import {
   EQUATION_PLUGIN_TYPE,
   equationPlugin,
   parseEquationHeader,
   validateEquationBody,
 } from "./equation.js";
+import { isGfmTableStart, parseInlineFragment, splitTableRow, tryParseGfmTable } from "./markdown.js";
 import {
   MERMAID_PLUGIN_TYPE,
   mermaidPlugin,
@@ -15,17 +18,21 @@ import {
 } from "./mermaid.js";
 import type {
   ArtifactFormat,
+  CalloutBlock,
   Diagnostic,
   DiagnosticFix,
   DiagnosticLocation,
   DiagnosticSeverity,
   DocumentMetadata,
+  Inline,
   JsonValue,
+  ParsedBlock,
   ParseOptions,
   ParseResult,
-  ParsedBlock,
   RelatedLocation,
   SourceRange,
+  TableBlock,
+  TableData,
 } from "./model.js";
 import {
   rangeFromLineSlice,
@@ -479,11 +486,6 @@ function parseAtxHeading(text: string): ParsedHeading | undefined {
   };
 }
 
-function normalizedSoftWrappedText(lines: readonly SourceLine[]): string {
-  return lines
-    .map((line) => lineText(line).replace(/^[ \t]+|[ \t]+$/g, ""))
-    .join(" ");
-}
 
 interface RawHtmlMatch {
   readonly line: SourceLine;
@@ -724,34 +726,442 @@ function parseEquationEnvelope(
   diagnostics.push(...validated.diagnostics);
   return finishInvalid();
 }
-function parseMermaidEnvelope(
-  source: string,
-  lines: readonly SourceLine[],
-  openIndex: number,
-  closingIndex: number,
+const MAX_NESTING_DEPTH = 8;
+
+function inlineSourceFromLines(lines: readonly SourceLine[]): string {
+  let out = "";
+  let hardBreak = false;
+  for (let index = 0; index < lines.length; index += 1) {
+    const raw = lineText(lines[index] as SourceLine);
+    const last = index === lines.length - 1;
+    let stripped = raw;
+    let hard = false;
+    if (!last) {
+      if (/\\[ \t]*$/.test(raw)) {
+        hard = true;
+        stripped = raw.replace(/\\[ \t]*$/, "");
+      } else if (/[ \t]{2,}$/.test(raw)) {
+        hard = true;
+        stripped = raw.replace(/[ \t]+$/, "");
+      }
+    }
+    stripped = stripped.replace(/^[ \t]+|[ \t]+$/g, "");
+    out += (index === 0 ? "" : hardBreak ? "\n" : " ") + stripped;
+    hardBreak = hard;
+  }
+  return out;
+}
+
+function parseInlineNodes(
+  text: string,
   first: SourceLine,
   last: SourceLine,
   options: ParseOptions,
   diagnostics: Diagnostic[],
+): Inline[] | undefined {
+  const parsed = parseInlineFragment(text);
+  if (parsed.unsafeTargets.length > 0) {
+    const target = parsed.unsafeTargets[0] ?? "";
+    diagnostics.push(
+      diagnostic(
+        "azeforge.link#unsafe-protocol",
+        `Link target "${target}" uses a disallowed protocol.`,
+        options,
+        first,
+        "error",
+        rangeFromLines(first, last),
+        {
+          data: { href: target },
+          suggestion: "Use an https:, http:, mailto:, or #fragment link.",
+        },
+      ),
+    );
+    return undefined;
+  }
+  return [...parsed.nodes];
+}
+
+function ensureInlineTargetsSafe(
+  texts: readonly string[],
+  first: SourceLine,
+  last: SourceLine,
+  options: ParseOptions,
+  diagnostics: Diagnostic[],
+): boolean {
+  for (const text of texts) {
+    const parsed = parseInlineFragment(text);
+    if (parsed.unsafeTargets.length > 0) {
+      const target = parsed.unsafeTargets[0] ?? "";
+      diagnostics.push(
+        diagnostic(
+          "azeforge.link#unsafe-protocol",
+          `Link target "${target}" uses a disallowed protocol.`,
+          options,
+          first,
+          "error",
+          rangeFromLines(first, last),
+          {
+            data: { href: target },
+            suggestion: "Use an https:, http:, mailto:, or #fragment link.",
+          },
+        ),
+      );
+      return false;
+    }
+  }
+  return true;
+}
+
+function invalidBlockFor(
+  source: string,
+  first: SourceLine,
+  last: SourceLine,
+  startIndex: number,
+  diagnostics: readonly Diagnostic[],
+  originalType?: string,
 ): ParsedBlock {
-  const blockRange = rangeFromLines(first, last);
-  const raw = source.slice(first.startIndex, last.endIndex);
-  const startIndex = diagnostics.length;
-  const finishInvalid = (): ParsedBlock => ({
+  return {
     kind: "invalid",
-    raw,
-    range: blockRange,
+    raw: source.slice(first.startIndex, last.endIndex),
+    range: rangeFromLines(first, last),
     diagnosticIndexes: Array.from(
       { length: diagnostics.length - startIndex },
       (_, offset) => startIndex + offset,
     ),
-    originalType: MERMAID_PLUGIN_TYPE,
-  });
-  const entries: {
-    readonly key: string;
-    readonly value: string;
-    readonly range: SourceRange;
-  }[] = [];
+    ...(originalType === undefined ? {} : { originalType }),
+  };
+}
+
+function isThematicBreakText(text: string): boolean {
+  return /^ {0,3}(?:(?:\*[ \t]*){3,}|(?:-[ \t]*){3,}|(?:_[ \t]*){3,})$/.test(text);
+}
+
+function fenceOpen(text: string): { char: "`" | "~"; length: number; info: string } | undefined {
+  const match = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(text);
+  if (match === null) return undefined;
+  const fence = match[1] ?? "";
+  const char = fence[0] === "~" ? ("~" as const) : ("`" as const);
+  const info = (match[2] ?? "").trim();
+  if (char === "`" && info.includes("`")) return undefined;
+  return { char, length: fence.length, info };
+}
+
+function isFenceClose(text: string, char: "`" | "~", length: number): boolean {
+  const match = /^ {0,3}(`+|~+)[ \t]*$/.exec(text);
+  if (match === null) return false;
+  const run = match[1] ?? "";
+  return run[0] === char && run.length >= length;
+}
+
+function parseFencedCode(
+  source: string,
+  lines: readonly SourceLine[],
+  index: number,
+  options: ParseOptions,
+  diagnostics: Diagnostic[],
+): { block: ParsedBlock; next: number } | undefined {
+  const open = lines[index];
+  if (open === undefined) return undefined;
+  const fence = fenceOpen(lineText(open));
+  if (fence === undefined) return undefined;
+  let closing = -1;
+  for (let cursor = index + 1; cursor < lines.length; cursor += 1) {
+    const candidate = lines[cursor];
+    if (candidate !== undefined && isFenceClose(lineText(candidate), fence.char, fence.length)) {
+      closing = cursor;
+      break;
+    }
+  }
+  if (closing < 0) {
+    const startIndex = diagnostics.length;
+    const last = lines.at(-1) ?? open;
+    diagnostics.push(
+      diagnostic(
+        "azeforge.source#unclosed-fence",
+        "A fenced code Block must end with a matching closing fence.",
+        options,
+        open,
+        "error",
+        rangeFromLines(open, open),
+        { suggestion: "Close the fenced code Block with a matching fence." },
+      ),
+    );
+    return {
+      block: invalidBlockFor(source, open, last, startIndex, diagnostics),
+      next: lines.length,
+    };
+  }
+  const last = lines[closing] ?? open;
+  const value = lines
+    .slice(index + 1, closing)
+    .map((line) => lineText(line as SourceLine))
+    .join("\n");
+  const language = fence.info.split(/[ \t]+/, 1)[0] ?? "";
+  return {
+    block: {
+      kind: "code",
+      value,
+      range: rangeFromLines(open, last),
+      ...(language === "" ? {} : { language }),
+    },
+    next: closing + 1,
+  };
+}
+
+function stripQuotePrefix(text: string): string | undefined {
+  const match = /^ {0,3}>[ \t]?/.exec(text);
+  if (match === null) return undefined;
+  return text.slice(match[0].length);
+}
+
+function syntheticLine(original: SourceLine, text: string, prefixChars: number): SourceLine {
+  return {
+    number: original.number,
+    text,
+    startIndex: original.startIndex + prefixChars,
+    endIndex: original.endIndex,
+    startOffset: original.startOffset + Buffer.byteLength(original.text.slice(0, prefixChars), "utf8"),
+    endOffset: original.endOffset,
+  };
+}
+
+function parseNestedBlocks(
+  source: string,
+  nested: readonly SourceLine[],
+  first: SourceLine,
+  last: SourceLine,
+  options: ParseOptions,
+  diagnostics: Diagnostic[],
+  activeTypes: readonly string[],
+  allowRawLatex: boolean,
+  depth: number,
+): readonly ParsedBlock[] | undefined {
+  if (depth + 1 > MAX_NESTING_DEPTH) {
+    diagnostics.push(
+      diagnostic(
+        "azeforge.source#nesting-too-deep",
+        "Nested content exceeds the maximum supported depth.",
+        options,
+        first,
+        "error",
+        rangeFromLines(first, last),
+      ),
+    );
+    return undefined;
+  }
+  return parseBlocks(source, nested, 0, options, diagnostics, activeTypes, allowRawLatex, depth + 1);
+}
+
+function parseBlockquote(
+  source: string,
+  lines: readonly SourceLine[],
+  index: number,
+  options: ParseOptions,
+  diagnostics: Diagnostic[],
+  activeTypes: readonly string[],
+  allowRawLatex: boolean,
+  depth: number,
+): { block: ParsedBlock; next: number } | undefined {
+  const first = lines[index];
+  if (first === undefined || stripQuotePrefix(lineText(first)) === undefined) return undefined;
+  const consumed: SourceLine[] = [];
+  const inner: SourceLine[] = [];
+  let cursor = index;
+  while (cursor < lines.length) {
+    const line = lines[cursor];
+    if (line === undefined) break;
+    const text = lineText(line);
+    if (/^[ \t]*$/.test(text)) {
+      consumed.push(line);
+      inner.push(syntheticLine(line, "", 0));
+      cursor += 1;
+      continue;
+    }
+    const stripped = stripQuotePrefix(text);
+    if (stripped === undefined) break;
+    consumed.push(line);
+    const prefixChars = text.length - stripped.length;
+    inner.push(syntheticLine(line, stripped, prefixChars));
+    cursor += 1;
+  }
+  while (inner.length > 0 && /^[ \t]*$/.test(inner[inner.length - 1]?.text ?? "")) {
+    inner.pop();
+    consumed.pop();
+    cursor -= 1;
+  }
+  const last = consumed.at(-1) ?? first;
+  const startIndex = diagnostics.length;
+  const children = parseNestedBlocks(source, inner, first, last, options, diagnostics, activeTypes, allowRawLatex, depth);
+  if (children === undefined) {
+    return {
+      block: invalidBlockFor(source, first, last, startIndex, diagnostics),
+      next: cursor,
+    };
+  }
+  return {
+    block: { kind: "blockquote", children, range: rangeFromLines(first, last) },
+    next: cursor,
+  };
+}
+
+interface ListMarker {
+  readonly ordered: boolean;
+  readonly lead: number;
+  readonly markerEnd: number;
+  readonly start?: number;
+}
+
+function parseListMarker(text: string): ListMarker | undefined {
+  const unordered = /^([ \t]*)([*+-])(?:[ \t]+|$)/.exec(text);
+  if (unordered !== null) {
+    const lead = (unordered[1] ?? "").replaceAll("\t", "    ").length;
+    const markerEnd = (unordered[1] ?? "").length + 1 + ((/^[ \t]/.test(text.slice((unordered[1] ?? "").length + 1)) ? 1 : 0) as number);
+    if (lead > 3 && markerEnd <= 0) return undefined;
+    return { ordered: false, lead, markerEnd };
+  }
+  const ordered = /^([ \t]*)(\d{1,9})([.)])(?:[ \t]+|$)/.exec(text);
+  if (ordered !== null) {
+    const lead = (ordered[1] ?? "").replaceAll("\t", "    ").length;
+    const digits = ordered[2] ?? "";
+    const markerEnd = (ordered[1] ?? "").length + digits.length + 1 + ((/^[ \t]/.test(text.slice((ordered[1] ?? "").length + digits.length + 1)) ? 1 : 0) as number);
+    if (lead > 3) return undefined;
+    return { ordered: true, lead, markerEnd, start: Number.parseInt(digits, 10) };
+  }
+  return undefined;
+}
+
+function leadingSpaces(text: string): number {
+  const match = /^[ \t]*/.exec(text);
+  return (match?.[0] ?? "").length;
+}
+
+function parseList(
+  source: string,
+  lines: readonly SourceLine[],
+  index: number,
+  options: ParseOptions,
+  diagnostics: Diagnostic[],
+  activeTypes: readonly string[],
+  allowRawLatex: boolean,
+  depth: number,
+): { block: ParsedBlock; next: number } | undefined {
+  const first = lines[index];
+  if (first === undefined) return undefined;
+  const opener = parseListMarker(lineText(first));
+  if (opener === undefined || opener.lead > 3) return undefined;
+  const items: { blocks: readonly ParsedBlock[]; range: ReturnType<typeof rangeFromLines> }[] = [];
+  const itemLineRuns: SourceLine[][] = [];
+  const itemOriginals: SourceLine[][] = [];
+  let cursor = index;
+  let contentIndent = opener.markerEnd;
+  let failed = false;
+  while (cursor < lines.length) {
+    const line = lines[cursor];
+    if (line === undefined) break;
+    const text = lineText(line);
+    if (/^[ \t]*$/.test(text)) {
+      if (itemLineRuns.length === 0) break;
+      itemLineRuns[itemLineRuns.length - 1]?.push(syntheticLine(line, "", 0));
+      itemOriginals[itemOriginals.length - 1]?.push(line);
+      cursor += 1;
+      continue;
+    }
+    const marker = parseListMarker(text);
+    if (
+      marker !== undefined &&
+      marker.ordered === opener.ordered &&
+      marker.lead < contentIndent &&
+      itemLineRuns.length > 0
+    ) {
+      const innerFirst = text.slice(marker.markerEnd);
+      const prefixChars = text.length - innerFirst.length;
+      itemLineRuns.push([syntheticLine(line, innerFirst, prefixChars)]);
+      itemOriginals.push([line]);
+      contentIndent = marker.markerEnd;
+      cursor += 1;
+      continue;
+    }
+    if (itemLineRuns.length === 0) {
+      const innerFirst = text.slice(opener.markerEnd);
+      const prefixChars = text.length - innerFirst.length;
+      itemLineRuns.push([syntheticLine(line, innerFirst, prefixChars)]);
+      itemOriginals.push([line]);
+      cursor += 1;
+      continue;
+    }
+    if (leadingSpaces(text) >= contentIndent) {
+      itemLineRuns[itemLineRuns.length - 1]?.push(syntheticLine(line, text.slice(contentIndent), contentIndent));
+      itemOriginals[itemOriginals.length - 1]?.push(line);
+      cursor += 1;
+      continue;
+    }
+    break;
+  }
+  const last = lines[cursor - 1] ?? first;
+  const startIndex = diagnostics.length;
+  for (let itemIndex = 0; itemIndex < itemLineRuns.length; itemIndex += 1) {
+    const run = (itemLineRuns[itemIndex] ?? []).filter((line, position, all) => {
+      if (position < all.length - 1) return true;
+      return !/^[ \t]*$/.test(line.text);
+    });
+    const originals = itemOriginals[itemIndex] ?? [];
+    const itemFirst = originals[0] ?? first;
+    const itemLast = originals.at(-1) ?? itemFirst;
+    const children = parseNestedBlocks(source, run, itemFirst, itemLast, options, diagnostics, activeTypes, allowRawLatex, depth);
+    if (children === undefined) {
+      failed = true;
+      break;
+    }
+    items.push({ blocks: children, range: rangeFromLines(itemFirst, itemLast) });
+  }
+  if (failed || items.length === 0) {
+    return {
+      block: invalidBlockFor(source, first, last, startIndex, diagnostics),
+      next: cursor,
+    };
+  }
+  return {
+    block: {
+      kind: "list",
+      ordered: opener.ordered,
+      items,
+      range: rangeFromLines(first, last),
+      ...(opener.ordered && opener.start !== undefined && opener.start !== 1 ? { start: opener.start } : {}),
+    },
+    next: cursor,
+  };
+}
+
+function tryGfmTableAt(
+  lines: readonly SourceLine[],
+  index: number,
+): { data: TableData; consumed: number } | undefined {
+  const headerLine = lines[index];
+  const delimiterLine = lines[index + 1];
+  if (headerLine === undefined || delimiterLine === undefined) return undefined;
+  if (!isGfmTableStart(lineText(headerLine), lineText(delimiterLine))) return undefined;
+  const texts: string[] = [];
+  let cursor = index;
+  while (cursor < lines.length) {
+    const line = lines[cursor];
+    if (line === undefined) break;
+    const text = lineText(line);
+    if (/^[ \t]*$/.test(text)) break;
+    if (cursor > index + 1 && !text.includes("|")) break;
+    texts.push(text);
+    cursor += 1;
+  }
+  const parsed = tryParseGfmTable(texts);
+  if (parsed === undefined) return undefined;
+  return { data: parsed.data, consumed: parsed.consumed };
+}
+
+function splitHeaderEntries(
+  lines: readonly SourceLine[],
+  openIndex: number,
+  closingIndex: number,
+): { entries: { key: string; value: string; range: SourceRange }[]; bodyStart: number } {
+  const entries: { key: string; value: string; range: SourceRange }[] = [];
   let cursor = openIndex + 1;
   while (cursor < closingIndex) {
     const header = lines[cursor];
@@ -760,16 +1170,13 @@ function parseMermaidEnvelope(
       cursor += 1;
       continue;
     }
-    const match = /^[ \t]*([A-Za-z][A-Za-z0-9-]*)[ \t]*:(.*)$/.exec(
-      lineText(header),
-    );
+    const match = /^[ \t]*([A-Za-z][A-Za-z0-9-]*)[ \t]*:(.*)$/.exec(lineText(header));
     if (match === null) break;
     const key = match[1] ?? "";
     const rawValue = match[2] ?? "";
     const value = rawValue.trim();
     const colonIndex = header.text.indexOf(":");
-    const valueStart =
-      colonIndex + 1 + (rawValue.length - rawValue.trimStart().length);
+    const valueStart = colonIndex + 1 + (rawValue.length - rawValue.trimStart().length);
     entries.push({
       key,
       value,
@@ -782,18 +1189,48 @@ function parseMermaidEnvelope(
     if (blank !== undefined && !/^[ \t]*$/.test(lineText(blank))) break;
     cursor += 1;
   }
-  const bodyLines = lines.slice(cursor, closingIndex);
-  const body = bodyLines.map((entry) => lineText(entry)).join("\n");
-  const bodyRanges = bodyLines.map((entry) => rangeFromLines(entry, entry));
-  const header = parseMermaidHeader(entries, blockRange, options.sourceName);
+  return { entries, bodyStart: cursor };
+}
+function parseMermaidEnvelope(
+  source: string,
+  lines: readonly SourceLine[],
+  openIndex: number,
+  closingIndex: number,
+  first: SourceLine,
+  last: SourceLine,
+  options: ParseOptions,
+  diagnostics: Diagnostic[],
+): ParsedBlock {
+  const blockRange = rangeFromLines(first, last);
+  const startIndex = diagnostics.length;
+  const finishInvalid = (): ParsedBlock =>
+    invalidBlockFor(
+      source,
+      first,
+      last,
+      startIndex,
+      diagnostics,
+      MERMAID_PLUGIN_TYPE,
+    );
+  const { entries, bodyStart } = splitHeaderEntries(
+    lines,
+    openIndex,
+    closingIndex,
+  );
+  const header = parseMermaidHeader(
+    entries,
+    blockRange,
+    options.sourceName,
+  );
   if (header.diagnostics.length > 0) {
     diagnostics.push(...header.diagnostics);
     return finishInvalid();
   }
+  const bodyLines = lines.slice(bodyStart, closingIndex);
   const validated = validateMermaidBody({
     header,
-    body,
-    bodyRanges,
+    body: bodyLines.map((line) => lineText(line)).join("\n"),
+    bodyRanges: bodyLines.map((line) => rangeFromLines(line, line)),
     blockRange,
     sourceName: options.sourceName,
   });
@@ -801,6 +1238,212 @@ function parseMermaidEnvelope(
   diagnostics.push(...validated.diagnostics);
   return finishInvalid();
 }
+
+
+function parseCalloutEnvelope(
+  source: string,
+  lines: readonly SourceLine[],
+  openIndex: number,
+  closingIndex: number,
+  first: SourceLine,
+  last: SourceLine,
+  options: ParseOptions,
+  diagnostics: Diagnostic[],
+  activeTypes: readonly string[],
+  allowRawLatex: boolean,
+  depth: number,
+): ParsedBlock {
+  const blockRange = rangeFromLines(first, last);
+  const startIndex = diagnostics.length;
+  const finishInvalid = (): ParsedBlock =>
+    invalidBlockFor(source, first, last, startIndex, diagnostics, CALLOUT_PLUGIN_TYPE);
+  const { entries, bodyStart } = splitHeaderEntries(lines, openIndex, closingIndex);
+  let variant = "note";
+  let title: Inline[] | undefined;
+  let id: string | undefined;
+  for (const entry of entries) {
+    if (entry.key === "variant") {
+      if (!(CALLOUT_VARIANTS as readonly string[]).includes(entry.value)) {
+        diagnostics.push(
+          diagnostic(
+            "azeforge.callout#unknown-variant",
+            `Callout variant "${entry.value}" is not supported.`,
+            options,
+            first,
+            "error",
+            entry.range,
+            {
+              data: { variant: entry.value },
+              suggestion: `Use one of ${(CALLOUT_VARIANTS as readonly string[]).join(", ")}.`,
+            },
+          ),
+        );
+        return finishInvalid();
+      }
+      variant = entry.value;
+    } else if (entry.key === "title") {
+      const nodes = parseInlineNodes(entry.value, first, last, options, diagnostics);
+      if (nodes === undefined) return finishInvalid();
+      title = nodes;
+    } else if (entry.key === "id") {
+      id = entry.value;
+    } else {
+      diagnostics.push(
+        diagnostic(
+          "azeforge.callout#unknown-header",
+          `Callout header key "${entry.key}" is not supported.`,
+          options,
+          first,
+          "error",
+          entry.range,
+          {
+            data: { key: entry.key },
+            suggestion: "Use variant, title, or id.",
+          },
+        ),
+      );
+      return finishInvalid();
+    }
+  }
+  const bodyLines = lines.slice(bodyStart, closingIndex).filter((line) => !/^[ \t]*$/.test(lineText(line as SourceLine)));
+  const children =
+    bodyLines.length === 0
+      ? []
+      : parseNestedBlocks(source, bodyLines as SourceLine[], first, last, options, diagnostics, activeTypes, allowRawLatex, depth);
+  if (children === undefined) return finishInvalid();
+  const block: CalloutBlock = {
+    kind: "callout",
+    variant,
+    children,
+    range: blockRange,
+    ...(id === undefined || id === "" ? {} : { id }),
+    ...(title === undefined ? {} : { title }),
+    pluginVersion: CALLOUT_PLUGIN_VERSION,
+  };
+  return block;
+}
+
+function parseTableEnvelope(
+  source: string,
+  lines: readonly SourceLine[],
+  openIndex: number,
+  closingIndex: number,
+  first: SourceLine,
+  last: SourceLine,
+  options: ParseOptions,
+  diagnostics: Diagnostic[],
+): ParsedBlock {
+  const blockRange = rangeFromLines(first, last);
+  const startIndex = diagnostics.length;
+  const finishInvalid = (): ParsedBlock =>
+    invalidBlockFor(source, first, last, startIndex, diagnostics, TABLE_PLUGIN_TYPE);
+  const { entries, bodyStart } = splitHeaderEntries(lines, openIndex, closingIndex);
+  let caption: Inline[] | undefined;
+  let id: string | undefined;
+  for (const entry of entries) {
+    if (entry.key === "caption") {
+      if (entry.value === "") {
+        diagnostics.push(
+          diagnostic(
+            "azeforge.table#empty-caption",
+            "Table caption must not be empty.",
+            options,
+            first,
+            "error",
+            entry.range,
+          ),
+        );
+        return finishInvalid();
+      }
+      const nodes = parseInlineNodes(entry.value, first, last, options, diagnostics);
+      if (nodes === undefined) return finishInvalid();
+      caption = nodes;
+    } else if (entry.key === "id") {
+      id = entry.value;
+    } else {
+      diagnostics.push(
+        diagnostic(
+          "azeforge.table#unknown-header",
+          `Table header key "${entry.key}" is not supported.`,
+          options,
+          first,
+          "error",
+          entry.range,
+          { data: { key: entry.key }, suggestion: "Use caption or id." },
+        ),
+      );
+      return finishInvalid();
+    }
+  }
+  const bodyTexts = lines
+    .slice(bodyStart, closingIndex)
+    .map((line) => lineText(line as SourceLine))
+    .filter((text) => !/^[ \t]*$/.test(text));
+  const bodySourceLines = lines.slice(bodyStart, closingIndex).filter((line) => !/^[ \t]*$/.test(lineText(line as SourceLine))) as SourceLine[];
+  const bodyRawHtml = findRawHtml(bodySourceLines);
+  if (bodyRawHtml !== undefined) {
+    diagnostics.push(
+      diagnostic(
+        "azeforge.security#raw-html-disabled",
+        "Raw HTML is disabled in AzeMark Source.",
+        options,
+        bodyRawHtml.line,
+        "error",
+        rangeFromLineSlice(bodyRawHtml.line, bodyRawHtml.startIndex, bodyRawHtml.endIndex),
+      ),
+    );
+    return invalidBlockFor(source, first, last, startIndex, diagnostics, TABLE_PLUGIN_TYPE);
+  }
+  if (bodyTexts.length < 2) {
+    diagnostics.push(
+      diagnostic(
+        "azeforge.table#body-must-be-table",
+        "A table Block body must contain a GFM table with a header and delimiter row.",
+        options,
+        first,
+        "error",
+        blockRange,
+        { suggestion: "Add a header row followed by a delimiter row such as `| --- |`." },
+      ),
+    );
+    return finishInvalid();
+  }
+  const parsed = tryParseGfmTable(bodyTexts);
+  if (parsed === undefined || parsed.consumed !== bodyTexts.length) {
+    diagnostics.push(
+      diagnostic(
+        "azeforge.table#body-must-be-table",
+        "A table Block body must contain only a GFM table.",
+        options,
+        first,
+        "error",
+        blockRange,
+        { suggestion: "Keep only the GFM header, delimiter, and body rows in the table body." },
+      ),
+    );
+    return finishInvalid();
+  }
+  const safetyTexts: string[] = [];
+  const headerCells = splitTableRow(bodyTexts[0] as string);
+  const bodyCellRows = bodyTexts.slice(2).map((line) => splitTableRow(line));
+  if (headerCells !== undefined) safetyTexts.push(...headerCells);
+  for (const row of bodyCellRows) {
+    if (row !== undefined) safetyTexts.push(...row);
+  }
+  if (!ensureInlineTargetsSafe(safetyTexts, first, last, options, diagnostics)) {
+    return finishInvalid();
+  }
+  const block: TableBlock = {
+    kind: "table",
+    data: parsed.data,
+    range: blockRange,
+    ...(id === undefined || id === "" ? {} : { id }),
+    ...(caption === undefined ? {} : { caption }),
+    pluginVersion: TABLE_PLUGIN_VERSION,
+  };
+  return block;
+}
+
 function parseBlocks(
   source: string,
   lines: readonly SourceLine[],
@@ -809,6 +1452,7 @@ function parseBlocks(
   diagnostics: Diagnostic[],
   activeTypes: readonly string[],
   allowRawLatex: boolean,
+  depth = 0,
 ): readonly ParsedBlock[] {
   const blocks: ParsedBlock[] = [];
   let index = bodyStart;
@@ -825,11 +1469,22 @@ function parseBlocks(
       const first = line;
       const openIndex = index;
       const originalType = directive[1] === "" ? undefined : directive[1];
-      const closingIndex = lines.findIndex(
-        (candidate, candidateIndex) =>
-          candidateIndex >= index &&
-          /^ {0,3}:{4,}[ \t]*$/.test(lineText(candidate)),
-      );
+      let closingIndex = -1;
+      {
+        let depth = 1;
+        for (let scan = openIndex + 1; scan < lines.length; scan += 1) {
+          const text = lineText(lines[scan] as SourceLine);
+          if (/^ {0,3}:{4,}[ \t]*$/.test(text)) {
+            depth -= 1;
+            if (depth === 0) {
+              closingIndex = scan;
+              break;
+            }
+          } else if (/^ {0,3}:{4,}[ \t]*[^ \t:]/.test(text)) {
+            depth += 1;
+          }
+        }
+      }
       const closed = closingIndex >= 0;
       let unambiguousEnd = false;
       if (closed) {
@@ -876,6 +1531,47 @@ function parseBlocks(
       ) {
         blocks.push(
           parseMermaidEnvelope(
+            source,
+            lines,
+            openIndex,
+            closingIndex,
+            first,
+            last,
+            options,
+            diagnostics,
+          ),
+        );
+        continue;
+      }
+      if (
+        closed &&
+        originalType === CALLOUT_PLUGIN_TYPE &&
+        activeTypes.includes(CALLOUT_PLUGIN_TYPE)
+      ) {
+        blocks.push(
+          parseCalloutEnvelope(
+            source,
+            lines,
+            openIndex,
+            closingIndex,
+            first,
+            last,
+            options,
+            diagnostics,
+            activeTypes,
+            allowRawLatex,
+            depth,
+          ),
+        );
+        continue;
+      }
+      if (
+        closed &&
+        originalType === TABLE_PLUGIN_TYPE &&
+        activeTypes.includes(TABLE_PLUGIN_TYPE)
+      ) {
+        blocks.push(
+          parseTableEnvelope(
             source,
             lines,
             openIndex,
@@ -1014,6 +1710,67 @@ function parseBlocks(
     }
 
 
+    const fenced = parseFencedCode(source, lines, index, options, diagnostics);
+    if (fenced !== undefined) {
+      blocks.push(fenced.block);
+      index = fenced.next;
+      continue;
+    }
+    if (isThematicBreakText(lineText(line))) {
+      blocks.push({ kind: "thematicBreak", range: rangeFromLines(line, line) });
+      index += 1;
+      continue;
+    }
+    const quoted = parseBlockquote(source, lines, index, options, diagnostics, activeTypes, allowRawLatex, depth);
+    if (quoted !== undefined) {
+      blocks.push(quoted.block);
+      index = quoted.next;
+      continue;
+    }
+    const listed = parseList(source, lines, index, options, diagnostics, activeTypes, allowRawLatex, depth);
+    if (listed !== undefined) {
+      blocks.push(listed.block);
+      index = listed.next;
+      continue;
+    }
+    const gfmTable = tryGfmTableAt(lines, index);
+    if (gfmTable !== undefined) {
+      const tableLines = lines.slice(index, index + gfmTable.consumed);
+      const tableRawHtml = findRawHtml(tableLines as SourceLine[]);
+      if (tableRawHtml !== undefined) {
+        blocks.push(
+          rawHtmlInvalidBlock(
+            source,
+            tableLines as SourceLine[],
+            tableRawHtml,
+            options,
+            diagnostics,
+          ),
+        );
+        index += gfmTable.consumed;
+        continue;
+      }
+      const tableLast = lines[index + gfmTable.consumed - 1] ?? line;
+      const startIndex = diagnostics.length;
+      const safetyTexts: string[] = [];
+      for (let rowOffset = 0; rowOffset < gfmTable.consumed; rowOffset += 1) {
+        if (rowOffset === 1) continue;
+        const cells = splitTableRow(lineText(lines[index + rowOffset] as SourceLine));
+        if (cells !== undefined) safetyTexts.push(...cells);
+      }
+      if (!ensureInlineTargetsSafe(safetyTexts, line, tableLast, options, diagnostics)) {
+        blocks.push(invalidBlockFor(source, line, tableLast, startIndex, diagnostics));
+        index += gfmTable.consumed;
+        continue;
+      }
+      blocks.push({
+        kind: "table",
+        data: gfmTable.data,
+        range: rangeFromLines(line, tableLast),
+      });
+      index += gfmTable.consumed;
+      continue;
+    }
     const headingRawHtml = findRawHtml([line]);
     if (headingRawHtml !== undefined) {
       blocks.push(
@@ -1030,10 +1787,17 @@ function parseBlocks(
     }
     const atxHeading = parseAtxHeading(lineText(line));
     if (atxHeading !== undefined) {
+      const startIndex = diagnostics.length;
+      const children = parseInlineNodes(atxHeading.text, line, line, options, diagnostics);
+      if (children === undefined) {
+        blocks.push(invalidBlockFor(source, line, line, startIndex, diagnostics));
+        index += 1;
+        continue;
+      }
       blocks.push({
         kind: "heading",
         level: atxHeading.level,
-        children: [{ kind: "text", value: atxHeading.text }],
+        children,
         range: rangeFromLines(line, line),
       });
       index += 1;
@@ -1054,9 +1818,16 @@ function parseBlocks(
         index += 1;
         break;
       }
+      const nextText = lineText(next);
+      const after = lines[index + 1];
       if (
-        parseAtxHeading(lineText(next)) !== undefined ||
-        /^ {0,3}:{4,}/.test(lineText(next))
+        parseAtxHeading(nextText) !== undefined ||
+        /^ {0,3}:{4,}/.test(nextText) ||
+        fenceOpen(nextText) !== undefined ||
+        isThematicBreakText(nextText) ||
+        stripQuotePrefix(nextText) !== undefined ||
+        (parseListMarker(nextText) !== undefined && (parseListMarker(nextText)?.lead ?? 4) <= 3) ||
+        (after !== undefined && isGfmTableStart(nextText, lineText(after)))
       ) {
         break;
       }
@@ -1076,21 +1847,31 @@ function parseBlocks(
       );
       continue;
     }
-    const text = normalizedSoftWrappedText(paragraphLines);
+    const text = inlineSourceFromLines(paragraphLines);
+    const inlineStart = diagnostics.length;
     if (setextLevel !== undefined && setextUnderline !== undefined) {
+      const headingChildren = parseInlineNodes(text, line, setextUnderline, options, diagnostics);
+      if (headingChildren === undefined) {
+        blocks.push(invalidBlockFor(source, line, setextUnderline, inlineStart, diagnostics));
+        continue;
+      }
       blocks.push({
         kind: "heading",
         level: setextLevel,
-        children: [{ kind: "text", value: text }],
+        children: headingChildren,
         range: rangeFromLines(line, setextUnderline),
       });
       continue;
     }
     const last = paragraphLines.at(-1) ?? line;
+    const children = parseInlineNodes(text, line, last, options, diagnostics);
+    if (children === undefined) {
+      blocks.push(invalidBlockFor(source, line, last, inlineStart, diagnostics));
+      continue;
+    }
     blocks.push({
       kind: "paragraph",
-
-      children: [{ kind: "text", value: text }],
+      children,
       range: rangeFromLines(line, last),
     });
   }
@@ -1206,7 +1987,12 @@ export function parseSource(source: string, options: ParseOptions = {}): ParseRe
     options,
   );
   if (versionDiagnostic !== undefined) diagnostics.push(versionDiagnostic);
-  const activePlugins = options.plugins ?? [equationPlugin, mermaidPlugin];
+  const activePlugins = options.plugins ?? [
+    equationPlugin,
+    calloutPlugin,
+    mermaidPlugin,
+    tablePlugin,
+  ];
   const activeTypes = [...new Set(activePlugins.map((plugin) => plugin.descriptor.type))].sort();
   const blocks = parseBlocks(
     source,

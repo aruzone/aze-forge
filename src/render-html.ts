@@ -1,14 +1,24 @@
+import { renderCalloutFragment } from "./callout.js";
 import { KATEX_VERSION, getKatexCss } from "./equation.js";
 import { MERMAID_VERSION } from "./mermaid.js";
 import type { EmbeddedFontFace } from "./font.js";
 import { artifactBytesHash, canonicalJson, sha256 } from "./hash.js";
+import { escapeHtml, renderInlineHtml } from "./html-fragment.js";
+import { inlineTextValue } from "./markdown.js";
 import type {
   Artifact,
+  AzeBlock,
   AzeDocument,
+  BlockRendererContext,
+  CalloutBlock,
   ContentHash,
+  EquationBlock,
   JsonValue,
+  TableBlock,
+  MermaidBlock,
   Theme,
 } from "./model.js";
+import { renderTableFragment } from "./table.js";
 
 const HTML_MIME_TYPE = "text/html; charset=utf-8";
 const HTML_PROFILE = "azeforge.html.self-contained/v1";
@@ -25,39 +35,91 @@ export class ArtifactLimitError extends Error {
   }
 }
 
-function escapeHtml(value: string): string {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;");
+export interface HtmlPluginRenderers {
+  readonly renderCallout?: (
+    block: CalloutBlock,
+    context: BlockRendererContext,
+  ) => string;
+  readonly renderTable?: (
+    block: TableBlock,
+    context: BlockRendererContext,
+  ) => string;
+}
+
+interface RenderContext {
+  readonly sourceName?: string;
+  readonly equationFragments: ReadonlyMap<EquationBlock, string>;
+  readonly mermaidFragments: ReadonlyMap<MermaidBlock, string>;
+  readonly renderCallout: (
+    block: CalloutBlock,
+    context: BlockRendererContext,
+  ) => string;
+  readonly renderTable: (
+    block: TableBlock,
+    context: BlockRendererContext,
+  ) => string;
 }
 
 function documentTitle(document: AzeDocument): string {
   if (document.metadata.title !== undefined) return document.metadata.title;
   const firstHeading = document.blocks.find((block) => block.kind === "heading");
-  return firstHeading?.children.map((child) => child.value).join("") ?? "AzeForge document";
+  if (firstHeading?.kind !== "heading") return "AzeForge document";
+  const text = inlineTextValue(firstHeading.children);
+  return text === "" ? "AzeForge document" : text;
 }
-function renderBlocks(
-  document: AzeDocument,
-  equationFragments: ReadonlyMap<number, string> = new Map(),
-  mermaidFragments: ReadonlyMap<number, string> = new Map(),
-): string {
-  return document.blocks
-    .map((block, index) => {
-      if (block.kind === "equation") {
-        return equationFragments.get(index) ?? "<figure class=\"aze-equation\"></figure>";
-      }
-      if (block.kind === "mermaid") {
-        return mermaidFragments.get(index) ?? "<figure class=\"aze-mermaid\"></figure>";
-      }
-      const text = block.children.map((child) => escapeHtml(child.value)).join("");
-      if (block.kind === "heading") {
-        return `<h${block.level}>${text}</h${block.level}>`;
-      }
-      return `<p>${text}</p>`;
-    })
-    .join("");
+
+function idAttribute(id: string | undefined): string {
+  return id === undefined ? "" : ` id="${escapeHtml(id)}"`;
+}
+
+function renderBlock(block: AzeBlock, context: RenderContext): string {
+  switch (block.kind) {
+    case "equation":
+      return (
+        context.equationFragments.get(block) ?? '<figure class="aze-equation"></figure>'
+      );
+    case "mermaid":
+      return (
+        context.mermaidFragments.get(block) ??
+        '<figure class="aze-mermaid"></figure>'
+      );
+    case "heading":
+      return `<h${block.level}${idAttribute(block.id)}>${renderInlineHtml(block.children)}</h${block.level}>`;
+    case "paragraph":
+      return `<p${idAttribute(block.id)}>${renderInlineHtml(block.children)}</p>`;
+    case "thematicBreak":
+      return `<hr${idAttribute(block.id)}>`;
+    case "blockquote":
+      return `<blockquote${idAttribute(block.id)}>${renderBlocks(block.children as readonly AzeBlock[], context)}</blockquote>`;
+    case "list": {
+      const tag = block.ordered ? "ol" : "ul";
+      const start =
+        block.ordered && block.start !== undefined ? ` start="${block.start}"` : "";
+      const items = block.items
+        .map((item) => `<li>${renderBlocks(item.blocks as readonly AzeBlock[], context)}</li>`)
+        .join("");
+      return `<${tag}${idAttribute(block.id)}${start}>${items}</${tag}>`;
+    }
+    case "code": {
+      const language =
+        block.language === undefined ? "" : ` class="language-${escapeHtml(block.language)}"`;
+      return `<pre${idAttribute(block.id)}><code${language}>${escapeHtml(block.value)}</code></pre>`;
+    }
+    case "table":
+      return context.renderTable(block, {
+        ...(context.sourceName === undefined ? {} : { sourceName: context.sourceName }),
+        renderBlocks: (children) => renderBlocks(children, context),
+      });
+    case "callout":
+      return context.renderCallout(block, {
+        ...(context.sourceName === undefined ? {} : { sourceName: context.sourceName }),
+        renderBlocks: (children) => renderBlocks(children, context),
+      });
+  }
+}
+
+function renderBlocks(blocks: readonly AzeBlock[], context: RenderContext): string {
+  return blocks.map((block) => renderBlock(block, context)).join("");
 }
 
 function embeddedFontCss(fontFaces: readonly EmbeddedFontFace[]): string {
@@ -71,7 +133,7 @@ function embeddedFontCss(fontFaces: readonly EmbeddedFontFace[]): string {
 
 function themeCss(theme: Theme): string {
   const { colors, geometry, typography } = theme;
-  return `:root{color-scheme:light;background:${colors.background};color:${colors.foreground};font-family:${typography.proseFontFamily};font-weight:${typography.bodyFontWeight};line-height:${typography.lineHeight}}*{box-sizing:border-box}body{margin:0;background:${colors.background}}main{max-width:${geometry.canvasWidthPx}px;margin:0 auto;padding:${geometry.paddingPx}px}article{max-width:${geometry.contentWidthPx}px;margin:0 auto}h1,h2,h3,h4,h5,h6{font-weight:${typography.headingFontWeight};line-height:${typography.headingLineHeight}}p{margin:${typography.paragraphSpacingEm}em 0;color:${colors.foreground}}`;
+  return `:root{color-scheme:light;background:${colors.background};color:${colors.foreground};font-family:${typography.proseFontFamily};font-weight:${typography.bodyFontWeight};line-height:${typography.lineHeight}}*{box-sizing:border-box}body{margin:0;background:${colors.background}}main{max-width:${geometry.canvasWidthPx}px;margin:0 auto;padding:${geometry.paddingPx}px}article{max-width:${geometry.contentWidthPx}px;margin:0 auto}h1,h2,h3,h4,h5,h6{font-weight:${typography.headingFontWeight};line-height:${typography.headingLineHeight}}p{margin:${typography.paragraphSpacingEm}em 0;color:${colors.foreground}}a{color:inherit}hr{border:none;border-top:1px solid ${colors.muted};margin:1.5em 0}blockquote{margin:1em 0;padding:0 0 0 1em;border-left:3px solid ${colors.muted}}ul,ol{margin:1em 0;padding-left:2em}li{margin:0.25em 0}li>p{margin:0.25em 0}pre{margin:1em 0;padding:1em;overflow-x:auto;background:rgba(127,127,127,.08)}pre code{font-family:"JetBrains Mono",ui-monospace,monospace}code{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.9em}table{border-collapse:collapse;margin:1em 0;width:100%}caption{caption-side:top;text-align:left;font-weight:${typography.headingFontWeight};padding:.5em 0}th,td{border:1px solid ${colors.muted};padding:.5em .75em;text-align:left}thead th{background:rgba(127,127,127,.08)}figure.aze-table{margin:1em 0}.aze-callout{margin:1em 0;padding:.75em 1em;border:1px solid ${colors.muted};border-left-width:4px}.aze-callout-title{margin:0 0 .5em;font-weight:${typography.headingFontWeight}}.aze-callout-body>:first-child{margin-top:0}.aze-callout-body>:last-child{margin-bottom:0}`;
 }
 
 export async function renderHtml(
@@ -79,14 +141,19 @@ export async function renderHtml(
   contentHash: ContentHash,
   theme: Theme,
   fontFaces: readonly EmbeddedFontFace[],
-  equationFragments: ReadonlyMap<number, string> = new Map(),
+  equationFragments: ReadonlyMap<EquationBlock, string> = new Map(),
   equationDependencyClosure: JsonValue = { katex: KATEX_VERSION },
-  mermaidFragments: ReadonlyMap<number, string> = new Map(),
+  mermaidFragments: ReadonlyMap<MermaidBlock, string> = new Map(),
   mermaidDependencyClosure: JsonValue = { mermaid: MERMAID_VERSION },
+  pluginRenderers: HtmlPluginRenderers = {},
 ): Promise<Artifact> {
+  const renderCallout =
+    pluginRenderers.renderCallout ?? renderCalloutFragment;
+  const renderTable =
+    pluginRenderers.renderTable ?? ((block: TableBlock): string => renderTableFragment(block));
   const rendererFingerprint = sha256(
     canonicalJson({
-      renderer: { id: "html", version: "1.0.0", serializer: "azeforge-html/v1" },
+      renderer: { id: "html", version: "1.0.0", serializer: "azeforge-html/v2" },
       profile: HTML_PROFILE,
       theme: theme as unknown as JsonValue,
       fonts: fontFaces.map(({ name, weight, sourceHash }) => ({
@@ -95,12 +162,23 @@ export async function renderHtml(
         sourceHash,
       })),
       equations: equationDependencyClosure,
-      mermaid: mermaidDependencyClosure,
+      diagrams: mermaidDependencyClosure,
+      prose: {
+        serializer: "azeforge-prose/v1",
+        callout: "1.0.0",
+        table: "1.0.0",
+      },
     }),
   );
   const title = escapeHtml(documentTitle(document));
-  const css = `${embeddedFontCss(fontFaces)}${themeCss(theme)}${getKatexCss()}.aze-equation{margin:1em 0;text-align:center}.aze-equation[data-align="left"]{text-align:left}.aze-equation[data-align="right"]{text-align:right}.aze-mermaid{margin:1em 0;text-align:center}.aze-mermaid svg{max-width:100%;height:auto}`;
-  const html = `<!doctype html>\n<html lang="und"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:; font-src data:"><meta name="azeforge-content-hash" content="${contentHash}"><title>${title}</title><style>${css}</style></head><body><main><article>${renderBlocks(document, equationFragments, mermaidFragments)}</article></main></body></html>\n`;
+  const css = `${embeddedFontCss(fontFaces)}${themeCss(theme)}${getKatexCss()}.aze-equation{margin:1em 0;text-align:center}.aze-equation[data-align="left"]{text-align:left}.aze-equation[data-align="right"]{text-align:right}.aze-mermaid{margin:1em 0}.aze-mermaid svg{display:block;max-width:100%;height:auto;margin:0 auto}`;
+  const context: RenderContext = {
+    equationFragments,
+    mermaidFragments,
+    renderCallout,
+    renderTable,
+  };
+  const html = `<!doctype html>\n<html lang="und"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:; font-src data:"><meta name="azeforge-content-hash" content="${contentHash}"><title>${title}</title><style>${css}</style></head><body><main><article>${renderBlocks(document.blocks, context)}</article></main></body></html>\n`;
   const bytes = new TextEncoder().encode(html);
   if (bytes.byteLength > HTML_MAX_BYTES) {
     throw new ArtifactLimitError(bytes.byteLength);

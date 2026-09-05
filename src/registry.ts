@@ -1,16 +1,18 @@
+import { calloutHtmlBlockRenderer, calloutPlugin } from "./callout.js";
 import { CompilerConfigurationError } from "./configuration-error.js";
 import {
   equationHtmlBlockRenderer,
   equationPlugin,
   htmlRendererDescriptor,
 } from "./equation.js";
+import { tableHtmlBlockRenderer, tablePlugin } from "./table.js";
 import {
   mermaidHtmlBlockRenderer,
   mermaidPlugin,
 } from "./mermaid.js";
 import type {
+  AnyBlockRenderer,
   AzeBlockPlugin,
-  BlockRenderer,
   RendererDescriptor,
 } from "./model.js";
 
@@ -23,16 +25,23 @@ const NAMESPACE = /^[a-z][a-z0-9]*(?:\.[a-z][a-z0-9]*)*$/;
 
 export interface ResolvedRegistry {
   readonly plugins: readonly AzeBlockPlugin[];
-  readonly blockRenderers: readonly BlockRenderer[];
+  readonly blockRenderers: readonly AnyBlockRenderer[];
   readonly renderers: readonly RendererDescriptor[];
 }
 
 export function getBuiltInRegistry(): ResolvedRegistry {
   return Object.freeze({
-    plugins: Object.freeze([equationPlugin, mermaidPlugin]),
+    plugins: Object.freeze([
+      equationPlugin,
+      calloutPlugin,
+      mermaidPlugin,
+      tablePlugin,
+    ]),
     blockRenderers: Object.freeze([
       equationHtmlBlockRenderer,
+      calloutHtmlBlockRenderer,
       mermaidHtmlBlockRenderer,
+      tableHtmlBlockRenderer,
     ]),
     renderers: Object.freeze([htmlRendererDescriptor]),
   });
@@ -99,7 +108,7 @@ function isSchemaObject(value: unknown): value is Record<string, unknown> {
 }
 export function validateRegistry(
   plugins: readonly AzeBlockPlugin[],
-  blockRenderers: readonly BlockRenderer[],
+  blockRenderers: readonly AnyBlockRenderer[],
   renderers: readonly RendererDescriptor[],
 ): void {
   const violations: Violation[] = [];
@@ -315,7 +324,7 @@ export function validateRegistry(
 
 export function resolveRegistry(options: {
   readonly plugins?: readonly AzeBlockPlugin[];
-  readonly blockRenderers?: readonly BlockRenderer[];
+  readonly blockRenderers?: readonly AnyBlockRenderer[];
   readonly renderers?: readonly RendererDescriptor[];
 }): ResolvedRegistry {
   const builtIn = getBuiltInRegistry();
