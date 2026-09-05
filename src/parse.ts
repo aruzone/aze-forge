@@ -1,16 +1,29 @@
 import { isAlias, isScalar, parseDocument, visit } from "yaml";
 
+import { createDiagnostic } from "./diagnostics.js";
 import type {
   ArtifactFormat,
   Diagnostic,
+  DiagnosticFix,
+  DiagnosticLocation,
   DiagnosticSeverity,
   DocumentMetadata,
   JsonValue,
   ParseOptions,
+  RelatedLocation,
   ParseResult,
   ParsedBlock,
 } from "./model.js";
-import { rangeFromLines, sourceLines, type SourceLine } from "./source-map.js";
+import {
+  rangeFromLineSlice,
+  rangeFromLines,
+  sourceLines,
+  type SourceLine,
+} from "./source-map.js";
+import {
+  validateBlockIds,
+  type BlockIdOccurrence,
+} from "./reference-validation.js";
 
 const OUTPUT_FORMATS: Readonly<Record<ArtifactFormat, true>> = {
   html: true,
@@ -65,6 +78,7 @@ interface ParsedFrontMatter {
   readonly metadata: DocumentMetadata;
   readonly diagnostics: readonly Diagnostic[];
   readonly bodyStart: number;
+  readonly versionDeclared: boolean;
 }
 
 function diagnostic(
@@ -73,14 +87,33 @@ function diagnostic(
   options: ParseOptions,
   line?: SourceLine,
   severity: DiagnosticSeverity = "error",
+  range = line === undefined ? undefined : rangeFromLines(line, line),
+  details: {
+    readonly data?: Readonly<Record<string, JsonValue>>;
+    readonly suggestion?: string;
+    readonly fix?: DiagnosticFix;
+    readonly relatedLocations?: readonly RelatedLocation[];
+  } = {},
 ): Diagnostic {
-  return {
-    code,
-    severity,
-    message,
-    ...(options.sourceName === undefined ? {} : { source: options.sourceName }),
-    ...(line === undefined ? {} : { range: rangeFromLines(line, line) }),
-  };
+  const location: DiagnosticLocation | undefined =
+    options.sourceName === undefined && range === undefined
+      ? undefined
+      : options.sourceName === undefined
+        ? { range: range as NonNullable<typeof range> }
+        : range === undefined
+          ? { source: options.sourceName }
+          : { source: options.sourceName, range };
+  return createDiagnostic(code, severity, message, {
+    ...(details.data === undefined ? {} : { data: details.data }),
+    ...(location === undefined ? {} : { location }),
+    ...(details.suggestion === undefined
+      ? {}
+      : { suggestion: details.suggestion }),
+    ...(details.fix === undefined ? {} : { fix: details.fix }),
+    ...(details.relatedLocations === undefined
+      ? {}
+      : { relatedLocations: details.relatedLocations }),
+  });
 }
 
 function emptyMetadata(): DocumentMetadata {
@@ -124,7 +157,7 @@ function parseAuthors(
   }
   diagnostics.push(
     diagnostic(
-      "AZE_FRONT_MATTER_AUTHOR",
+      "azeforge.metadata#invalid-author",
       'Front matter "author" must be a string or an array of strings.',
       options,
       line,
@@ -142,7 +175,7 @@ function parseOutputs(
   if (!Array.isArray(value) || !value.every((item) => typeof item === "string")) {
     diagnostics.push(
       diagnostic(
-        "AZE_FRONT_MATTER_OUTPUTS",
+        "azeforge.metadata#invalid-outputs",
         'Front matter "outputs" must be an array of Artifact formats.',
         options,
         line,
@@ -157,7 +190,7 @@ function parseOutputs(
   if (formats.length !== value.length || new Set(formats).size !== formats.length) {
     diagnostics.push(
       diagnostic(
-        "AZE_FRONT_MATTER_OUTPUTS",
+        "azeforge.metadata#invalid-outputs",
         'Front matter "outputs" must contain unique html, svg, png, or pdf values.',
         options,
         line,
@@ -174,13 +207,23 @@ function parseFrontMatter(
 ): ParsedFrontMatter {
   const firstLine = lines[0];
   if (firstLine === undefined) {
-    return { metadata: emptyMetadata(), diagnostics: [], bodyStart: 0 };
+    return {
+      metadata: emptyMetadata(),
+      diagnostics: [],
+      bodyStart: 0,
+      versionDeclared: false,
+    };
   }
   const openingText = firstLine.text.startsWith("\uFEFF")
     ? firstLine.text.slice(1)
     : firstLine.text;
   if (openingText !== "---") {
-    return { metadata: emptyMetadata(), diagnostics: [], bodyStart: 0 };
+    return {
+      metadata: emptyMetadata(),
+      diagnostics: [],
+      bodyStart: 0,
+      versionDeclared: false,
+    };
   }
 
   const closingIndex = lines.findIndex((line, index) => index > 0 && line.text === "---");
@@ -189,13 +232,19 @@ function parseFrontMatter(
       metadata: emptyMetadata(),
       diagnostics: [
         diagnostic(
-          "AZE_FRONT_MATTER_UNCLOSED",
+          "azeforge.metadata#unclosed",
           "Front matter must end with a --- delimiter.",
           options,
           firstLine,
         ),
       ],
-      bodyStart: lines.length,
+      bodyStart: Math.max(
+        1,
+        lines.findIndex(
+          (line, index) => index > 0 && /^[ \t]*$/.test(line.text),
+        ) + 1,
+      ),
+      versionDeclared: false,
     };
   }
 
@@ -208,10 +257,10 @@ function parseFrontMatter(
     strict: true,
     uniqueKeys: true,
   });
-  const diagnostics: Diagnostic[] = parsed.errors.map((error) =>
+  const diagnostics: Diagnostic[] = parsed.errors.map(() =>
     diagnostic(
-      "AZE_FRONT_MATTER_YAML",
-      `Invalid front matter: ${error.message}`,
+      "azeforge.metadata#invalid-yaml",
+      "Front matter contains invalid YAML.",
       options,
       lines[1],
     ),
@@ -220,7 +269,7 @@ function parseFrontMatter(
     Alias() {
       diagnostics.push(
         diagnostic(
-          "AZE_FRONT_MATTER_ALIAS",
+          "azeforge.metadata#alias-disabled",
           "Front matter aliases are not supported.",
           options,
           lines[1],
@@ -235,7 +284,7 @@ function parseFrontMatter(
       ) {
         diagnostics.push(
           diagnostic(
-            "AZE_FRONT_MATTER_MERGE_KEY",
+            "azeforge.metadata#merge-key-disabled",
             "Front matter merge keys are not supported.",
             options,
             lines[1],
@@ -247,7 +296,7 @@ function parseFrontMatter(
       if (!isAlias(node) && node.anchor !== undefined) {
         diagnostics.push(
           diagnostic(
-            "AZE_FRONT_MATTER_ANCHOR",
+            "azeforge.metadata#anchor-disabled",
             "Front matter anchors are not supported.",
             options,
             lines[1],
@@ -257,7 +306,7 @@ function parseFrontMatter(
       if (node.tag !== undefined) {
         diagnostics.push(
           diagnostic(
-            "AZE_FRONT_MATTER_TAG",
+            "azeforge.metadata#tag-disabled",
             "Front matter tags are not supported.",
             options,
             lines[1],
@@ -269,11 +318,11 @@ function parseFrontMatter(
   let value: unknown;
   try {
     value = parsed.toJS({ maxAliasCount: 0 });
-  } catch (error) {
+  } catch {
     diagnostics.push(
       diagnostic(
-        "AZE_FRONT_MATTER_YAML",
-        `Invalid front matter: ${error instanceof Error ? error.message : "unsupported YAML value"}`,
+        "azeforge.metadata#invalid-yaml",
+        "Front matter contains invalid YAML.",
         options,
         lines[1],
       ),
@@ -283,13 +332,18 @@ function parseFrontMatter(
   if (value === null || typeof value !== "object" || Array.isArray(value)) {
     diagnostics.push(
       diagnostic(
-        "AZE_FRONT_MATTER_OBJECT",
+        "azeforge.metadata#mapping-required",
         "Front matter must be a mapping.",
         options,
         lines[1] ?? firstLine,
       ),
     );
-    return { metadata: emptyMetadata(), diagnostics, bodyStart: closingIndex + 1 };
+    return {
+      metadata: emptyMetadata(),
+      diagnostics,
+      bodyStart: closingIndex + 1,
+      versionDeclared: false,
+    };
   }
 
   const record = value as Record<string, unknown>;
@@ -305,7 +359,7 @@ function parseFrontMatter(
   if (record.azemark !== undefined && record.azemark !== 1) {
     diagnostics.push(
       diagnostic(
-        "AZE_VERSION_UNSUPPORTED",
+        "azeforge.source#version-unsupported",
         'Front matter "azemark" must be the integer 1.',
         options,
         metadataLine,
@@ -321,7 +375,7 @@ function parseFrontMatter(
     if (typeof item !== "string") {
       diagnostics.push(
         diagnostic(
-          `AZE_FRONT_MATTER_${key.toUpperCase()}`,
+          `azeforge.metadata#invalid-${key}`,
           `Front matter "${key}" must be a string.`,
           options,
           metadataLine,
@@ -340,22 +394,25 @@ function parseFrontMatter(
     if (KNOWN_METADATA_KEYS[key] === true) continue;
     if (!EXTENSION_KEY.test(key)) {
       const malformedExtension = key.startsWith("x-");
-      const keyDiagnostic = diagnostic(
-        malformedExtension ? "AZE_FRONT_MATTER_EXTENSION_KEY" : "AZE_FRONT_MATTER_KEY",
-        malformedExtension
-          ? `Malformed front matter extension key "${key}".`
-          : `Unknown front matter key "${key}".`,
-        options,
-        metadataLine,
-        malformedExtension ? "error" : "warning",
-      );
       diagnostics.push(
-        malformedExtension
-          ? keyDiagnostic
-          : {
-              ...keyDiagnostic,
-              suggestion: `Did you mean "${nearestMetadataKey(key)}"?`,
-            },
+        diagnostic(
+          malformedExtension
+            ? "azeforge.metadata#malformed-extension-key"
+            : "azeforge.metadata#unknown-key",
+          malformedExtension
+            ? `Malformed front matter extension key "${key}".`
+            : `Unknown front matter key "${key}".`,
+          options,
+          metadataLine,
+          malformedExtension ? "error" : "warning",
+          rangeFromLines(metadataLine, metadataLine),
+          {
+            data: { key },
+            ...(malformedExtension
+              ? {}
+              : { suggestion: `Did you mean "${nearestMetadataKey(key)}"?` }),
+          },
+        ),
       );
       continue;
     }
@@ -363,7 +420,7 @@ function parseFrontMatter(
     if (extension === undefined) {
       diagnostics.push(
         diagnostic(
-          "AZE_FRONT_MATTER_EXTENSION",
+          "azeforge.metadata#invalid-extension",
           `Front matter extension "${key}" must contain JSON-compatible values.`,
           options,
           metadataLine,
@@ -374,7 +431,12 @@ function parseFrontMatter(
     }
   }
 
-  return { metadata, diagnostics, bodyStart: closingIndex + 1 };
+  return {
+    metadata,
+    diagnostics,
+    bodyStart: closingIndex + 1,
+    versionDeclared: Object.prototype.hasOwnProperty.call(record, "azemark"),
+  };
 }
 
 interface ParsedHeading {
@@ -382,10 +444,12 @@ interface ParsedHeading {
   readonly text: string;
 }
 
+function lineTextStartIndex(line: SourceLine): number {
+  return line.number === 1 && line.text.startsWith("\uFEFF") ? 1 : 0;
+}
+
 function lineText(line: SourceLine): string {
-  return line.number === 1 && line.text.startsWith("\uFEFF")
-    ? line.text.slice(1)
-    : line.text;
+  return line.text.slice(lineTextStartIndex(line));
 }
 
 function parseAtxHeading(text: string): ParsedHeading | undefined {
@@ -406,6 +470,80 @@ function normalizedSoftWrappedText(lines: readonly SourceLine[]): string {
   return lines
     .map((line) => lineText(line).replace(/^[ \t]+|[ \t]+$/g, ""))
     .join(" ");
+}
+
+interface RawHtmlMatch {
+  readonly line: SourceLine;
+  readonly startIndex: number;
+  readonly endIndex: number;
+}
+
+function findRawHtml(lines: readonly SourceLine[]): RawHtmlMatch | undefined {
+  const rawHtmlStart =
+    /^(?:<!--|<![A-Za-z]|<\?|<\/?[A-Za-z][A-Za-z0-9-]*(?=[\s/>]))/;
+  for (const line of lines) {
+    const text = lineText(line);
+    if (/^ {0,3}(?:`{3,}|~{3,})/.test(text)) continue;
+    for (let index = 0; index < text.length; index += 1) {
+      if (text[index] === "\\") {
+        index += 1;
+        continue;
+      }
+      if (text[index] === "`") {
+        let delimiterLength = 1;
+        while (text[index + delimiterLength] === "`") delimiterLength += 1;
+        const delimiter = "`".repeat(delimiterLength);
+        const closingIndex = text.indexOf(delimiter, index + delimiterLength);
+        if (closingIndex >= 0) {
+          index = closingIndex + delimiterLength - 1;
+        } else {
+          index += delimiterLength - 1;
+        }
+        continue;
+      }
+      if (text[index] !== "<") continue;
+      const match = rawHtmlStart.exec(text.slice(index));
+      if (match === null) continue;
+      const closeIndex = text.indexOf(">", index + match[0].length);
+      const contentStartIndex = lineTextStartIndex(line);
+      return {
+        line,
+        startIndex: contentStartIndex + index,
+        endIndex:
+          contentStartIndex +
+          (closeIndex < 0 ? index + match[0].length : closeIndex + 1),
+      };
+    }
+  }
+  return undefined;
+}
+
+function rawHtmlInvalidBlock(
+  source: string,
+  lines: readonly SourceLine[],
+  match: RawHtmlMatch,
+  options: ParseOptions,
+  diagnostics: Diagnostic[],
+): ParsedBlock {
+  const first = lines[0] ?? match.line;
+  const last = lines.at(-1) ?? match.line;
+  const diagnosticIndex = diagnostics.length;
+  diagnostics.push(
+    diagnostic(
+      "azeforge.security#raw-html-disabled",
+      "Raw HTML is disabled in AzeMark Source.",
+      options,
+      match.line,
+      "error",
+      rangeFromLineSlice(match.line, match.startIndex, match.endIndex),
+    ),
+  );
+  return {
+    kind: "invalid",
+    raw: source.slice(first.startIndex, last.endIndex),
+    range: rangeFromLines(first, last),
+    diagnosticIndexes: [diagnosticIndex],
+  };
 }
 
 function parseBlocks(
@@ -429,28 +567,94 @@ function parseBlocks(
     if (directive !== null) {
       const first = line;
       const originalType = directive[1] === "" ? undefined : directive[1];
-      index += 1;
-      while (index < lines.length) {
-        const candidate = lines[index];
-        if (
-          candidate !== undefined &&
-          /^ {0,3}:{4,}[ \t]*$/.test(lineText(candidate))
-        ) {
-          index += 1;
-          break;
-        }
-        index += 1;
+      const closingIndex = lines.findIndex(
+        (candidate, candidateIndex) =>
+          candidateIndex >= index &&
+          /^ {0,3}:{4,}[ \t]*$/.test(lineText(candidate)),
+      );
+      const closed = closingIndex >= 0;
+      let unambiguousEnd = false;
+      if (closed) {
+        index = closingIndex + 1;
+      } else {
+        const recoveryIndex = lines.findIndex(
+          (candidate, candidateIndex) =>
+            candidateIndex > index && /^[ \t]*$/.test(lineText(candidate)),
+        );
+        unambiguousEnd =
+          recoveryIndex < 0 ||
+          lines
+            .slice(recoveryIndex)
+            .every((candidate) => /^[ \t]*$/.test(lineText(candidate)));
+        index = recoveryIndex < 0 ? lines.length : recoveryIndex;
       }
-      const last = lines[index - 1] ?? first;
+      const last = closed
+        ? (lines[closingIndex] ?? first)
+        : (lines[index - 1] ?? first);
       const diagnosticIndex = diagnostics.length;
+      const typeStartIndex =
+        originalType === undefined
+          ? lineTextStartIndex(first)
+          : lineTextStartIndex(first) + lineText(first).indexOf(originalType);
+      const insertionLine = lines.at(-1) ?? last;
+      const insertionRange = rangeFromLineSlice(
+        insertionLine,
+        insertionLine.text.length,
+        insertionLine.text.length,
+      );
+      const newline = source.includes("\r\n") ? "\r\n" : "\n";
       diagnostics.push(
         diagnostic(
-          "AZE_DIRECTIVE_UNSUPPORTED",
-          originalType === undefined
-            ? "Directive Blocks are not supported by this Compiler."
-            : `Directive Block type "${originalType}" is not supported by this Compiler.`,
+          closed
+            ? originalType === undefined
+              ? "azeforge.source#missing-directive-type"
+              : "azeforge.source#unknown-directive"
+            : "azeforge.source#unclosed-directive",
+          closed
+            ? originalType === undefined
+              ? "A directive Block must name a type."
+              : `Directive Block type "${originalType}" is not available.`
+            : "A directive Block must end with a closing `::::` delimiter.",
           options,
           first,
+          "error",
+          originalType === undefined
+            ? rangeFromLines(first, first)
+            : rangeFromLineSlice(
+                first,
+                typeStartIndex,
+                typeStartIndex + originalType.length,
+              ),
+          {
+            data:
+              !closed || originalType === undefined
+                ? {}
+                : { type: originalType, availableTypes: [] },
+            ...(!closed
+              ? {
+                  suggestion:
+                    "Add a closing `::::` delimiter before the next Block.",
+                  ...(unambiguousEnd
+                    ? {
+                        fix: {
+                          title: "Add the closing directive delimiter.",
+                          applicability: "safe" as const,
+                          edits: [
+                            {
+                              range: insertionRange,
+                              expectedText: "",
+                              replacementText:
+                                source.endsWith("\n") || source.endsWith("\r")
+                                  ? `::::${newline}`
+                                  : `${newline}::::`,
+                            },
+                          ],
+                        },
+                      }
+                    : {}),
+                }
+              : {}),
+          },
         ),
       );
       blocks.push({
@@ -463,6 +667,21 @@ function parseBlocks(
       continue;
     }
 
+
+    const headingRawHtml = findRawHtml([line]);
+    if (headingRawHtml !== undefined) {
+      blocks.push(
+        rawHtmlInvalidBlock(
+          source,
+          [line],
+          headingRawHtml,
+          options,
+          diagnostics,
+        ),
+      );
+      index += 1;
+      continue;
+    }
     const atxHeading = parseAtxHeading(lineText(line));
     if (atxHeading !== undefined) {
       blocks.push({
@@ -498,6 +717,19 @@ function parseBlocks(
       paragraphLines.push(next);
       index += 1;
     }
+    const paragraphRawHtml = findRawHtml(paragraphLines);
+    if (paragraphRawHtml !== undefined) {
+      blocks.push(
+        rawHtmlInvalidBlock(
+          source,
+          paragraphLines,
+          paragraphRawHtml,
+          options,
+          diagnostics,
+        ),
+      );
+      continue;
+    }
     const text = normalizedSoftWrappedText(paragraphLines);
     if (setextLevel !== undefined && setextUnderline !== undefined) {
       blocks.push({
@@ -511,6 +743,7 @@ function parseBlocks(
     const last = paragraphLines.at(-1) ?? line;
     blocks.push({
       kind: "paragraph",
+
       children: [{ kind: "text", value: text }],
       range: rangeFromLines(line, last),
     });
@@ -518,17 +751,125 @@ function parseBlocks(
 
   return blocks;
 }
+function directiveIdOccurrences(
+  lines: readonly SourceLine[],
+  bodyStart: number,
+  options: ParseOptions,
+): readonly BlockIdOccurrence[] {
+  const occurrences: BlockIdOccurrence[] = [];
+
+  for (let index = bodyStart; index < lines.length; index += 1) {
+    const opening = lines[index];
+    if (
+      opening === undefined ||
+      !/^ {0,3}:{4,}[ \t]*[^ \t:]+/.test(lineText(opening))
+    ) {
+      continue;
+    }
+    for (let headerIndex = index + 1; headerIndex < lines.length; headerIndex += 1) {
+      const header = lines[headerIndex];
+      if (
+        header === undefined ||
+        /^[ \t]*$/.test(header.text) ||
+        /^ {0,3}:{4,}[ \t]*$/.test(lineText(header))
+      ) {
+        break;
+      }
+      const idMatch = /^[ \t]*id[ \t]*:[ \t]*(.*?)[ \t]*$/.exec(header.text);
+      const id = idMatch?.[1];
+      if (id === undefined) continue;
+      const startIndex = header.text.indexOf(id, header.text.indexOf(":") + 1);
+      occurrences.push({
+        id,
+        range: rangeFromLineSlice(
+          header,
+          startIndex,
+          startIndex + id.length,
+        ),
+        ...(options.sourceName === undefined
+          ? {}
+          : { source: options.sourceName }),
+      });
+      break;
+    }
+  }
+  return occurrences;
+}
+
+function requiredVersionDiagnostic(
+  source: string,
+  lines: readonly SourceLine[],
+  bodyStart: number,
+  versionDeclared: boolean,
+  options: ParseOptions,
+): Diagnostic | undefined {
+  const containsDirective = lines
+    .slice(bodyStart)
+    .some((line) => /^ {0,3}:{4,}/.test(lineText(line)));
+  if (!containsDirective) return undefined;
+
+  if (versionDeclared) return undefined;
+
+  const first = lines[0];
+  if (first === undefined) return undefined;
+  const newline = source.includes("\r\n") ? "\r\n" : "\n";
+  const insertionLine = bodyStart === 0 ? first : (lines[1] ?? first);
+  const insertionIndex =
+    bodyStart === 0 && insertionLine.text.startsWith("\uFEFF") ? 1 : 0;
+  const insertionRange = rangeFromLineSlice(
+    insertionLine,
+    insertionIndex,
+    insertionIndex,
+  );
+  return diagnostic(
+    "azeforge.source#version-required",
+    "Source with directive Blocks must declare AzeMark version 1.",
+    options,
+    insertionLine,
+    "error",
+    insertionRange,
+    {
+      fix: {
+        title: "Declare AzeMark version 1.",
+        applicability: "safe",
+        edits: [
+          {
+            range: insertionRange,
+            expectedText: "",
+            replacementText:
+              bodyStart === 0
+                ? `---${newline}azemark: 1${newline}---${newline}${newline}`
+                : `azemark: 1${newline}`,
+          },
+        ],
+      },
+    },
+  );
+}
 
 export function parseSource(source: string, options: ParseOptions = {}): ParseResult {
   const lines = sourceLines(source);
   const frontMatter = parseFrontMatter(lines, options);
   const diagnostics = [...frontMatter.diagnostics];
+  const versionDiagnostic = requiredVersionDiagnostic(
+    source,
+    lines,
+    frontMatter.bodyStart,
+    frontMatter.versionDeclared,
+    options,
+  );
+  if (versionDiagnostic !== undefined) diagnostics.push(versionDiagnostic);
   const blocks = parseBlocks(
     source,
     lines,
     frontMatter.bodyStart,
     options,
     diagnostics,
+  );
+  diagnostics.push(
+    ...validateBlockIds(
+      directiveIdOccurrences(lines, frontMatter.bodyStart, options),
+    ),
   );
   return {
     document: {

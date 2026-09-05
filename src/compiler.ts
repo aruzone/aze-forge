@@ -1,5 +1,11 @@
 import { CompilerConfigurationError } from "./configuration-error.js";
 import {
+  createDiagnostic,
+  DEFAULT_DIAGNOSTIC_LIMITS,
+  normalizeAndLimitDiagnostics,
+} from "./diagnostics.js";
+import type { DiagnosticLimits } from "./diagnostics.js";
+import {
   assertInterFontCoverage,
   FontCoverageError,
   loadInterFontFaces,
@@ -13,7 +19,6 @@ import type {
   CompileResult,
   Compiler,
   CompilerOptions,
-  Diagnostic,
   ParseOptions,
   ParseResult,
   Theme,
@@ -21,44 +26,71 @@ import type {
 } from "./model.js";
 import { parseSource } from "./parse.js";
 import { ArtifactLimitError, renderHtml } from "./render-html.js";
+import { validateBlockIds } from "./reference-validation.js";
 import { copyAndFreezeTheme, defaultTheme } from "./theme.js";
 import { validateDocumentSchema } from "./validate-document.js";
-
 const THEME_ID = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
 const SEMVER = /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$/;
 
-function validateParsed(parsed: ParseResult): ValidationResult {
+function validateParsed(
+  parsed: ParseResult,
+  limits: DiagnosticLimits,
+): ValidationResult {
   const schemaDiagnostics = validateDocumentSchema(parsed.document);
-  const diagnostics = [...parsed.diagnostics, ...schemaDiagnostics];
-  if (diagnostics.some(({ severity }) => severity === "error")) {
-    return { diagnostics };
+  if (
+    [...parsed.diagnostics, ...schemaDiagnostics].some(
+      ({ severity }) => severity === "error",
+    )
+  ) {
+    return {
+      diagnostics: normalizeAndLimitDiagnostics(
+        [parsed.diagnostics, schemaDiagnostics],
+        limits,
+      ),
+    };
   }
-  const seenIds = new Set<string>();
-  for (const block of parsed.document.blocks) {
-    if (block.kind === "invalid" || block.id === undefined) continue;
-    if (seenIds.has(block.id)) {
-      diagnostics.push({
-        code: "AZE_BLOCK_ID_DUPLICATE",
-        severity: "error",
-        message: `Block ID "${block.id}" is used more than once.`,
-        range: block.range,
-      });
-    } else {
-      seenIds.add(block.id);
-    }
+  const blockRanges = parsed.document.blocks.map(({ range }) => range);
+
+  const referenceDiagnostics = validateBlockIds(
+    parsed.document.blocks.flatMap((block) =>
+      block.kind === "invalid" || block.id === undefined
+        ? []
+        : [{ id: block.id, range: block.range }],
+    ),
+  );
+  if (referenceDiagnostics.some(({ severity }) => severity === "error")) {
+    return {
+      diagnostics: normalizeAndLimitDiagnostics(
+        [parsed.diagnostics, schemaDiagnostics, referenceDiagnostics],
+        limits,
+        blockRanges,
+      ),
+    };
   }
-  if (diagnostics.some(({ severity }) => severity === "error")) {
-    return { diagnostics };
-  }
-  const hasInvalidBlock = parsed.document.blocks.some((block) => block.kind === "invalid");
-  if (hasInvalidBlock) {
-    diagnostics.push({
-      code: "AZE_INVALID_BLOCK",
-      severity: "error",
-      message: "The Source contains an invalid Block.",
-    });
-    return { diagnostics };
-  }
+
+  const invalidBlockDiagnostics = parsed.document.blocks.some(
+    (block) => block.kind === "invalid",
+  )
+    ? [
+        createDiagnostic(
+          "azeforge.document#invalid-block",
+          "error",
+          "The Source contains an invalid Block.",
+        ),
+      ]
+    : [];
+  const diagnostics = normalizeAndLimitDiagnostics(
+    [
+      parsed.diagnostics,
+      schemaDiagnostics,
+      referenceDiagnostics,
+      invalidBlockDiagnostics,
+    ],
+    limits,
+    blockRanges,
+  );
+  if (invalidBlockDiagnostics.length > 0) return { diagnostics };
+
   const document: AzeDocument = {
     azemarkVersion: parsed.document.azemarkVersion,
     schemaVersion: parsed.document.schemaVersion,
@@ -66,6 +98,65 @@ function validateParsed(parsed: ParseResult): ValidationResult {
     blocks: parsed.document.blocks as readonly AzeBlock[],
   };
   return { document, diagnostics };
+}
+
+function resolveDiagnosticLimits(options: CompilerOptions): DiagnosticLimits {
+  const perBlock =
+    options.diagnosticLimits?.perBlock ?? DEFAULT_DIAGNOSTIC_LIMITS.perBlock;
+  const perDocument =
+    options.diagnosticLimits?.perDocument ??
+    DEFAULT_DIAGNOSTIC_LIMITS.perDocument;
+  if (
+    !Number.isInteger(perBlock) ||
+    perBlock < 1 ||
+    perBlock > DEFAULT_DIAGNOSTIC_LIMITS.perBlock ||
+    !Number.isInteger(perDocument) ||
+    perDocument < 1 ||
+    perDocument > DEFAULT_DIAGNOSTIC_LIMITS.perDocument
+  ) {
+    throw new CompilerConfigurationError(
+      "azeforge.config#diagnostic-limits",
+      "Diagnostic limits must be positive integers no greater than the defaults.",
+    );
+  }
+  return Object.freeze({ perBlock, perDocument });
+}
+
+function limitParseResult(
+  parsed: ParseResult,
+  limits: DiagnosticLimits,
+): ParseResult {
+  const sourceDiagnostics = parsed.diagnostics.filter(
+    ({ code }) => !code.startsWith("azeforge.reference#"),
+  );
+  const referenceDiagnostics = parsed.diagnostics.filter(({ code }) =>
+    code.startsWith("azeforge.reference#"),
+  );
+  const diagnostics = normalizeAndLimitDiagnostics(
+    [sourceDiagnostics, referenceDiagnostics],
+    limits,
+    parsed.document.blocks.map(({ range }) => range),
+  );
+  const truncationIndex = diagnostics.findIndex(
+    ({ code }) => code === "azeforge.diagnostics#truncated",
+  );
+  const blocks = parsed.document.blocks.map((block) => {
+    if (block.kind !== "invalid") return block;
+    const mappedIndexes = block.diagnosticIndexes.map((index) => {
+      const original = parsed.diagnostics[index];
+      const retainedIndex =
+        original === undefined ? -1 : diagnostics.indexOf(original);
+      return retainedIndex >= 0 ? retainedIndex : truncationIndex;
+    });
+    return {
+      ...block,
+      diagnosticIndexes: [...new Set(mappedIndexes.filter((index) => index >= 0))],
+    };
+  });
+  return {
+    document: { ...parsed.document, blocks },
+    diagnostics,
+  };
 }
 
 function validateTheme(theme: Theme): void {
@@ -103,6 +194,7 @@ function validateTheme(theme: Theme): void {
 }
 
 export function createCompiler(options: CompilerOptions = {}): Compiler {
+  const diagnosticLimits = resolveDiagnosticLimits(options);
   const configuredThemes = options.themes ?? [defaultTheme];
   const themes: Record<string, Theme> = {};
   for (const theme of configuredThemes) {
@@ -135,40 +227,59 @@ export function createCompiler(options: CompilerOptions = {}): Compiler {
   let fontFacesPromise: Promise<readonly EmbeddedFontFace[]> | undefined;
   const compiler: Compiler = {
     parse(source: string, parseOptions: ParseOptions = {}): ParseResult {
-      return parseSource(source, parseOptions);
+      return limitParseResult(parseSource(source, parseOptions), diagnosticLimits);
     },
     validate(parsed: ParseResult): ValidationResult {
-      return validateParsed(parsed);
+      return validateParsed(parsed, diagnosticLimits);
     },
     async compile(source: string, compileOptions: CompileOptions): Promise<CompileResult> {
-      const validation = validateParsed(parseSource(source, compileOptions));
+      const validation = validateParsed(
+        limitParseResult(parseSource(source, compileOptions), diagnosticLimits),
+        diagnosticLimits,
+      );
       if (validation.document === undefined) {
         return { diagnostics: validation.diagnostics };
       }
       if (compileOptions.format !== "html") {
-        const unsupportedFormat: Diagnostic = {
-          code: "AZE_FORMAT_UNSUPPORTED",
-          severity: "error",
-          message: `Artifact format \"${String(compileOptions.format)}\" is not supported.`,
-          ...(compileOptions.sourceName === undefined
-            ? {}
-            : { source: compileOptions.sourceName }),
+        const unsupportedFormat = createDiagnostic(
+          "azeforge.renderer#format-unsupported",
+          "error",
+          `Artifact format \"${String(compileOptions.format)}\" is not supported.`,
+          {
+            ...(compileOptions.sourceName === undefined
+              ? {}
+              : { location: { source: compileOptions.sourceName } }),
+            data: { format: String(compileOptions.format) },
+          },
+        );
+        return {
+          diagnostics: normalizeAndLimitDiagnostics(
+            [validation.diagnostics, [unsupportedFormat]],
+            diagnosticLimits,
+          ),
         };
-        return { diagnostics: [...validation.diagnostics, unsupportedFormat] };
       }
       const themeId =
         compileOptions.theme ?? validation.document.metadata.theme ?? defaultThemeId;
       const theme = themes[themeId];
       if (theme === undefined) {
-        const unknownTheme: Diagnostic = {
-          code: "AZE_THEME_UNKNOWN",
-          severity: "error",
-          message: `Theme \"${themeId}\" is not registered.`,
-          ...(compileOptions.sourceName === undefined
-            ? {}
-            : { source: compileOptions.sourceName }),
+        const unknownTheme = createDiagnostic(
+          "azeforge.renderer#unknown-theme",
+          "error",
+          `Theme \"${themeId}\" is not registered.`,
+          {
+            ...(compileOptions.sourceName === undefined
+              ? {}
+              : { location: { source: compileOptions.sourceName } }),
+            data: { theme: themeId },
+          },
+        );
+        return {
+          diagnostics: normalizeAndLimitDiagnostics(
+            [validation.diagnostics, [unknownTheme]],
+            diagnosticLimits,
+          ),
         };
-        return { diagnostics: [...validation.diagnostics, unknownTheme] };
       }
       try {
         const renderedText = [
@@ -196,23 +307,47 @@ export function createCompiler(options: CompilerOptions = {}): Compiler {
           artifact,
         };
       } catch (error) {
-        const rendererFailure: Diagnostic = {
-          code:
-            error instanceof FontCoverageError
-              ? "AZE_FONT_COVERAGE"
-              : error instanceof ArtifactLimitError
-                ? "AZE_ARTIFACT_LIMIT"
-                : "AZE_RENDERER_FAILURE",
-          severity: "error",
-          message:
-            error instanceof Error
-              ? error.message
-              : "The HTML Renderer failed unexpectedly.",
-          ...(compileOptions.sourceName === undefined
-            ? {}
-            : { source: compileOptions.sourceName }),
+        const rendererFailure =
+          error instanceof FontCoverageError
+            ? createDiagnostic(
+                "azeforge.renderer#font-coverage",
+                "error",
+                error.message,
+                {
+                  data: { codePoint: error.codePoint },
+                  ...(compileOptions.sourceName === undefined
+                    ? {}
+                    : { location: { source: compileOptions.sourceName } }),
+                },
+              )
+            : error instanceof ArtifactLimitError
+              ? createDiagnostic(
+                  "azeforge.renderer#artifact-limit",
+                  "error",
+                  error.message,
+                  {
+                    data: { byteLength: error.byteLength },
+                    ...(compileOptions.sourceName === undefined
+                      ? {}
+                      : { location: { source: compileOptions.sourceName } }),
+                  },
+                )
+              : createDiagnostic(
+                  "azeforge.renderer#unexpected-failure",
+                  "error",
+                  "The HTML Renderer failed unexpectedly.",
+                  {
+                    ...(compileOptions.sourceName === undefined
+                      ? {}
+                      : { location: { source: compileOptions.sourceName } }),
+                  },
+                );
+        return {
+          diagnostics: normalizeAndLimitDiagnostics(
+            [validation.diagnostics, [rendererFailure]],
+            diagnosticLimits,
+          ),
         };
-        return { diagnostics: [...validation.diagnostics, rendererFailure] };
       }
     },
   };

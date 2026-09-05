@@ -6,8 +6,7 @@ import type {
   SourceRange,
 } from "./model.js";
 import { isObjectRecord } from "./type-guards.js";
-
-const BLOCK_ID = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
+import { createDiagnostic } from "./diagnostics.js";
 const OUTPUT_FORMATS: Readonly<Record<string, true>> = {
   html: true,
   svg: true,
@@ -68,8 +67,7 @@ function hasValidCommonBlockFields(
   return (
     hasOnlyKeys(value, allowed) &&
     isSourceRange(value.range) &&
-    (value.id === undefined ||
-      (typeof value.id === "string" && BLOCK_ID.test(value.id)))
+    (value.id === undefined || typeof value.id === "string")
   );
 }
 
@@ -161,11 +159,11 @@ export function validateDocumentSchema(document: unknown): readonly Diagnostic[]
     document.blocks.every((block) => isParsedBlock(block));
   if (valid) return [];
   return [
-    {
-      code: "AZE_DOCUMENT_SCHEMA",
-      severity: "error",
-      message: "ParsedDocument does not conform to AzeMark Document schema v1.",
-    },
+    createDiagnostic(
+      "azeforge.document#schema-invalid",
+      "error",
+      "ParsedDocument does not conform to AzeMark Document schema v1.",
+    ),
   ];
 }
 

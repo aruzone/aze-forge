@@ -1,5 +1,10 @@
 export { createCompiler } from "./compiler.js";
 export { CompilerConfigurationError } from "./configuration-error.js";
+export {
+  DIAGNOSTICS_SCHEMA_ID,
+  diagnosticsJsonSchema,
+} from "./diagnostics-json.js";
+export type { DiagnosticsReport } from "./diagnostics-json.js";
 export { defaultTheme } from "./theme.js";
 export type {
   Artifact,
@@ -13,7 +18,11 @@ export type {
   CompileResult,
   Compiler,
   CompilerOptions,
+  DiagnosticLimitOptions,
   Diagnostic,
+  DiagnosticFix,
+  DiagnosticFixEdit,
+  DiagnosticLocation,
   DiagnosticSeverity,
   DocumentMetadata,
   HeadingBlock,
@@ -21,6 +30,7 @@ export type {
   InvalidBlock,
   JsonPrimitive,
   JsonValue,
+  RelatedLocation,
   ParagraphBlock,
   ParseOptions,
   ParseResult,

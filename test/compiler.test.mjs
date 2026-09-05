@@ -112,24 +112,70 @@ test("compile produces stable semantic and byte identities", async () => {
   assert.doesNotMatch(html, /ui-sans-serif|system-ui/);
 });
 
-test("HTML renders Source text as inert content", async () => {
-  const source = `---
-azemark: 1
-title: "</title><script>title()</script>"
----
+test("raw HTML is isolated without discarding surrounding valid Blocks", async () => {
+  const source = "\uFEFFPréface\r\n\r\n<div>\r\n\r\n# Après\r\n";
+  const compiler = createCompiler();
+  const parsed = compiler.parse(source, { sourceName: "unicode.aze.md" });
 
-# <script>heading()</script>
+  assert.deepEqual(
+    parsed.document.blocks.map(({ kind }) => kind),
+    ["paragraph", "invalid", "heading"],
+  );
+  assert.deepEqual(parsed.diagnostics, [
+    {
+      code: "azeforge.security#raw-html-disabled",
+      severity: "error",
+      message: "Raw HTML is disabled in AzeMark Source.",
+      data: {},
+      location: {
+        source: "unicode.aze.md",
+        range: {
+          start: { line: 3, column: 1, offset: 15 },
+          end: { line: 3, column: 6, offset: 20 },
+        },
+      },
+      relatedLocations: [],
+    },
+  ]);
 
-<img src=x onerror=paragraph()>
-`;
+  const compiled = await compiler.compile(source, {
+    format: "html",
+    sourceName: "unicode.aze.md",
+  });
+  assert.equal(compiled.document, undefined);
+  assert.equal(compiled.artifact, undefined);
+});
+
+test("escaped and inline-code HTML literals remain valid Source text", async () => {
+  const source = "Escaped \\<div>\n\n`<span>`\n";
   const result = await createCompiler().compile(source, { format: "html" });
 
+  assert.deepEqual(result.diagnostics, []);
   assert.ok(result.artifact);
   const html = new TextDecoder().decode(result.artifact.bytes);
-  assert.doesNotMatch(html, /<script\b/i);
-  assert.doesNotMatch(html, /<img\b/i);
-  assert.match(html, /&lt;script&gt;heading\(\)&lt;\/script&gt;/);
-  assert.match(html, /&lt;img src=x onerror=paragraph\(\)&gt;/);
+  assert.match(html, /Escaped \\&lt;div&gt;/);
+  assert.match(html, /`&lt;span&gt;`/);
+});
+
+test("Renderer preflight failures produce diagnostics without partial results", async () => {
+  const result = await createCompiler().compile("# 😀\n", {
+    format: "html",
+    sourceName: "emoji.aze.md",
+  });
+
+  assert.equal(result.document, undefined);
+  assert.equal(result.contentHash, undefined);
+  assert.equal(result.artifact, undefined);
+  assert.deepEqual(result.diagnostics, [
+    {
+      code: "azeforge.renderer#font-coverage",
+      severity: "error",
+      message: "The default Theme font does not contain U+1F600.",
+      data: { codePoint: 0x1f600 },
+      location: { source: "emoji.aze.md" },
+      relatedLocations: [],
+    },
+  ]);
 });
 
 test("validation errors expose no validated Document, identity, or Artifact", async () => {
@@ -180,10 +226,21 @@ test("parser handles BOM, ATX variants, Setext headings, and Unicode whitespace"
   );
 });
 
-test("unsupported directives fail through an InvalidBlock without identities", async () => {
-  const source = "Before\n\n:::: equation\nx = 1\n::::\n\nAfter\n";
+test("unknown directives expose stable alternatives through an InvalidBlock", async () => {
+  const source = `---
+azemark: 1
+---
+
+Before
+
+:::: equation
+x = 1
+::::
+
+After
+`;
   const compiler = createCompiler();
-  const parsed = compiler.parse(source);
+  const parsed = compiler.parse(source, { sourceName: "unknown.aze.md" });
   const invalid = parsed.document.blocks[1];
 
   assert.deepEqual(parsed.document.blocks.map(({ kind }) => kind), [
@@ -195,11 +252,278 @@ test("unsupported directives fail through an InvalidBlock without identities", a
   assert.equal(invalid?.raw, ":::: equation\nx = 1\n::::");
   assert.equal(invalid?.originalType, "equation");
   assert.deepEqual(invalid?.diagnosticIndexes, [0]);
+  assert.deepEqual(parsed.diagnostics[0]?.data, {
+    type: "equation",
+    availableTypes: [],
+  });
+  assert.equal(
+    parsed.diagnostics[0]?.code,
+    "azeforge.source#unknown-directive",
+  );
 
   const compiled = await compiler.compile(source, { format: "html" });
   assert.equal(compiled.document, undefined);
   assert.equal(compiled.contentHash, undefined);
   assert.equal(compiled.artifact, undefined);
+});
+
+test("directive envelope IDs report invalid and duplicate references", () => {
+  const source = `---
+azemark: 1
+---
+
+:::: one
+id: Bad
+
+body
+::::
+
+:::: two
+id: shared
+
+body
+::::
+
+:::: three
+id: shared
+
+body
+::::
+`;
+  const parsed = createCompiler().parse(source);
+
+  assert.deepEqual(
+    parsed.diagnostics.map(({ code }) => code),
+    [
+      "azeforge.source#unknown-directive",
+      "azeforge.source#unknown-directive",
+      "azeforge.source#unknown-directive",
+      "azeforge.reference#invalid-id",
+      "azeforge.reference#duplicate-id",
+    ],
+  );
+  const duplicate = parsed.diagnostics[4];
+  assert.deepEqual(duplicate?.data, { id: "shared" });
+  assert.equal(duplicate?.relatedLocations.length, 1);
+});
+
+test("an unclosed directive recovers at the next independent region", () => {
+  const source = "Before\n\n:::: mystery\nbroken\n\n# After\n\nStill valid\n";
+  const parsed = createCompiler().parse(source, {
+    sourceName: "recover.aze.md",
+  });
+
+  assert.deepEqual(
+    parsed.document.blocks.map(({ kind }) => kind),
+    ["paragraph", "invalid", "heading", "paragraph"],
+  );
+  assert.deepEqual(
+    parsed.diagnostics.map(({ code }) => code),
+    [
+      "azeforge.source#version-required",
+      "azeforge.source#unclosed-directive",
+    ],
+  );
+  assert.deepEqual(parsed.document.blocks[1]?.diagnosticIndexes, [1]);
+  assert.deepEqual(parsed.diagnostics[0]?.fix, {
+    title: "Declare AzeMark version 1.",
+    applicability: "safe",
+    edits: [
+      {
+        range: {
+          start: { line: 1, column: 1, offset: 0 },
+          end: { line: 1, column: 1, offset: 0 },
+        },
+        expectedText: "",
+        replacementText: "---\nazemark: 1\n---\n\n",
+      },
+    ],
+  });
+});
+
+test("nested azemark metadata does not declare the Source version", () => {
+  const parsed = createCompiler().parse(
+    "---\nx-settings:\n  azemark: 1\n---\n\n:::: mystery\n::::\n",
+  );
+
+  assert.equal(
+    parsed.diagnostics.some(
+      ({ code }) => code === "azeforge.source#version-required",
+    ),
+    true,
+  );
+});
+
+test("BOM bytes remain part of first-line directive ranges", () => {
+  const parsed = createCompiler().parse("\uFEFF:::: mystery\n::::\n", {
+    sourceName: "bom.aze.md",
+  });
+  const unknown = parsed.diagnostics.find(
+    ({ code }) => code === "azeforge.source#unknown-directive",
+  );
+
+  assert.deepEqual(unknown?.location?.range, {
+    start: { line: 1, column: 7, offset: 8 },
+    end: { line: 1, column: 14, offset: 15 },
+  });
+  assert.deepEqual(parsed.diagnostics[0]?.fix?.edits[0]?.range, {
+    start: { line: 1, column: 2, offset: 3 },
+    end: { line: 1, column: 2, offset: 3 },
+  });
+});
+
+test("an unclosed directive at EOF has a guarded safe fix", () => {
+  const source = "---\nazemark: 1\n---\n\n:::: mystery\nbody\n";
+  const parsed = createCompiler().parse(source);
+  const unclosed = parsed.diagnostics.find(
+    ({ code }) => code === "azeforge.source#unclosed-directive",
+  );
+
+  assert.deepEqual(unclosed?.fix, {
+    title: "Add the closing directive delimiter.",
+    applicability: "safe",
+    edits: [
+      {
+        range: {
+          start: { line: 7, column: 1, offset: 38 },
+          end: { line: 7, column: 1, offset: 38 },
+        },
+        expectedText: "",
+        replacementText: "::::\n",
+      },
+    ],
+  });
+});
+
+test("diagnostic limits retain Source order and reserve truncation", () => {
+  const source = `---
+azemark: 1
+---
+
+:::: one
+::::
+
+:::: two
+::::
+
+:::: three
+::::
+
+:::: four
+::::
+`;
+  const parsed = createCompiler({
+    diagnosticLimits: { perDocument: 3 },
+  }).parse(source);
+
+  assert.deepEqual(
+    parsed.diagnostics.map(({ code, data }) => ({ code, data })),
+    [
+      {
+        code: "azeforge.source#unknown-directive",
+        data: { type: "one", availableTypes: [] },
+      },
+      {
+        code: "azeforge.source#unknown-directive",
+        data: { type: "two", availableTypes: [] },
+      },
+      {
+        code: "azeforge.diagnostics#truncated",
+        data: {
+          omittedBySeverity: { error: 2, warning: 0, info: 0 },
+          omittedBlocks: 2,
+        },
+      },
+    ],
+  );
+
+  assert.equal(parsed.diagnostics[2]?.severity, "error");
+});
+test("per-Block limits group diagnostics across collection phases", () => {
+  const source = `---
+azemark: 1
+---
+
+:::: mystery
+id: Bad
+
+body
+::::
+`;
+  const parsed = createCompiler({
+    diagnosticLimits: { perBlock: 1, perDocument: 10 },
+  }).parse(source);
+
+  assert.deepEqual(
+    parsed.diagnostics.map(({ code }) => code),
+    [
+      "azeforge.source#unknown-directive",
+      "azeforge.diagnostics#truncated",
+    ],
+  );
+  assert.deepEqual(parsed.diagnostics[1]?.data, {
+    omittedBySeverity: { error: 1, warning: 0, info: 0 },
+    omittedBlocks: 1,
+  });
+});
+
+test("Renderer preflight diagnostics honor the Document limit", async () => {
+  const compiler = createCompiler({
+    diagnosticLimits: { perDocument: 1 },
+  });
+  const result = await compiler.compile(
+    "---\nazemark: 1\ntitel: typo\n---\n\nBody\n",
+    { format: "html", theme: "missing" },
+  );
+
+  assert.deepEqual(
+    result.diagnostics.map(({ code }) => code),
+    ["azeforge.diagnostics#truncated"],
+  );
+  assert.equal(result.diagnostics[0]?.severity, "error");
+  assert.deepEqual(result.diagnostics[0]?.data, {
+    omittedBySeverity: { error: 1, warning: 1, info: 0 },
+    omittedBlocks: 0,
+  });
+});
+
+test("validation deduplicates and deterministically orders parse diagnostics", () => {
+  const range = {
+    start: { line: 1, column: 1, offset: 0 },
+    end: { line: 1, column: 2, offset: 1 },
+  };
+  const makeDiagnostic = (code, severity) => ({
+    code,
+    severity,
+    message: code,
+    data: {},
+    location: { range },
+    relatedLocations: [],
+  });
+  const duplicate = makeDiagnostic("azeforge.source#a-error", "error");
+  const validation = createCompiler().validate({
+    document: {
+      azemarkVersion: 1,
+      schemaVersion: 1,
+      metadata: { authors: [], extensions: {} },
+      blocks: [],
+    },
+    diagnostics: [
+      makeDiagnostic("azeforge.source#warning", "warning"),
+      makeDiagnostic("azeforge.source#z-error", "error"),
+      duplicate,
+      { ...duplicate },
+    ],
+  });
+
+  assert.deepEqual(
+    validation.diagnostics.map(({ code }) => code),
+    [
+      "azeforge.source#a-error",
+      "azeforge.source#z-error",
+      "azeforge.source#warning",
+    ],
+  );
 });
 
 test("front matter rejects structural merge keys but permits quoted text keys", () => {
@@ -218,16 +542,34 @@ test("front matter rejects structural merge keys but permits quoted text keys", 
   assert.equal(merged.document, undefined);
   assert.ok(
     merged.diagnostics.some(
-      ({ code }) => code === "AZE_FRONT_MATTER_MERGE_KEY",
+      ({ code }) => code === "azeforge.metadata#merge-key-disabled",
     ),
   );
   assert.ok(quoted.document);
   assert.equal(
     quoted.diagnostics.some(
-      ({ code }) => code === "AZE_FRONT_MATTER_MERGE_KEY",
+      ({ code }) => code === "azeforge.metadata#merge-key-disabled",
     ),
     false,
   );
+});
+
+test("malformed front matter preserves body Blocks without parser internals", () => {
+  const parsed = createCompiler().parse(
+    "---\nazemark: 1\ntitle: [broken\n---\n\n# Survives\n",
+    { sourceName: "front-matter.aze.md" },
+  );
+
+  assert.deepEqual(
+    parsed.document.blocks.map(({ kind }) => kind),
+    ["heading"],
+  );
+  const yamlDiagnostic = parsed.diagnostics.find(
+    ({ code }) => code === "azeforge.metadata#invalid-yaml",
+  );
+  assert.equal(yamlDiagnostic?.message, "Front matter contains invalid YAML.");
+  assert.deepEqual(yamlDiagnostic?.data, {});
+  assert.deepEqual(yamlDiagnostic?.relatedLocations, []);
 });
 
 test("validation rejects malformed serialized ParsedDocuments", () => {
@@ -257,14 +599,18 @@ test("validation rejects malformed serialized ParsedDocuments", () => {
   assert.equal(validation.document, undefined);
   assert.deepEqual(
     validation.diagnostics.map(({ code }) => code),
-    ["AZE_DOCUMENT_SCHEMA"],
+    ["azeforge.document#schema-invalid"],
   );
 });
 
-test("validation rejects duplicate document-wide Block IDs", () => {
-  const range = {
+test("duplicate Block IDs point back to the first definition", () => {
+  const firstRange = {
     start: { line: 1, column: 1, offset: 0 },
-    end: { line: 1, column: 2, offset: 1 },
+    end: { line: 1, column: 4, offset: 3 },
+  };
+  const duplicateRange = {
+    start: { line: 3, column: 1, offset: 5 },
+    end: { line: 3, column: 4, offset: 8 },
   };
   const parsed = {
     document: {
@@ -276,13 +622,13 @@ test("validation rejects duplicate document-wide Block IDs", () => {
           kind: "paragraph",
           id: "shared",
           children: [{ kind: "text", value: "One" }],
-          range,
+          range: firstRange,
         },
         {
           kind: "paragraph",
           id: "shared",
           children: [{ kind: "text", value: "Two" }],
-          range,
+          range: duplicateRange,
         },
       ],
     },
@@ -292,9 +638,70 @@ test("validation rejects duplicate document-wide Block IDs", () => {
   const validation = createCompiler().validate(parsed);
 
   assert.equal(validation.document, undefined);
+  assert.deepEqual(validation.diagnostics, [
+    {
+      code: "azeforge.reference#duplicate-id",
+      severity: "error",
+      message: 'Block ID "shared" is used more than once.',
+      data: { id: "shared" },
+      location: { range: duplicateRange },
+      relatedLocations: [
+        {
+          range: firstRange,
+          message: 'Block ID "shared" was first defined here.',
+        },
+      ],
+    },
+  ]);
+});
+
+test("invalid Block IDs receive a reference diagnostic", () => {
+  const range = {
+    start: { line: 1, column: 1, offset: 0 },
+    end: { line: 1, column: 5, offset: 4 },
+  };
+  const validation = createCompiler().validate({
+    document: {
+      azemarkVersion: 1,
+      schemaVersion: 1,
+      metadata: { authors: [], extensions: {} },
+      blocks: [
+        {
+          kind: "paragraph",
+          id: "Bad ID",
+          children: [{ kind: "text", value: "Text" }],
+          range,
+        },
+      ],
+    },
+
+    diagnostics: [],
+  });
+
+  assert.deepEqual(validation.diagnostics, [
+    {
+      code: "azeforge.reference#invalid-id",
+      severity: "error",
+      message: 'Block ID "Bad ID" is not a valid AzeMark ID.',
+      data: { id: "Bad ID" },
+      location: { range },
+      suggestion:
+        "Use lowercase letters, digits, and single hyphens, starting with a letter.",
+      relatedLocations: [],
+    },
+  ]);
+});
+test("independent unknown front-matter keys are not deduplicated", () => {
+  const parsed = createCompiler().parse(
+    "---\nazemark: 1\nfirst-key: one\nsecond-key: two\n---\n\nBody\n",
+  );
+  const unknownKeys = parsed.diagnostics.filter(
+    ({ code }) => code === "azeforge.metadata#unknown-key",
+  );
+
   assert.deepEqual(
-    validation.diagnostics.map(({ code }) => code),
-    ["AZE_BLOCK_ID_DUPLICATE"],
+    unknownKeys.map(({ data }) => data),
+    [{ key: "first-key" }, { key: "second-key" }],
   );
 });
 
@@ -303,7 +710,7 @@ test("unknown metadata warnings include a typo suggestion", () => {
     "---\nazemark: 1\ntitel: Typo\n---\n\nBody\n",
   );
   const warning = parsed.diagnostics.find(
-    ({ code }) => code === "AZE_FRONT_MATTER_KEY",
+    ({ code }) => code === "azeforge.metadata#unknown-key",
   );
 
   assert.equal(warning?.severity, "warning");

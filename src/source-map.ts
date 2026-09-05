@@ -75,3 +75,25 @@ export function rangeFromLines(first: SourceLine, last: SourceLine): SourceRange
     },
   };
 }
+
+export function rangeFromLineSlice(
+  line: SourceLine,
+  startIndex: number,
+  endIndex: number,
+): SourceRange {
+  const prefix = line.text.slice(0, startIndex);
+  const value = line.text.slice(startIndex, endIndex);
+  const startOffset = line.startOffset + Buffer.byteLength(prefix, "utf8");
+  return {
+    start: {
+      line: line.number,
+      column: [...prefix].length + 1,
+      offset: startOffset,
+    },
+    end: {
+      line: line.number,
+      column: [...prefix, ...value].length + 1,
+      offset: startOffset + Buffer.byteLength(value, "utf8"),
+    },
+  };
+}

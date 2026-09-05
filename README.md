@@ -12,7 +12,7 @@ The current compiler supports:
 - paragraphs
 - plain inline text
 
-Directives, lists, equations, Mermaid, images, and other Markdown constructs are not implemented yet.
+Directive envelopes are recovered as `InvalidBlock` values until Plugins are registered. Raw HTML is denied and never rendered as text or markup. Lists, equations, Mermaid, images, and other Markdown constructs are not implemented yet.
 
 ## Build
 
@@ -64,6 +64,8 @@ echo $?
 ```
 
 A valid Source produces no stdout or stderr and exits with status `0`.
+
+Add `--diagnostics json` to `validate` or file-targeted `render` to emit exactly one `azeforge.diagnostics/v1` report on stdout. The package exports `diagnosticsJsonSchema` for JSON Schema 2020-12 validation. Human diagnostics remain on stderr.
 
 ## Render to a file
 
@@ -145,13 +147,13 @@ echo "exit: $?"
 cat /tmp/preserved.html
 ```
 
-The command reports `AZE_VERSION_UNSUPPORTED`, exits with status `1`, and leaves the previous Artifact unchanged.
+The command reports `azeforge.source#version-unsupported`, exits with status `1`, and leaves the previous Artifact unchanged.
 
 CLI exit statuses:
 
-- `0`: success
-- `1`: Source validation or compilation failure
-- `2`: invalid CLI usage or incompatible options
+- `0`: the operation succeeded, including warning-only validation
+- `1`: an accepted operation failed on Source or component diagnostics
+- `2`: arguments or options could not form an operation
 
 ## Automated checks
 

@@ -84,14 +84,37 @@ export interface AzeDocument {
 
 export type DiagnosticSeverity = "error" | "warning" | "info";
 
+export type DiagnosticLocation =
+  | { readonly source: string; readonly range?: SourceRange }
+  | { readonly source?: string; readonly range: SourceRange };
+
+export interface RelatedLocation {
+  readonly source?: string;
+  readonly range: SourceRange;
+  readonly message: string;
+}
+
+export interface DiagnosticFixEdit {
+  readonly range: SourceRange;
+  readonly expectedText: string;
+  readonly replacementText: string;
+}
+
+export interface DiagnosticFix {
+  readonly title: string;
+  readonly applicability: "safe";
+  readonly edits: readonly DiagnosticFixEdit[];
+}
+
 export interface Diagnostic {
   readonly code: string;
   readonly severity: DiagnosticSeverity;
   readonly message: string;
-  readonly source?: string;
-  readonly range?: SourceRange;
+  readonly data: Readonly<Record<string, JsonValue>>;
+  readonly location?: DiagnosticLocation;
   readonly suggestion?: string;
-  readonly data?: Readonly<Record<string, JsonValue>>;
+  readonly fix?: DiagnosticFix;
+  readonly relatedLocations: readonly RelatedLocation[];
 }
 
 export interface ParseOptions {
@@ -166,9 +189,15 @@ export interface CompileResult {
   readonly artifact?: Artifact;
 }
 
+export interface DiagnosticLimitOptions {
+  readonly perBlock?: number;
+  readonly perDocument?: number;
+}
+
 export interface CompilerOptions {
   readonly themes?: readonly Theme[];
   readonly defaultTheme?: string;
+  readonly diagnosticLimits?: DiagnosticLimitOptions;
 }
 
 export interface Compiler {
