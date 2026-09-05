@@ -8,11 +8,29 @@ import { createCompiler } from "./compiler.js";
 import { createDiagnostic } from "./diagnostics.js";
 import { createDiagnosticsReport } from "./diagnostics-json.js";
 import type {
+  Artifact,
   ArtifactFormat,
   ArtifactMetadata,
+  CompileResult,
   ContentHash,
   Diagnostic,
 } from "./model.js";
+import {
+  extractServedAssets,
+  renderDiagnosticsPage,
+  renderStartingPage,
+  wrapPreviewShell,
+} from "./preview-shell.js";
+import { PreviewServer } from "./preview-server.js";
+import { collectImageSources, resolveWatchPaths } from "./watch-dependencies.js";
+import {
+  createResultEvent,
+  createStartedEvent,
+  createStoppedEvent,
+  serializeEvent,
+} from "./watch-events.js";
+import type { WatchEvent } from "./watch-events.js";
+import { WatchDriver } from "./watch-loop.js";
 
 const FORMAT_BY_EXTENSION: Readonly<Record<string, ArtifactFormat>> = {
   ".html": "html",
@@ -63,7 +81,25 @@ interface FormatArguments {
   readonly diagnosticsMode: DiagnosticsMode;
 }
 
-type CliArguments = ValidateArguments | RenderArguments | FormatArguments;
+interface WatchArguments extends CommonArguments {
+  readonly command: "watch";
+  readonly artifactPath: string;
+  readonly format: "html" | "svg" | "png" | "pdf";
+  readonly theme?: string;
+}
+
+interface ServeArguments extends CommonArguments {
+  readonly command: "serve";
+  readonly port: number;
+  readonly theme?: string;
+}
+
+type CliArguments =
+  | ValidateArguments
+  | RenderArguments
+  | WatchArguments
+  | ServeArguments
+  | FormatArguments;
 
 function requestedDiagnosticsMode(arguments_: readonly string[]): DiagnosticsMode {
   return arguments_.some(
@@ -168,13 +204,25 @@ function parseArguments(
   if (command === "format") {
     return parseFormatArguments(sourcePath, rest, diagnosticsMode);
   }
+  if (command === "watch") {
+    if (sourcePath === undefined || sourcePath.startsWith("-")) {
+      throw new CliUsageError("Usage: azeforge watch <source> --output <artifact.html>");
+    }
+    return parseWatchArguments(sourcePath, rest, diagnosticsMode);
+  }
+  if (command === "serve") {
+    if (sourcePath === undefined || sourcePath.startsWith("-")) {
+      throw new CliUsageError("Usage: azeforge serve <source> [--port <port>]");
+    }
+    return parseServeArguments(sourcePath, rest, diagnosticsMode);
+  }
   if (
     (command !== "validate" && command !== "render") ||
     sourcePath === undefined ||
     sourcePath.startsWith("-")
   ) {
     throw new CliUsageError(
-      "Usage: azeforge validate <source> | azeforge render <source> --output <artifact.html>",
+      "Usage: azeforge validate <source> | azeforge render <source> --output <artifact.html> | azeforge watch <source> --output <artifact.html> | azeforge serve <source> [--port <port>]",
     );
   }
   if (command === "validate") {
@@ -187,6 +235,7 @@ function parseArguments(
     }
     return { command, sourcePath, diagnosticsMode, allowRawLatex };
   }
+
 
   let artifactPath: string | undefined;
   let stdout = false;
@@ -242,6 +291,22 @@ function parseArguments(
   if (stdout && format === undefined) {
     throw new CliUsageError("Render --stdout requires an explicit --format.");
   }
+  const selectedFormat = selectArtifactFormat(format, artifactPath);
+  return {
+    command,
+    sourcePath,
+    diagnosticsMode,
+    ...(artifactPath === undefined ? {} : { artifactPath }),
+    stdout,
+    format: selectedFormat,
+    allowRawLatex,
+    ...(theme === undefined ? {} : { theme }),
+  };
+}
+function selectArtifactFormat(
+  format: string | undefined,
+  artifactPath: string | undefined,
+): "html" | "svg" | "png" | "pdf" {
   const extension =
     artifactPath === undefined ? "" : extname(artifactPath).toLowerCase();
   const inferredFormat = FORMAT_BY_EXTENSION[extension];
@@ -252,14 +317,117 @@ function parseArguments(
   ) {
     throw new CliUsageError("The Artifact format and destination extension disagree.");
   }
+  return selectedFormat;
+}
+
+function parseWatchArguments(
+  sourcePath: string,
+  rest: readonly string[],
+  diagnosticsMode: DiagnosticsMode,
+): WatchArguments {
+  let artifactPath: string | undefined;
+  let allowRawLatex = false;
+  let format: string | undefined;
+  let theme: string | undefined;
+  for (let index = 0; index < rest.length; index += 1) {
+    const option = rest[index];
+    if (option === "--stdout") {
+      throw new CliUsageError("Watch requires --output and rejects --stdout.");
+    }
+    if (option === "--allow-raw-latex") {
+      allowRawLatex = claimAllowRawLatex(allowRawLatex);
+      continue;
+    }
+    const value = rest[index + 1];
+    if (value === undefined || value.startsWith("--")) {
+      throw new CliUsageError(`Option "${option}" needs a value.`);
+    }
+    index += 1;
+    if (option === "--output") {
+      if (artifactPath !== undefined) {
+        throw new CliUsageError('Option "--output" was provided more than once.');
+      }
+      artifactPath = value;
+    } else if (option === "--format") {
+      if (format !== undefined) {
+        throw new CliUsageError('Option "--format" was provided more than once.');
+      }
+      format = value;
+    } else if (option === "--theme") {
+      if (theme !== undefined) {
+        throw new CliUsageError('Option "--theme" was provided more than once.');
+      }
+      theme = value;
+    } else {
+      throw new CliUsageError(`Unknown option "${option}".`);
+    }
+  }
+  if (artifactPath === undefined) {
+    throw new CliUsageError("Watch requires --output <artifact>.");
+  }
   return {
-    command,
+    command: "watch",
     sourcePath,
     diagnosticsMode,
-    ...(artifactPath === undefined ? {} : { artifactPath }),
-    stdout,
-    format: selectedFormat,
     allowRawLatex,
+    artifactPath,
+    format: selectArtifactFormat(format, artifactPath),
+    ...(theme === undefined ? {} : { theme }),
+  };
+}
+
+function parseServeArguments(
+  sourcePath: string,
+  rest: readonly string[],
+  diagnosticsMode: DiagnosticsMode,
+): ServeArguments {
+  let allowRawLatex = false;
+  let theme: string | undefined;
+  let port: number | undefined;
+  for (let index = 0; index < rest.length; index += 1) {
+    const option = rest[index];
+    if (
+      option === "--output" ||
+      option === "--stdout" ||
+      option === "--format"
+    ) {
+      throw new CliUsageError("Serve accepts no --format, --output, or --stdout.");
+    }
+    if (option === "--host") {
+      throw new CliUsageError("Serve binds only 127.0.0.1.");
+    }
+    if (option === "--allow-raw-latex") {
+      allowRawLatex = claimAllowRawLatex(allowRawLatex);
+      continue;
+    }
+    const value = rest[index + 1];
+    if (value === undefined || value.startsWith("--")) {
+      throw new CliUsageError(`Option "${option}" needs a value.`);
+    }
+    index += 1;
+    if (option === "--port") {
+      if (port !== undefined) {
+        throw new CliUsageError('Option "--port" was provided more than once.');
+      }
+      if (!/^\d+$/.test(value) || Number(value) > 65535) {
+        throw new CliUsageError('Option "--port" needs a value between 0 and 65535.');
+      }
+      port = Number(value);
+    } else if (option === "--theme") {
+      if (theme !== undefined) {
+        throw new CliUsageError('Option "--theme" was provided more than once.');
+      }
+      theme = value;
+    } else {
+      throw new CliUsageError(`Unknown option "${option}".`);
+    }
+  }
+  return {
+    command: "serve",
+    sourcePath,
+    diagnosticsMode,
+    allowRawLatex,
+    port: port ?? 0,
     ...(theme === undefined ? {} : { theme }),
   };
 }
@@ -374,6 +542,439 @@ function emitDiagnostics(
   }
 }
 
+interface WatchCycleOutcome {
+  readonly sourceText?: string;
+  readonly diagnostics: readonly Diagnostic[];
+  readonly contentHash?: ContentHash;
+  readonly artifact?: Artifact;
+  readonly imageSources: readonly string[];
+}
+
+function scanImageSourcesFromText(sourceText: string): string[] {
+  const pattern = /!\[[^\]\n]*\]\(\s*<?([^)\s>]+)>?(?:\s+(?:"[^"]*"|'[^']*'))?\s*\)/g;
+  const sources: string[] = [];
+  for (
+    let match = pattern.exec(sourceText);
+    match !== null;
+    match = pattern.exec(sourceText)
+  ) {
+    const src = match[1];
+    if (src !== undefined) sources.push(src);
+  }
+  return sources;
+}
+
+async function compileWatchSource(options: {
+  readonly sourcePath: string;
+  readonly projectRoot: string;
+  readonly format: "html" | "svg" | "png" | "pdf";
+  readonly theme?: string;
+  readonly allowRawLatex: boolean;
+}): Promise<WatchCycleOutcome> {
+  let sourceText: string;
+  try {
+    sourceText = await readSource(options.sourcePath);
+  } catch {
+    return {
+      diagnostics: [
+        createDiagnostic(
+          "azeforge.source#read-failed",
+          "error",
+          "The Source could not be read.",
+          { location: { source: options.sourcePath } },
+        ),
+      ],
+      imageSources: [],
+    };
+  }
+  const compiler = createCompiler();
+  let result: CompileResult;
+  try {
+    result = await compiler.compile(sourceText, {
+      format: options.format,
+      sourceName: options.sourcePath,
+      projectRoot: options.projectRoot,
+      ...(options.theme === undefined ? {} : { theme: options.theme }),
+      ...(options.allowRawLatex ? { allowRawLatex: true } : {}),
+    });
+  } catch {
+    return {
+      sourceText,
+      diagnostics: [
+        createDiagnostic(
+          "azeforge.cli#operation-failed",
+          "error",
+          "The accepted operation failed unexpectedly.",
+        ),
+      ],
+      imageSources: scanImageSourcesFromText(sourceText),
+    };
+  }
+  return {
+    sourceText,
+    diagnostics: result.diagnostics,
+    ...(result.contentHash === undefined ? {} : { contentHash: result.contentHash }),
+    ...(result.artifact === undefined ? {} : { artifact: result.artifact }),
+    imageSources:
+      result.document === undefined
+        ? scanImageSourcesFromText(sourceText)
+        : collectImageSources(result.document),
+  };
+}
+
+async function resolveSourcePath(path: string): Promise<string> {
+  try {
+    return await realpath(path);
+  } catch {
+    return resolve(path);
+  }
+}
+
+function reportCycleHuman(
+  sourceText: string | undefined,
+  diagnostics: readonly Diagnostic[],
+): void {
+  for (const diagnostic of diagnostics) {
+    process.stderr.write(formatDiagnostic(diagnostic, sourceText));
+  }
+}
+
+function closedStdoutErrorCode(error: unknown): string | undefined {
+  if (typeof error !== "object" || error === null) return undefined;
+  if (!("code" in error)) return undefined;
+  const code: unknown = error.code;
+  return typeof code === "string" ? code : undefined;
+}
+
+function installClosedStdoutGuard(onClosed: () => void): void {
+  process.stdout.on("error", (error) => {
+    if (closedStdoutErrorCode(error) === "EPIPE") onClosed();
+  });
+}
+
+async function runWatch(watchArguments: WatchArguments): Promise<void> {
+  const machine = watchArguments.diagnosticsMode === "json";
+  let seq = 0;
+  const emit = (event: WatchEvent): void => {
+    if (machine) process.stdout.write(`${serializeEvent(event)}\n`);
+  };
+  try {
+    const canonicalSourcePath = await realpath(watchArguments.sourcePath);
+    const canonicalArtifactPath = await canonicalDestinationPath(
+      watchArguments.artifactPath,
+    );
+    if (canonicalSourcePath === canonicalArtifactPath) {
+      throw new CliUsageError("The Artifact destination cannot replace its Source.");
+    }
+  } catch (error) {
+    if (error instanceof CliUsageError) throw error;
+  }
+  const sourceRealPath = await resolveSourcePath(watchArguments.sourcePath);
+  const projectRoot = dirname(sourceRealPath);
+  let driver: WatchDriver | undefined;
+  let settling = false;
+  let compiling = false;
+  let pending = false;
+  let inflight: Promise<void> | undefined;
+
+  const shutdown = (code: number, reason?: string): void => {
+    if (settling) return;
+    settling = true;
+    const done = async (): Promise<void> => {
+      try {
+        await inflight;
+      } catch {
+        // Settle: cleanup continues without a stack trace.
+      }
+      await driver?.close();
+      if (machine && reason !== undefined) {
+        try {
+          process.stdout.write(
+            `${serializeEvent(createStoppedEvent("watch", seq, reason))}\n`,
+          );
+        } catch {
+          // Best effort: consumers cannot require a final event.
+        }
+      }
+      process.exit(code);
+    };
+    void done();
+  };
+  process.once("SIGINT", () => shutdown(130, "signal"));
+  process.once("SIGTERM", () => shutdown(143, "signal"));
+  if (machine) installClosedStdoutGuard(() => shutdown(0));
+
+  const compileOnce = async (): Promise<void> => {
+    const outcome = await compileWatchSource({
+      sourcePath: watchArguments.sourcePath,
+      projectRoot,
+      format: watchArguments.format,
+      ...(watchArguments.theme === undefined ? {} : { theme: watchArguments.theme }),
+      allowRawLatex: watchArguments.allowRawLatex,
+    });
+    if (settling) return;
+    let success = outcome.artifact !== undefined;
+    let diagnostics = outcome.diagnostics;
+    let contentHash = outcome.contentHash;
+    let artifact = outcome.artifact;
+    if (success && artifact !== undefined) {
+      try {
+        await commitArtifact(watchArguments.artifactPath, artifact.bytes);
+      } catch {
+        success = false;
+        diagnostics = [
+          createDiagnostic(
+            "azeforge.artifact#commit-failed",
+            "error",
+            "The Artifact could not be committed.",
+          ),
+        ];
+        contentHash = undefined;
+        artifact = undefined;
+      }
+    }
+    if (machine) {
+      emit(
+        createResultEvent("watch", seq, {
+          success,
+          diagnostics,
+          ...(success && contentHash !== undefined ? { contentHash } : {}),
+          ...(success && artifact !== undefined ? { artifact: artifact.metadata } : {}),
+        }),
+      );
+      seq += 1;
+    } else {
+      reportCycleHuman(outcome.sourceText, diagnostics);
+      process.stderr.write(
+        success
+          ? `watch: updated ${watchArguments.artifactPath}\n`
+          : `watch: failed; preserved ${watchArguments.artifactPath}\n`,
+      );
+    }
+    await driver?.rearm({ imageSources: outcome.imageSources });
+  };
+  const runLoop = async (): Promise<void> => {
+    for (;;) {
+      compiling = true;
+      const iteration = compileOnce();
+      inflight = iteration;
+      try {
+        await iteration;
+      } finally {
+        compiling = false;
+        if (inflight === iteration) inflight = undefined;
+      }
+      if (settling || !pending) break;
+      pending = false;
+    }
+  };
+  const onChange = (): void => {
+    if (settling) return;
+    if (compiling) {
+      pending = true;
+      return;
+    }
+    void runLoop();
+  };
+
+  driver = await WatchDriver.start(
+    {
+      sourcePath: sourceRealPath,
+      projectRoot,
+      debounceMs: 60,
+      watchPathsFor: (outcome) =>
+        resolveWatchPaths(projectRoot, outcome?.imageSources ?? []),
+      onChange,
+      onWatcherFailed: () => shutdown(1, "watcher-failed"),
+    },
+    undefined,
+  );
+  emit(
+    createStartedEvent("watch", seq, {
+      source: watchArguments.sourcePath,
+      artifact: watchArguments.artifactPath,
+      format: watchArguments.format,
+    }),
+  );
+  seq += 1;
+  if (!machine) {
+    process.stderr.write(
+      `watch: watching ${watchArguments.sourcePath} → ${watchArguments.artifactPath}\n`,
+    );
+  }
+  await runLoop();
+}
+
+async function runServe(serveArguments: ServeArguments): Promise<void> {
+  const machine = serveArguments.diagnosticsMode === "json";
+  let seq = 0;
+  const emit = (event: WatchEvent): void => {
+    if (machine) process.stdout.write(`${serializeEvent(event)}\n`);
+  };
+  const sourceRealPath = await resolveSourcePath(serveArguments.sourcePath);
+  const projectRoot = dirname(sourceRealPath);
+  let preview: PreviewServer;
+  try {
+    preview = await PreviewServer.listen({
+      port: serveArguments.port,
+      onError: () => shutdown(1, "listener-failed"),
+    });
+  } catch {
+    emitDiagnostics(serveArguments.diagnosticsMode, "serve", false, [
+      createDiagnostic(
+        "azeforge.cli#operation-failed",
+        "error",
+        `The preview server could not listen on port ${serveArguments.port}.`,
+        { suggestion: "Choose another --port." },
+      ),
+    ]);
+    process.exitCode = 1;
+    return;
+  }
+  preview.update(renderStartingPage(serveArguments.sourcePath), []);
+  let driver: WatchDriver | undefined;
+  let settling = false;
+  let compiling = false;
+  let pending = false;
+  let inflight: Promise<void> | undefined;
+
+  const shutdown = (code: number, reason?: string): void => {
+    if (settling) return;
+    settling = true;
+    const done = async (): Promise<void> => {
+      try {
+        await inflight;
+      } catch {
+        // Settle: cleanup continues without a stack trace.
+      }
+      await driver?.close();
+      await preview.close();
+      if (machine && reason !== undefined) {
+        try {
+          process.stdout.write(
+            `${serializeEvent(createStoppedEvent("serve", seq, reason))}\n`,
+          );
+        } catch {
+          // Best effort: consumers cannot require a final event.
+        }
+      }
+      process.exit(code);
+    };
+    void done();
+  };
+  process.once("SIGINT", () => shutdown(130, "signal"));
+  process.once("SIGTERM", () => shutdown(143, "signal"));
+  if (machine) installClosedStdoutGuard(() => shutdown(0));
+
+  const compileOnce = async (): Promise<void> => {
+    const outcome = await compileWatchSource({
+      sourcePath: serveArguments.sourcePath,
+      projectRoot,
+      format: "html",
+      ...(serveArguments.theme === undefined ? {} : { theme: serveArguments.theme }),
+      allowRawLatex: serveArguments.allowRawLatex,
+    });
+    if (settling) return;
+    const success = outcome.artifact !== undefined;
+    if (success && outcome.artifact !== undefined) {
+      const html = new TextDecoder().decode(outcome.artifact.bytes);
+      const assets = extractServedAssets(html);
+      preview.update(wrapPreviewShell(html), assets);
+      if (machine) {
+        emit(
+          createResultEvent("serve", seq, {
+            success: true,
+            diagnostics: outcome.diagnostics,
+            ...(outcome.contentHash === undefined
+              ? {}
+              : { contentHash: outcome.contentHash }),
+            artifact: outcome.artifact.metadata,
+            url: preview.url,
+            assets: assets.map((asset) => ({
+              url: `${preview.url}assets/${asset.token}`,
+              mediaType: asset.mediaType,
+              byteLength: asset.bytes.byteLength,
+            })),
+          }),
+        );
+        seq += 1;
+      } else {
+        reportCycleHuman(outcome.sourceText, outcome.diagnostics);
+        process.stderr.write("serve: updated preview\n");
+      }
+    } else {
+      preview.update(
+        renderDiagnosticsPage(outcome.diagnostics, serveArguments.sourcePath),
+        [],
+      );
+      if (machine) {
+        emit(
+          createResultEvent("serve", seq, {
+            success: false,
+            diagnostics: outcome.diagnostics,
+            url: preview.url,
+            assets: [],
+          }),
+        );
+        seq += 1;
+      } else {
+        reportCycleHuman(outcome.sourceText, outcome.diagnostics);
+        process.stderr.write("serve: showing current diagnostics\n");
+      }
+    }
+    await driver?.rearm({ imageSources: outcome.imageSources });
+  };
+  const runLoop = async (): Promise<void> => {
+    for (;;) {
+      compiling = true;
+      const iteration = compileOnce();
+      inflight = iteration;
+      try {
+        await iteration;
+      } finally {
+        compiling = false;
+        if (inflight === iteration) inflight = undefined;
+      }
+      if (settling || !pending) break;
+      pending = false;
+    }
+  };
+  const onChange = (): void => {
+    if (settling) return;
+    if (compiling) {
+      pending = true;
+      return;
+    }
+    void runLoop();
+  };
+
+  driver = await WatchDriver.start(
+    {
+      sourcePath: sourceRealPath,
+      projectRoot,
+      debounceMs: 60,
+      watchPathsFor: (outcome) =>
+        resolveWatchPaths(projectRoot, outcome?.imageSources ?? []),
+      onChange,
+      onWatcherFailed: () => shutdown(1, "watcher-failed"),
+    },
+    undefined,
+  );
+  emit(
+    createStartedEvent("serve", seq, {
+      source: serveArguments.sourcePath,
+      url: preview.url,
+    }),
+  );
+  seq += 1;
+  if (!machine) {
+    process.stderr.write(
+      `serve: listening on ${preview.url} for ${serveArguments.sourcePath}\n`,
+    );
+  }
+  await runLoop();
+}
+
 async function main(): Promise<void> {
   const rawArguments = process.argv.slice(2);
   const diagnosticsMode = requestedDiagnosticsMode(rawArguments);
@@ -391,6 +992,14 @@ async function main(): Promise<void> {
   }
 
   try {
+    if (arguments_.command === "watch") {
+      await runWatch(arguments_);
+      return;
+    }
+    if (arguments_.command === "serve") {
+      await runServe(arguments_);
+      return;
+    }
     if (
       arguments_.command === "render" &&
       arguments_.stdout &&
