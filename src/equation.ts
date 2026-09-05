@@ -394,18 +394,31 @@ export class KatexCssError extends Error {
 let cachedKatexCss: string | undefined;
 
 /**
- * Pinned KaTeX layout stylesheet with `@font-face` blocks stripped: P0
- * ships no KaTeX fonts, so visual math renders in fallback fonts while
- * MathML stays screen-reader-only and no font fetch can occur.
+ * Pinned KaTeX stylesheet with every `@font-face` source replaced by an
+ * embedded woff2 data URI (OFL faces from the pinned KaTeX package).
+ * Operator glyphs such as the display integral only size correctly in
+ * their own faces; embedding keeps Artifacts self-contained with no
+ * font fetch while MathML stays screen-reader-only.
  */
 export function getKatexCss(): string {
   if (cachedKatexCss !== undefined) return cachedKatexCss;
-  const cssPath = createRequire(import.meta.url).resolve(
-    "katex/dist/katex.min.css",
-  );
+  const require = createRequire(import.meta.url);
+  const cssPath = require.resolve("katex/dist/katex.min.css");
+  const fontDirectory = cssPath.slice(0, cssPath.lastIndexOf("/") + 1);
   const css = readFileSync(cssPath, "utf8").replace(
     /@font-face\{[^}]*\}/g,
-    "",
+    (block) => {
+      const match = /url\(fonts\/([^)]+?)\.woff2\)/.exec(block);
+      const face = match?.[1];
+      if (face === undefined) return "";
+      const data = readFileSync(
+        `${fontDirectory}fonts/${face}.woff2`,
+      ).toString("base64");
+      return block.replace(
+        /src:[^;}]*;?/,
+        `src:url(data:font/woff2;base64,${data}) format("woff2");`,
+      );
+    },
   );
   if (!css.includes(".katex-mathml") || /url\(fonts\//.test(css)) {
     throw new KatexCssError();
