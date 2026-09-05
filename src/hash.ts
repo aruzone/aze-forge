@@ -2,9 +2,12 @@ import { createHash } from "node:crypto";
 
 import type {
   ArtifactHash,
+  AzeBlock,
   AzeDocument,
   ContentHash,
+  Inline,
   JsonValue,
+  ParsedBlock,
   Sha256Hash,
 } from "./model.js";
 
@@ -45,7 +48,38 @@ export function documentContentHash(document: AzeDocument): ContentHash {
   if (document.metadata.theme !== undefined) metadata.theme = document.metadata.theme;
   if (document.metadata.outputs !== undefined) metadata.outputs = document.metadata.outputs;
 
-  const blocks: JsonValue[] = document.blocks.map((block) => {
+  function projectInline(node: Inline): JsonValue {
+    switch (node.kind) {
+      case "text":
+      case "code":
+        return { kind: node.kind, value: node.value };
+      case "emphasis":
+      case "strong":
+        return { kind: node.kind, children: node.children.map(projectInline) };
+      case "break":
+        return { kind: node.kind };
+      case "link": {
+        const projected: Record<string, JsonValue> = {
+          kind: node.kind,
+          href: node.href,
+          children: node.children.map(projectInline),
+        };
+        if (node.title !== undefined) projected.title = node.title;
+        return projected;
+      }
+      case "image": {
+        const projected: Record<string, JsonValue> = {
+          kind: node.kind,
+          src: node.src,
+          alt: node.alt,
+        };
+        if (node.title !== undefined) projected.title = node.title;
+        return projected;
+      }
+    }
+  }
+
+  function projectBlock(block: ParsedBlock | AzeBlock): JsonValue {
     if (block.kind === "equation") {
       const projected: Record<string, JsonValue> = {
         kind: block.kind,
@@ -59,14 +93,74 @@ export function documentContentHash(document: AzeDocument): ContentHash {
       if (block.align !== undefined) projected.align = block.align;
       return projected;
     }
+    if (block.kind === "thematicBreak") {
+      const projected: Record<string, JsonValue> = { kind: block.kind };
+      if (block.id !== undefined) projected.id = block.id;
+      return projected;
+    }
+    if (block.kind === "blockquote") {
+      const projected: Record<string, JsonValue> = {
+        kind: block.kind,
+        children: block.children.map(projectBlock),
+      };
+      if (block.id !== undefined) projected.id = block.id;
+      return projected;
+    }
+    if (block.kind === "list") {
+      const projected: Record<string, JsonValue> = {
+        kind: block.kind,
+        ordered: block.ordered,
+        items: block.items.map((item) => ({ blocks: item.blocks.map(projectBlock) })),
+      };
+      if (block.id !== undefined) projected.id = block.id;
+      if (block.start !== undefined) projected.start = block.start;
+      return projected;
+    }
+    if (block.kind === "code") {
+      const projected: Record<string, JsonValue> = {
+        kind: block.kind,
+        value: block.value,
+      };
+      if (block.id !== undefined) projected.id = block.id;
+      if (block.language !== undefined) projected.language = block.language;
+      return projected;
+    }
+    if (block.kind === "table") {
+      const projected: Record<string, JsonValue> = {
+        kind: block.kind,
+        align: [...block.data.align],
+        header: block.data.header.map((cell) => cell.map(projectInline)),
+        rows: block.data.rows.map((row) => row.map((cell) => cell.map(projectInline))),
+      };
+      if (block.id !== undefined) projected.id = block.id;
+      if (block.caption !== undefined) projected.caption = block.caption.map(projectInline);
+      if (block.pluginVersion !== undefined) projected.pluginVersion = block.pluginVersion;
+      return projected;
+    }
+    if (block.kind === "callout") {
+      const projected: Record<string, JsonValue> = {
+        kind: block.kind,
+        variant: block.variant,
+        children: block.children.map(projectBlock),
+        pluginVersion: block.pluginVersion,
+      };
+      if (block.id !== undefined) projected.id = block.id;
+      if (block.title !== undefined) projected.title = block.title.map(projectInline);
+      return projected;
+    }
+    if (block.kind === "invalid") {
+      return { kind: block.kind, raw: block.raw };
+    }
     const projected: Record<string, JsonValue> = {
       kind: block.kind,
-      children: block.children.map((child) => ({ kind: child.kind, value: child.value })),
+      children: block.children.map(projectInline),
     };
     if (block.id !== undefined) projected.id = block.id;
     if (block.kind === "heading") projected.level = block.level;
     return projected;
-  });
+  }
+
+  const blocks: JsonValue[] = document.blocks.map((block) => projectBlock(block));
 
   return sha256(
     canonicalJson({

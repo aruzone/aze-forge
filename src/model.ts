@@ -31,7 +31,49 @@ export interface TextInline {
   readonly value: string;
 }
 
-export type Inline = TextInline;
+export interface EmphasisInline {
+  readonly kind: "emphasis";
+  readonly children: readonly Inline[];
+}
+
+export interface StrongInline {
+  readonly kind: "strong";
+  readonly children: readonly Inline[];
+}
+
+export interface CodeInline {
+  readonly kind: "code";
+  readonly value: string;
+}
+
+export interface LinkInline {
+  readonly kind: "link";
+  readonly href: string;
+  readonly children: readonly Inline[];
+  readonly title?: string;
+  readonly range?: SourceRange;
+}
+
+export interface ImageInline {
+  readonly kind: "image";
+  readonly src: string;
+  readonly alt: string;
+  readonly title?: string;
+  readonly range?: SourceRange;
+}
+
+export interface BreakInline {
+  readonly kind: "break";
+}
+
+export type Inline =
+  | TextInline
+  | EmphasisInline
+  | StrongInline
+  | CodeInline
+  | LinkInline
+  | ImageInline
+  | BreakInline;
 
 export interface HeadingBlock {
   readonly kind: "heading";
@@ -46,6 +88,68 @@ export interface ParagraphBlock {
   readonly children: readonly Inline[];
   readonly range: SourceRange;
   readonly id?: string;
+}
+
+export interface ThematicBreakBlock {
+  readonly kind: "thematicBreak";
+  readonly range: SourceRange;
+  readonly id?: string;
+}
+
+export interface BlockquoteBlock {
+  readonly kind: "blockquote";
+  readonly children: readonly ParsedBlock[];
+  readonly range: SourceRange;
+  readonly id?: string;
+}
+
+export interface ListItem {
+  readonly blocks: readonly ParsedBlock[];
+  readonly range: SourceRange;
+}
+
+export interface ListBlock {
+  readonly kind: "list";
+  readonly ordered: boolean;
+  readonly items: readonly ListItem[];
+  readonly range: SourceRange;
+  readonly id?: string;
+  readonly start?: number;
+}
+
+export interface CodeBlock {
+  readonly kind: "code";
+  readonly value: string;
+  readonly range: SourceRange;
+  readonly id?: string;
+  readonly language?: string;
+}
+
+export type TableAlignment = "left" | "center" | "right" | null;
+
+export interface TableData {
+  readonly align: readonly TableAlignment[];
+  readonly header: readonly (readonly Inline[])[];
+  readonly rows: readonly (readonly (readonly Inline[])[])[];
+}
+
+export interface TableBlock {
+  readonly kind: "table";
+  readonly data: TableData;
+  readonly range: SourceRange;
+  readonly id?: string;
+  readonly caption?: readonly Inline[];
+  readonly pluginVersion?: string;
+}
+
+export interface CalloutBlock {
+  readonly kind: "callout";
+  readonly variant: string;
+  readonly children: readonly ParsedBlock[];
+  readonly range: SourceRange;
+  readonly id?: string;
+  readonly title?: readonly Inline[];
+  readonly pluginVersion: string;
 }
 
 export interface InvalidBlock {
@@ -70,9 +174,24 @@ export interface EquationBlock {
 export type ParsedBlock =
   | HeadingBlock
   | ParagraphBlock
+  | ThematicBreakBlock
+  | BlockquoteBlock
+  | ListBlock
+  | CodeBlock
+  | TableBlock
+  | CalloutBlock
   | EquationBlock
   | InvalidBlock;
-export type AzeBlock = HeadingBlock | ParagraphBlock | EquationBlock;
+export type AzeBlock =
+  | HeadingBlock
+  | ParagraphBlock
+  | ThematicBreakBlock
+  | BlockquoteBlock
+  | ListBlock
+  | CodeBlock
+  | TableBlock
+  | CalloutBlock
+  | EquationBlock;
 export type ArtifactFormat = "html" | "svg" | "png" | "pdf";
 
 export interface DocumentMetadata {
@@ -250,6 +369,25 @@ export interface EquationBlockRenderer {
   ) => string | Promise<string>;
 }
 
+export interface BlockRendererContext {
+  readonly sourceName?: string;
+  readonly renderBlocks: (blocks: readonly AzeBlock[]) => string;
+}
+
+export interface AzeBlockRenderer<TBlock extends object = AzeBlock> {
+  readonly descriptor: BlockRendererDescriptor;
+  readonly render: (
+    block: TBlock,
+    context: BlockRendererContext,
+  ) => string | Promise<string>;
+}
+
+export type AnyBlockRenderer =
+  | AzeBlockRenderer<AzeBlock>
+  | AzeBlockRenderer<EquationBlock>
+  | AzeBlockRenderer<CalloutBlock>
+  | AzeBlockRenderer<TableBlock>;
+
 export interface CompilerPolicy {
   readonly disabledBlockRendererIds?: readonly string[];
   readonly disabledRendererIds?: readonly string[];
@@ -260,7 +398,7 @@ export interface CompilerOptions {
   readonly defaultTheme?: string;
   readonly diagnosticLimits?: DiagnosticLimitOptions;
   readonly plugins?: readonly AzeBlockPlugin[];
-  readonly blockRenderers?: readonly EquationBlockRenderer[];
+  readonly blockRenderers?: readonly AnyBlockRenderer[];
   readonly renderers?: readonly RendererDescriptor[];
   readonly policy?: CompilerPolicy;
   readonly renderTimeoutMs?: number;

@@ -207,7 +207,10 @@ test("construction rejects ambiguous registrations deterministically", () => {
   assert.equal(
     (() => {
       try {
-        createCompiler({ plugins: [equationPlugin, equationPlugin] });
+        createCompiler({
+          plugins: [equationPlugin, equationPlugin],
+          blockRenderers: [equationHtmlBlockRenderer],
+        });
       } catch (error) {
         return error.code;
       }
