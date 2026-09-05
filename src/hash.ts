@@ -46,6 +46,19 @@ export function documentContentHash(document: AzeDocument): ContentHash {
   if (document.metadata.outputs !== undefined) metadata.outputs = document.metadata.outputs;
 
   const blocks: JsonValue[] = document.blocks.map((block) => {
+    if (block.kind === "equation") {
+      const projected: Record<string, JsonValue> = {
+        kind: block.kind,
+        pluginVersion: block.pluginVersion,
+        syntax: block.syntax,
+        source: block.source,
+        tex: block.tex,
+      };
+      if (block.id !== undefined) projected.id = block.id;
+      if (block.number !== undefined) projected.number = block.number;
+      if (block.align !== undefined) projected.align = block.align;
+      return projected;
+    }
     const projected: Record<string, JsonValue> = {
       kind: block.kind,
       children: block.children.map((child) => ({ kind: child.kind, value: child.value })),

@@ -39,6 +39,7 @@ type DiagnosticsMode = "human" | "json";
 interface CommonArguments {
   readonly sourcePath: string;
   readonly diagnosticsMode: DiagnosticsMode;
+  readonly allowRawLatex: boolean;
 }
 
 interface ValidateArguments extends CommonArguments {
@@ -62,6 +63,12 @@ function requestedDiagnosticsMode(arguments_: readonly string[]): DiagnosticsMod
   )
     ? "json"
     : "human";
+}
+function claimAllowRawLatex(current: boolean): boolean {
+  if (current) {
+    throw new CliUsageError('Option "--allow-raw-latex" was provided more than once.');
+  }
+  return true;
 }
 
 function parseArguments(
@@ -98,14 +105,19 @@ function parseArguments(
     );
   }
   if (command === "validate") {
-    if (rest.length !== 0) {
-      throw new CliUsageError("Validate accepts one Source path.");
+    let allowRawLatex = false;
+    for (const option of rest) {
+      if (option !== "--allow-raw-latex") {
+        throw new CliUsageError("Validate accepts one Source path.");
+      }
+      allowRawLatex = claimAllowRawLatex(allowRawLatex);
     }
-    return { command, sourcePath, diagnosticsMode };
+    return { command, sourcePath, diagnosticsMode, allowRawLatex };
   }
 
   let artifactPath: string | undefined;
   let stdout = false;
+  let allowRawLatex = false;
   let format: string | undefined;
   let theme: string | undefined;
   for (let index = 0; index < rest.length; index += 1) {
@@ -113,6 +125,10 @@ function parseArguments(
     if (option === "--stdout") {
       if (stdout) throw new CliUsageError('Option "--stdout" was provided more than once.');
       stdout = true;
+      continue;
+    }
+    if (option === "--allow-raw-latex") {
+      allowRawLatex = claimAllowRawLatex(allowRawLatex);
       continue;
     }
     const value = rest[index + 1];
@@ -170,6 +186,7 @@ function parseArguments(
     ...(artifactPath === undefined ? {} : { artifactPath }),
     stdout,
     format: "html",
+    allowRawLatex,
     ...(theme === undefined ? {} : { theme }),
   };
 }
@@ -308,7 +325,10 @@ async function main(): Promise<void> {
     const compiler = createCompiler();
     if (arguments_.command === "validate") {
       const result = compiler.validate(
-        compiler.parse(source, { sourceName: arguments_.sourcePath }),
+        compiler.parse(source, {
+          sourceName: arguments_.sourcePath,
+          ...(arguments_.allowRawLatex ? { allowRawLatex: true } : {}),
+        }),
       );
       emitDiagnostics(
         arguments_.diagnosticsMode,
@@ -325,6 +345,7 @@ async function main(): Promise<void> {
       format: arguments_.format,
       sourceName: arguments_.sourcePath,
       ...(arguments_.theme === undefined ? {} : { theme: arguments_.theme }),
+      ...(arguments_.allowRawLatex ? { allowRawLatex: true } : {}),
     });
 
     if (result.artifact === undefined) {

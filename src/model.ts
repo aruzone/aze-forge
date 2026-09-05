@@ -55,9 +55,24 @@ export interface InvalidBlock {
   readonly diagnosticIndexes: readonly number[];
   readonly originalType?: string;
 }
+export interface EquationBlock {
+  readonly kind: "equation";
+  readonly range: SourceRange;
+  readonly id?: string;
+  readonly pluginVersion: string;
+  readonly syntax: "readable" | "latex";
+  readonly source: string;
+  readonly tex: string;
+  readonly number?: boolean;
+  readonly align?: "left" | "center" | "right";
+}
 
-export type ParsedBlock = HeadingBlock | ParagraphBlock | InvalidBlock;
-export type AzeBlock = HeadingBlock | ParagraphBlock;
+export type ParsedBlock =
+  | HeadingBlock
+  | ParagraphBlock
+  | EquationBlock
+  | InvalidBlock;
+export type AzeBlock = HeadingBlock | ParagraphBlock | EquationBlock;
 export type ArtifactFormat = "html" | "svg" | "png" | "pdf";
 
 export interface DocumentMetadata {
@@ -119,6 +134,8 @@ export interface Diagnostic {
 
 export interface ParseOptions {
   readonly sourceName?: string;
+  readonly plugins?: readonly AzeBlockPlugin[];
+  readonly allowRawLatex?: boolean;
 }
 
 export interface ParseResult {
@@ -180,6 +197,7 @@ export interface Artifact {
 export interface CompileOptions extends ParseOptions {
   readonly format: "html";
   readonly theme?: string;
+  readonly allowRawLatex?: boolean;
 }
 
 export interface CompileResult {
@@ -194,10 +212,58 @@ export interface DiagnosticLimitOptions {
   readonly perDocument?: number;
 }
 
+export interface PluginDescriptor {
+  readonly type: string;
+  readonly version: string;
+  readonly title: string;
+  readonly summary: string;
+  readonly diagnosticNamespace: string;
+  readonly sourceSchema: JsonValue;
+  readonly bodySyntax: Readonly<{ id: string; version: string }>;
+  readonly dataSchema: JsonValue;
+}
+
+export interface BlockRendererDescriptor {
+  readonly id: string;
+  readonly version: string;
+  readonly blockType: string;
+  readonly pluginVersionRange: string;
+  readonly rendererId: string;
+  readonly rendererVersionRange: string;
+}
+
+export interface RendererDescriptor {
+  readonly id: string;
+  readonly version: string;
+  readonly formats: readonly ArtifactFormat[];
+}
+
+export interface AzeBlockPlugin {
+  readonly descriptor: PluginDescriptor;
+}
+
+export interface EquationBlockRenderer {
+  readonly descriptor: BlockRendererDescriptor;
+  readonly render: (
+    block: EquationBlock,
+    context: Readonly<{ sourceName?: string }>,
+  ) => string | Promise<string>;
+}
+
+export interface CompilerPolicy {
+  readonly disabledBlockRendererIds?: readonly string[];
+  readonly disabledRendererIds?: readonly string[];
+}
+
 export interface CompilerOptions {
   readonly themes?: readonly Theme[];
   readonly defaultTheme?: string;
   readonly diagnosticLimits?: DiagnosticLimitOptions;
+  readonly plugins?: readonly AzeBlockPlugin[];
+  readonly blockRenderers?: readonly EquationBlockRenderer[];
+  readonly renderers?: readonly RendererDescriptor[];
+  readonly policy?: CompilerPolicy;
+  readonly renderTimeoutMs?: number;
 }
 
 export interface Compiler {

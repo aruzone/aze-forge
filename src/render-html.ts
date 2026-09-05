@@ -1,3 +1,4 @@
+import { KATEX_VERSION } from "./equation.js";
 import type { EmbeddedFontFace } from "./font.js";
 import { artifactBytesHash, canonicalJson, sha256 } from "./hash.js";
 import type {
@@ -37,9 +38,15 @@ function documentTitle(document: AzeDocument): string {
   return firstHeading?.children.map((child) => child.value).join("") ?? "AzeForge document";
 }
 
-function renderBlocks(document: AzeDocument): string {
+function renderBlocks(
+  document: AzeDocument,
+  equationFragments: ReadonlyMap<number, string> = new Map(),
+): string {
   return document.blocks
-    .map((block) => {
+    .map((block, index) => {
+      if (block.kind === "equation") {
+        return equationFragments.get(index) ?? "<figure class=\"aze-equation\"></figure>";
+      }
       const text = block.children.map((child) => escapeHtml(child.value)).join("");
       if (block.kind === "heading") {
         return `<h${block.level}>${text}</h${block.level}>`;
@@ -68,6 +75,8 @@ export async function renderHtml(
   contentHash: ContentHash,
   theme: Theme,
   fontFaces: readonly EmbeddedFontFace[],
+  equationFragments: ReadonlyMap<number, string> = new Map(),
+  equationDependencyClosure: JsonValue = { katex: KATEX_VERSION },
 ): Promise<Artifact> {
   const rendererFingerprint = sha256(
     canonicalJson({
@@ -79,11 +88,12 @@ export async function renderHtml(
         weight,
         sourceHash,
       })),
+      equations: equationDependencyClosure,
     }),
   );
   const title = escapeHtml(documentTitle(document));
-  const css = `${embeddedFontCss(fontFaces)}${themeCss(theme)}`;
-  const html = `<!doctype html>\n<html lang="und"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:; font-src data:"><meta name="azeforge-content-hash" content="${contentHash}"><title>${title}</title><style>${css}</style></head><body><main><article>${renderBlocks(document)}</article></main></body></html>\n`;
+  const css = `${embeddedFontCss(fontFaces)}${themeCss(theme)}.aze-equation{margin:1em 0;text-align:center}.aze-equation[data-align="left"]{text-align:left}.aze-equation[data-align="right"]{text-align:right}`;
+  const html = `<!doctype html>\n<html lang="und"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:; font-src data:"><meta name="azeforge-content-hash" content="${contentHash}"><title>${title}</title><style>${css}</style></head><body><main><article>${renderBlocks(document, equationFragments)}</article></main></body></html>\n`;
   const bytes = new TextEncoder().encode(html);
   if (bytes.byteLength > HTML_MAX_BYTES) {
     throw new ArtifactLimitError(bytes.byteLength);

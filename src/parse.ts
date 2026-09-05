@@ -1,6 +1,12 @@
 import { isAlias, isScalar, parseDocument, visit } from "yaml";
 
 import { createDiagnostic } from "./diagnostics.js";
+import {
+  EQUATION_PLUGIN_TYPE,
+  equationPlugin,
+  parseEquationHeader,
+  validateEquationBody,
+} from "./equation.js";
 import type {
   ArtifactFormat,
   Diagnostic,
@@ -10,9 +16,10 @@ import type {
   DocumentMetadata,
   JsonValue,
   ParseOptions,
-  RelatedLocation,
   ParseResult,
   ParsedBlock,
+  RelatedLocation,
+  SourceRange,
 } from "./model.js";
 import {
   rangeFromLineSlice,
@@ -546,12 +553,175 @@ function rawHtmlInvalidBlock(
   };
 }
 
+function damerauDistance(left: string, right: string): number {
+  const a = [...left];
+  const b = [...right];
+  const m = a.length;
+  const n = b.length;
+  const INF = m + n;
+  const d: number[][] = Array.from({ length: m + 2 }, () =>
+    new Array<number>(n + 2).fill(0),
+  );
+  const first = d[0];
+  const second = d[1];
+  if (first !== undefined && second !== undefined) {
+    first[0] = INF;
+    second[0] = INF;
+  }
+  for (let i = 0; i <= m; i += 1) {
+    const row = d[i + 1];
+    const next = d[i + 2];
+    if (row !== undefined) {
+      row[0] = INF;
+      row[1] = i;
+    }
+    if (next !== undefined) next[0] = INF;
+  }
+  for (let j = 0; j <= n; j += 1) {
+    const row0 = d[0];
+    const row1 = d[1];
+    if (row0 !== undefined) row0[j + 1] = INF;
+    if (row1 !== undefined) row1[j + 1] = j;
+  }
+  const lastRow = new Map<string, number>();
+  for (let i = 1; i <= m; i += 1) {
+    let db = 0;
+    for (let j = 1; j <= n; j += 1) {
+      const i1 = lastRow.get(b[j - 1] ?? "") ?? 0;
+      const j1 = db;
+      let cost = 1;
+      if ((a[i - 1] ?? "") === (b[j - 1] ?? "")) {
+        cost = 0;
+        db = j;
+      }
+      const substitution = (d[i]?.[j] ?? 0) + cost;
+      const insertion = (d[i + 1]?.[j] ?? 0) + 1;
+      const deletion = (d[i]?.[j + 1] ?? 0) + 1;
+      const transposition =
+        (d[i1]?.[j1] ?? INF) + (i - i1 - 1) + 1 + (j - j1 - 1);
+      const cell = d[i + 1]?.[j + 1];
+      if (cell !== undefined) {
+        const row = d[i + 1];
+        if (row !== undefined) {
+          row[j + 1] = Math.min(substitution, insertion, deletion, transposition);
+        }
+      }
+    }
+    lastRow.set(a[i - 1] ?? "", i);
+  }
+  return (d[m + 1]?.[n + 1] ?? INF) as number;
+}
+
+function unknownDirectiveCandidates(
+  type: string,
+  availableTypes: readonly string[],
+): readonly string[] {
+  const typeLength = [...type].length;
+  return availableTypes
+    .map((candidate) => {
+      const absolute = damerauDistance(type, candidate);
+      const normalized =
+        absolute / Math.max(typeLength, [...candidate].length, 1);
+      return { candidate, absolute, normalized };
+    })
+    .filter(({ absolute, normalized }) => absolute <= 3 && normalized <= 0.34)
+    .sort((x, y) =>
+      x.normalized === y.normalized
+        ? x.absolute === y.absolute
+          ? x.candidate < y.candidate
+            ? -1
+            : 1
+          : x.absolute - y.absolute
+        : x.normalized - y.normalized,
+    )
+    .map(({ candidate }) => candidate);
+}
+
+function parseEquationEnvelope(
+  source: string,
+  lines: readonly SourceLine[],
+  openIndex: number,
+  closingIndex: number,
+  first: SourceLine,
+  last: SourceLine,
+  options: ParseOptions,
+  allowRawLatex: boolean,
+  diagnostics: Diagnostic[],
+): ParsedBlock {
+  const blockRange = rangeFromLines(first, last);
+  const raw = source.slice(first.startIndex, last.endIndex);
+  const startIndex = diagnostics.length;
+  const finishInvalid = (): ParsedBlock => ({
+    kind: "invalid",
+    raw,
+    range: blockRange,
+    diagnosticIndexes: Array.from(
+      { length: diagnostics.length - startIndex },
+      (_, offset) => startIndex + offset,
+    ),
+    originalType: EQUATION_PLUGIN_TYPE,
+  });
+  const entries: {
+    readonly key: string;
+    readonly value: string;
+    readonly range: SourceRange;
+  }[] = [];
+  let cursor = openIndex + 1;
+  while (cursor < closingIndex) {
+    const header = lines[cursor];
+    if (header === undefined || /^[ \t]*$/.test(lineText(header))) break;
+    const match = /^[ \t]*([A-Za-z][A-Za-z0-9-]*)[ \t]*:(.*)$/.exec(
+      lineText(header),
+    );
+    if (match === null) break;
+    const key = match[1] ?? "";
+    const rawValue = match[2] ?? "";
+    const value = rawValue.trim();
+    const colonIndex = header.text.indexOf(":");
+    const valueStart =
+      colonIndex + 1 + (rawValue.length - rawValue.trimStart().length);
+    entries.push({
+      key,
+      value,
+      range: rangeFromLineSlice(header, valueStart, valueStart + value.length),
+    });
+    cursor += 1;
+  }
+  while (cursor < closingIndex) {
+    const blank = lines[cursor];
+    if (blank !== undefined && !/^[ \t]*$/.test(lineText(blank))) break;
+    cursor += 1;
+  }
+  const bodyLines = lines.slice(cursor, closingIndex);
+  const body = bodyLines.map((entry) => lineText(entry)).join("\n");
+  const bodyRanges = bodyLines.map((entry) => rangeFromLines(entry, entry));
+  const syntaxRange = entries.find((entry) => entry.key === "syntax")?.range;
+  const header = parseEquationHeader(entries, blockRange, options.sourceName);
+  if (header.diagnostics.length > 0) {
+    diagnostics.push(...header.diagnostics);
+    return finishInvalid();
+  }
+  const validated = validateEquationBody({
+    header,
+    body,
+    bodyRanges,
+    blockRange,
+    sourceName: options.sourceName,
+    allowRawLatex,
+    ...(syntaxRange === undefined ? {} : { syntaxRange }),
+  });
+  if (validated.block !== undefined) return validated.block;
+  diagnostics.push(...validated.diagnostics);
+  return finishInvalid();
+}
 function parseBlocks(
   source: string,
   lines: readonly SourceLine[],
   bodyStart: number,
   options: ParseOptions,
   diagnostics: Diagnostic[],
+  activeTypes: readonly string[],
+  allowRawLatex: boolean,
 ): readonly ParsedBlock[] {
   const blocks: ParsedBlock[] = [];
   let index = bodyStart;
@@ -566,6 +736,7 @@ function parseBlocks(
     const directive = /^ {0,3}:{4,}[ \t]*([^ \t:]*)/.exec(lineText(line));
     if (directive !== null) {
       const first = line;
+      const openIndex = index;
       const originalType = directive[1] === "" ? undefined : directive[1];
       const closingIndex = lines.findIndex(
         (candidate, candidateIndex) =>
@@ -591,6 +762,26 @@ function parseBlocks(
       const last = closed
         ? (lines[closingIndex] ?? first)
         : (lines[index - 1] ?? first);
+      if (
+        closed &&
+        originalType === EQUATION_PLUGIN_TYPE &&
+        activeTypes.includes(EQUATION_PLUGIN_TYPE)
+      ) {
+        blocks.push(
+          parseEquationEnvelope(
+            source,
+            lines,
+            openIndex,
+            closingIndex,
+            first,
+            last,
+            options,
+            allowRawLatex,
+            diagnostics,
+          ),
+        );
+        continue;
+      }
       const diagnosticIndex = diagnostics.length;
       const typeStartIndex =
         originalType === undefined
@@ -629,7 +820,56 @@ function parseBlocks(
             data:
               !closed || originalType === undefined
                 ? {}
-                : { type: originalType, availableTypes: [] },
+                : { type: originalType, availableTypes: [...activeTypes] },
+            ...(closed && originalType !== undefined
+              ? (() => {
+                  const candidates = unknownDirectiveCandidates(
+                    originalType,
+                    activeTypes,
+                  );
+                  const lowered = originalType.toLowerCase();
+                  const caseMatch =
+                    lowered !== originalType &&
+                    activeTypes.includes(lowered)
+                      ? lowered
+                      : undefined;
+                  const suggestion =
+                    caseMatch !== undefined
+                      ? `Did you mean "${caseMatch}"?`
+                      : candidates.length > 0
+                        ? `Did you mean ${candidates
+                            .slice(0, 3)
+                            .map((candidate) => `"${candidate}"`)
+                            .join(", ")}?`
+                        : activeTypes.length > 0
+                          ? `Available directive types: ${activeTypes
+                              .slice(0, 5)
+                              .join(", ")}.`
+                          : "No directive types are available.";
+                  return {
+                    suggestion,
+                    ...(caseMatch === undefined
+                      ? {}
+                      : {
+                          fix: {
+                            title: `Use directive type "${caseMatch}".`,
+                            applicability: "safe" as const,
+                            edits: [
+                              {
+                                range: rangeFromLineSlice(
+                                  first,
+                                  typeStartIndex,
+                                  typeStartIndex + originalType.length,
+                                ),
+                                expectedText: originalType,
+                                replacementText: caseMatch,
+                              },
+                            ],
+                          },
+                        }),
+                  };
+                })()
+              : {}),
             ...(!closed
               ? {
                   suggestion:
@@ -859,12 +1099,16 @@ export function parseSource(source: string, options: ParseOptions = {}): ParseRe
     options,
   );
   if (versionDiagnostic !== undefined) diagnostics.push(versionDiagnostic);
+  const activePlugins = options.plugins ?? [equationPlugin];
+  const activeTypes = [...new Set(activePlugins.map((plugin) => plugin.descriptor.type))].sort();
   const blocks = parseBlocks(
     source,
     lines,
     frontMatter.bodyStart,
     options,
     diagnostics,
+    activeTypes,
+    options.allowRawLatex ?? false,
   );
   diagnostics.push(
     ...validateBlockIds(

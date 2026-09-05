@@ -101,6 +101,34 @@ function isParsedBlock(value: unknown): value is ParsedBlock {
       hasTextChildren(value.children)
     );
   }
+  if (value.kind === "equation") {
+    return (
+      hasOnlyKeys(value, [
+        "kind",
+        "range",
+        "id",
+        "pluginVersion",
+        "syntax",
+        "source",
+        "tex",
+        "number",
+        "align",
+      ]) &&
+      isSourceRange(value.range) &&
+      (value.id === undefined || typeof value.id === "string") &&
+      value.pluginVersion === "1.0.0" &&
+      (value.syntax === "readable" || value.syntax === "latex") &&
+      typeof value.source === "string" &&
+      value.source.length > 0 &&
+      typeof value.tex === "string" &&
+      value.tex.length > 0 &&
+      (value.number === undefined || typeof value.number === "boolean") &&
+      (value.align === undefined ||
+        value.align === "left" ||
+        value.align === "center" ||
+        value.align === "right")
+    );
+  }
   if (value.kind === "invalid") {
     return (
       hasOnlyKeys(value, [

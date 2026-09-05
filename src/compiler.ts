@@ -19,11 +19,26 @@ import type {
   CompileResult,
   Compiler,
   CompilerOptions,
+  CompilerPolicy,
+  Diagnostic,
+  JsonValue,
   ParseOptions,
   ParseResult,
   Theme,
   ValidationResult,
 } from "./model.js";
+import {
+  HTML_RENDERER_ID,
+  katexDependencyClosure,
+  sanitizeKatexHtml,
+} from "./equation.js";
+import type { EquationBlock } from "./model.js";
+import {
+  freezeRegistryForCompiler,
+  resolveRegistry,
+  satisfiesSemverRange,
+} from "./registry.js";
+import type { ResolvedRegistry } from "./registry.js";
 import { parseSource } from "./parse.js";
 import { ArtifactLimitError, renderHtml } from "./render-html.js";
 import { validateBlockIds } from "./reference-validation.js";
@@ -141,17 +156,19 @@ function limitParseResult(
     ({ code }) => code === "azeforge.diagnostics#truncated",
   );
   const blocks = parsed.document.blocks.map((block) => {
-    if (block.kind !== "invalid") return block;
-    const mappedIndexes = block.diagnosticIndexes.map((index) => {
-      const original = parsed.diagnostics[index];
-      const retainedIndex =
-        original === undefined ? -1 : diagnostics.indexOf(original);
-      return retainedIndex >= 0 ? retainedIndex : truncationIndex;
-    });
-    return {
-      ...block,
-      diagnosticIndexes: [...new Set(mappedIndexes.filter((index) => index >= 0))],
-    };
+    if (block.kind === "invalid") {
+      const mappedIndexes = block.diagnosticIndexes.map((index) => {
+        const original = parsed.diagnostics[index];
+        const retainedIndex =
+          original === undefined ? -1 : diagnostics.indexOf(original);
+        return retainedIndex >= 0 ? retainedIndex : truncationIndex;
+      });
+      return {
+        ...block,
+        diagnosticIndexes: [...new Set(mappedIndexes.filter((index) => index >= 0))],
+      };
+    }
+    return block;
   });
   return {
     document: { ...parsed.document, blocks },
@@ -193,6 +210,285 @@ function validateTheme(theme: Theme): void {
   }
 }
 
+const DEFAULT_RENDER_TIMEOUT_MS = 5000;
+
+class RenderTimeoutError extends Error {
+  constructor() {
+    super("The equation Block renderer timed out.");
+    this.name = "RenderTimeoutError";
+  }
+}
+
+function withRenderTimeout<T>(work: Promise<T>, timeoutMs: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new RenderTimeoutError()), timeoutMs);
+  });
+  return Promise.race([work, timeout]).finally(() => {
+    clearTimeout(timer);
+  });
+}
+
+function isCapabilityDenial(error: unknown): boolean {
+  if (typeof error !== "object" || error === null) return false;
+  if (!("code" in error)) return false;
+  return error.code === "AZE_CAPABILITY_DENIED";
+}
+
+interface EquationTarget {
+  readonly index: number;
+  readonly block: EquationBlock;
+}
+
+function equationTargets(document: AzeDocument): readonly EquationTarget[] {
+  const targets: EquationTarget[] = [];
+  document.blocks.forEach((block, index) => {
+    if (block.kind === "equation") targets.push({ index, block });
+  });
+  return targets;
+}
+
+function groupedAdapterDiagnostic(
+  code: string,
+  message: string,
+  targets: readonly EquationTarget[],
+  sourceName: string | undefined,
+  data: Readonly<Record<string, JsonValue>>,
+  suggestion: string,
+): Diagnostic {
+  const first = targets[0];
+  const rest = targets.slice(1).map(({ block }) => ({
+    ...(sourceName === undefined ? {} : { source: sourceName }),
+    range: block.range,
+    message: "Another affected equation Block is here.",
+  }));
+  return createDiagnostic(code, "error", message, {
+    ...(first === undefined
+      ? {}
+      : {
+          location: {
+            ...(sourceName === undefined ? {} : { source: sourceName }),
+            range: first.block.range,
+          },
+        }),
+    data: { ...data, affectedBlocks: targets.length },
+    suggestion,
+    ...(rest.length === 0 ? {} : { relatedLocations: rest }),
+  });
+}
+
+async function renderEquationFragments(
+  document: AzeDocument,
+  registry: ResolvedRegistry,
+  policy: CompilerPolicy,
+  sourceName: string | undefined,
+  timeoutMs: number,
+): Promise<{
+  readonly fragments: ReadonlyMap<number, string>;
+  readonly diagnostics: readonly Diagnostic[];
+}> {
+  const targets = equationTargets(document);
+  if (targets.length === 0) {
+    return { fragments: new Map(), diagnostics: [] };
+  }
+  const renderer = registry.renderers.find(
+    (entry) => entry.id === HTML_RENDERER_ID,
+  );
+  if (renderer === undefined) {
+    return {
+      fragments: new Map(),
+      diagnostics: [
+        groupedAdapterDiagnostic(
+          "azeforge.renderer#adapter-missing",
+          'No HTML Renderer is registered for equation Blocks.',
+          targets,
+          sourceName,
+          { blockType: "equation", rendererId: HTML_RENDERER_ID },
+          "Register the built-in HTML Renderer.",
+        ),
+      ],
+    };
+  }
+  if (policy.disabledRendererIds?.includes(renderer.id) === true) {
+    return {
+      fragments: new Map(),
+      diagnostics: [
+        groupedAdapterDiagnostic(
+          "azeforge.renderer#adapter-disabled",
+          `HTML Renderer "${renderer.id}" is disabled by host policy.`,
+          targets,
+          sourceName,
+          { rendererId: renderer.id },
+          "Enable the Renderer in Compiler policy.",
+        ),
+      ],
+    };
+  }
+  const candidates = registry.blockRenderers.filter(
+    (entry) =>
+      entry.descriptor.blockType === "equation" &&
+      entry.descriptor.rendererId === HTML_RENDERER_ID,
+  );
+  if (candidates.length === 0) {
+    return {
+      fragments: new Map(),
+      diagnostics: [
+        groupedAdapterDiagnostic(
+          "azeforge.renderer#adapter-missing",
+          "No Block renderer is registered for equation Blocks.",
+          targets,
+          sourceName,
+          { blockType: "equation", rendererId: HTML_RENDERER_ID },
+          "Register the built-in equation HTML Block renderer.",
+        ),
+      ],
+    };
+  }
+  const compatible = candidates.filter(
+    (entry) =>
+      targets.every((target) =>
+        satisfiesSemverRange(
+          target.block.pluginVersion,
+          entry.descriptor.pluginVersionRange,
+        ),
+      ) &&
+      satisfiesSemverRange(
+        renderer.version,
+        entry.descriptor.rendererVersionRange,
+      ),
+  );
+  if (compatible.length === 0) {
+    const candidate = candidates[0];
+    return {
+      fragments: new Map(),
+      diagnostics: [
+        groupedAdapterDiagnostic(
+          "azeforge.renderer#adapter-incompatible",
+          "The registered equation Block renderer is incompatible with this Document.",
+          targets,
+          sourceName,
+          {
+            blockType: "equation",
+            ...(candidate === undefined
+              ? {}
+              : {
+                  adapterId: candidate.descriptor.id,
+                  pluginVersionRange: candidate.descriptor.pluginVersionRange,
+                  rendererVersionRange:
+                    candidate.descriptor.rendererVersionRange,
+                }),
+          },
+          "Register a Block renderer compatible with equation v1 and HTML v1.",
+        ),
+      ],
+    };
+  }
+  if (compatible.length > 1) {
+    return {
+      fragments: new Map(),
+      diagnostics: [
+        groupedAdapterDiagnostic(
+          "azeforge.renderer#adapter-ambiguous",
+          "More than one Block renderer matches equation Blocks.",
+          targets,
+          sourceName,
+          {
+            blockType: "equation",
+            adapterIds: compatible.map((entry) => entry.descriptor.id),
+          },
+          "Register exactly one matching Block renderer.",
+        ),
+      ],
+    };
+  }
+  const chosen = compatible[0];
+  if (chosen === undefined) {
+    return { fragments: new Map(), diagnostics: [] };
+  }
+  if (
+    policy.disabledBlockRendererIds?.includes(chosen.descriptor.id) === true
+  ) {
+    return {
+      fragments: new Map(),
+      diagnostics: [
+        groupedAdapterDiagnostic(
+          "azeforge.renderer#adapter-disabled",
+          `Block renderer "${chosen.descriptor.id}" is disabled by host policy.`,
+          targets,
+          sourceName,
+          { adapterId: chosen.descriptor.id },
+          "Enable the Block renderer in Compiler policy.",
+        ),
+      ],
+    };
+  }
+  const fragments = new Map<number, string>();
+  const diagnostics: Diagnostic[] = [];
+  for (const target of targets) {
+    const location = {
+      ...(sourceName === undefined ? {} : { source: sourceName }),
+      range: target.block.range,
+    };
+    try {
+      const fragment = await withRenderTimeout(
+        Promise.resolve(
+          chosen.render(target.block, {
+            ...(sourceName === undefined ? {} : { sourceName }),
+          }),
+        ),
+        timeoutMs,
+      );
+      fragments.set(target.index, sanitizeKatexHtml(fragment));
+    } catch (error) {
+      if (error instanceof RenderTimeoutError) {
+        diagnostics.push(
+          createDiagnostic(
+            "azeforge.renderer#timeout",
+            "error",
+            `Block renderer "${chosen.descriptor.id}" timed out.`,
+            {
+              location,
+              data: {
+                adapterId: chosen.descriptor.id,
+                timeoutMs,
+              },
+              suggestion: "Retry the operation or raise the host render timeout.",
+            },
+          ),
+        );
+      } else if (isCapabilityDenial(error)) {
+        diagnostics.push(
+          createDiagnostic(
+            "azeforge.security#capability-denied",
+            "error",
+            `Block renderer "${chosen.descriptor.id}" was denied a capability.`,
+            {
+              location,
+              data: { adapterId: chosen.descriptor.id },
+            },
+          ),
+        );
+      } else {
+        diagnostics.push(
+          createDiagnostic(
+            "azeforge.renderer#unexpected-failure",
+            "error",
+            "The equation Block renderer failed unexpectedly.",
+            {
+              location,
+              data: {
+                adapterId: chosen.descriptor.id,
+                blockType: "equation",
+              },
+            },
+          ),
+        );
+      }
+    }
+  }
+  return { fragments, diagnostics };
+}
+
 export function createCompiler(options: CompilerOptions = {}): Compiler {
   const diagnosticLimits = resolveDiagnosticLimits(options);
   const configuredThemes = options.themes ?? [defaultTheme];
@@ -222,19 +518,59 @@ export function createCompiler(options: CompilerOptions = {}): Compiler {
       `Default Theme \"${defaultThemeId}\" is not registered.`,
     );
   }
-
+  const registry = freezeRegistryForCompiler(
+    resolveRegistry({
+      ...(options.plugins === undefined ? {} : { plugins: options.plugins }),
+      ...(options.blockRenderers === undefined
+        ? {}
+        : { blockRenderers: options.blockRenderers }),
+      ...(options.renderers === undefined ? {} : { renderers: options.renderers }),
+    }),
+  );
+  const policy: CompilerPolicy = Object.freeze({
+    ...(options.policy?.disabledBlockRendererIds === undefined
+      ? {}
+      : {
+          disabledBlockRendererIds: Object.freeze([
+            ...options.policy.disabledBlockRendererIds,
+          ]),
+        }),
+    ...(options.policy?.disabledRendererIds === undefined
+      ? {}
+      : {
+          disabledRendererIds: Object.freeze([
+            ...options.policy.disabledRendererIds,
+          ]),
+        }),
+  });
+  const renderTimeoutMs = options.renderTimeoutMs ?? DEFAULT_RENDER_TIMEOUT_MS;
+  if (!Number.isInteger(renderTimeoutMs) || renderTimeoutMs <= 0) {
+    throw new CompilerConfigurationError(
+      "azeforge.config#render-timeout",
+      "Render timeout must be a positive integer number of milliseconds.",
+    );
+  }
 
   let fontFacesPromise: Promise<readonly EmbeddedFontFace[]> | undefined;
   const compiler: Compiler = {
     parse(source: string, parseOptions: ParseOptions = {}): ParseResult {
-      return limitParseResult(parseSource(source, parseOptions), diagnosticLimits);
+      return limitParseResult(
+        parseSource(source, {
+          ...parseOptions,
+          plugins: parseOptions.plugins ?? registry.plugins,
+        }),
+        diagnosticLimits,
+      );
     },
     validate(parsed: ParseResult): ValidationResult {
       return validateParsed(parsed, diagnosticLimits);
     },
     async compile(source: string, compileOptions: CompileOptions): Promise<CompileResult> {
       const validation = validateParsed(
-        limitParseResult(parseSource(source, compileOptions), diagnosticLimits),
+        limitParseResult(
+          parseSource(source, { ...compileOptions, plugins: registry.plugins }),
+          diagnosticLimits,
+        ),
         diagnosticLimits,
       );
       if (validation.document === undefined) {
@@ -282,12 +618,30 @@ export function createCompiler(options: CompilerOptions = {}): Compiler {
         };
       }
       try {
+        const preflight = await renderEquationFragments(
+          validation.document,
+          registry,
+          policy,
+          compileOptions.sourceName,
+          renderTimeoutMs,
+        );
+        if (preflight.diagnostics.length > 0) {
+          return {
+            diagnostics: normalizeAndLimitDiagnostics(
+              [validation.diagnostics, preflight.diagnostics],
+              diagnosticLimits,
+              validation.document.blocks.map(({ range }) => range),
+            ),
+          };
+        }
         const renderedText = [
           ...(validation.document.metadata.title === undefined
             ? []
             : [validation.document.metadata.title]),
           ...validation.document.blocks.flatMap((block) =>
-            block.children.map((child) => child.value),
+            block.kind === "equation"
+              ? [block.source]
+              : block.children.map((child) => child.value),
           ),
         ];
         assertInterFontCoverage(renderedText);
@@ -299,6 +653,8 @@ export function createCompiler(options: CompilerOptions = {}): Compiler {
           contentHash,
           theme,
           fontFaces,
+          preflight.fragments,
+          katexDependencyClosure(),
         );
         return {
           diagnostics: validation.diagnostics,

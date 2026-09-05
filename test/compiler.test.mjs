@@ -233,7 +233,7 @@ azemark: 1
 
 Before
 
-:::: equation
+:::: mystery
 x = 1
 ::::
 
@@ -249,12 +249,12 @@ After
     "paragraph",
   ]);
   assert.equal(invalid?.kind, "invalid");
-  assert.equal(invalid?.raw, ":::: equation\nx = 1\n::::");
-  assert.equal(invalid?.originalType, "equation");
+  assert.equal(invalid?.raw, ":::: mystery\nx = 1\n::::");
+  assert.equal(invalid?.originalType, "mystery");
   assert.deepEqual(invalid?.diagnosticIndexes, [0]);
   assert.deepEqual(parsed.diagnostics[0]?.data, {
-    type: "equation",
-    availableTypes: [],
+    type: "mystery",
+    availableTypes: ["equation"],
   });
   assert.equal(
     parsed.diagnostics[0]?.code,
@@ -421,11 +421,11 @@ azemark: 1
     [
       {
         code: "azeforge.source#unknown-directive",
-        data: { type: "one", availableTypes: [] },
+        data: { type: "one", availableTypes: ["equation"] },
       },
       {
         code: "azeforge.source#unknown-directive",
-        data: { type: "two", availableTypes: [] },
+        data: { type: "two", availableTypes: ["equation"] },
       },
       {
         code: "azeforge.diagnostics#truncated",
