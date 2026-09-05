@@ -1,6 +1,10 @@
+import { readFileSync } from "node:fs";
+import { createRequire } from "node:module";
+
 import katex from "katex";
 
 import { createDiagnostic } from "./diagnostics.js";
+import { sha256 } from "./hash.js";
 import type {
   AzeBlockPlugin,
   Diagnostic,
@@ -380,11 +384,35 @@ const KATEX_RENDER_OPTIONS = {
   maxSize: 20,
   maxExpand: 1000,
 } as const;
-
-function katexOptions(): Record<string, JsonValue> {
-  return { ...KATEX_RENDER_OPTIONS };
+export class KatexCssError extends Error {
+  constructor(message = "The pinned KaTeX stylesheet is unavailable.") {
+    super(message);
+    this.name = "KatexCssError";
+  }
 }
 
+let cachedKatexCss: string | undefined;
+
+/**
+ * Pinned KaTeX layout stylesheet with `@font-face` blocks stripped: P0
+ * ships no KaTeX fonts, so visual math renders in fallback fonts while
+ * MathML stays screen-reader-only and no font fetch can occur.
+ */
+export function getKatexCss(): string {
+  if (cachedKatexCss !== undefined) return cachedKatexCss;
+  const cssPath = createRequire(import.meta.url).resolve(
+    "katex/dist/katex.min.css",
+  );
+  const css = readFileSync(cssPath, "utf8").replace(
+    /@font-face\{[^}]*\}/g,
+    "",
+  );
+  if (!css.includes(".katex-mathml") || /url\(fonts\//.test(css)) {
+    throw new KatexCssError();
+  }
+  cachedKatexCss = css;
+  return css;
+}
 export function renderEquationToHtml(tex: string): string {
   return sanitizeKatexHtml(katex.renderToString(tex, { ...KATEX_RENDER_OPTIONS }));
 }
@@ -624,11 +652,11 @@ export const htmlRendererDescriptor: RendererDescriptor = Object.freeze({
   version: HTML_RENDERER_VERSION,
   formats: Object.freeze(["html"] as const),
 });
-
 export function katexDependencyClosure(): Record<string, JsonValue> {
   return {
     katex: KATEX_VERSION,
     language: EQUATION_LATEX_LANGUAGE_VERSION,
-    options: katexOptions(),
+    options: { ...KATEX_RENDER_OPTIONS },
+    css: sha256(getKatexCss()),
   };
 }

@@ -55,8 +55,9 @@ test("a valid readable equation becomes a versioned Block with KaTeX HTML+MathML
   assert.equal(html.includes('src="http'), false);
   assert.equal(html.includes('href="http'), false);
   assert.equal(html.includes('@import'), false);
+  assert.match(html, /\.katex-mathml\{[^}]*position:absolute/);
+  assert.equal(html.includes("url(fonts/"), false);
 });
-
 test("every readable alias maps to pinned KaTeX offline", async () => {
   assert.equal(KATEX_VERSION, "0.18.5");
   const bodies = [

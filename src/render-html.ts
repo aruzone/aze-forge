@@ -1,4 +1,4 @@
-import { KATEX_VERSION } from "./equation.js";
+import { KATEX_VERSION, getKatexCss } from "./equation.js";
 import type { EmbeddedFontFace } from "./font.js";
 import { artifactBytesHash, canonicalJson, sha256 } from "./hash.js";
 import type {
@@ -92,7 +92,7 @@ export async function renderHtml(
     }),
   );
   const title = escapeHtml(documentTitle(document));
-  const css = `${embeddedFontCss(fontFaces)}${themeCss(theme)}.aze-equation{margin:1em 0;text-align:center}.aze-equation[data-align="left"]{text-align:left}.aze-equation[data-align="right"]{text-align:right}`;
+  const css = `${embeddedFontCss(fontFaces)}${themeCss(theme)}${getKatexCss()}.aze-equation{margin:1em 0;text-align:center}.aze-equation[data-align="left"]{text-align:left}.aze-equation[data-align="right"]{text-align:right}`;
   const html = `<!doctype html>\n<html lang="und"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:; font-src data:"><meta name="azeforge-content-hash" content="${contentHash}"><title>${title}</title><style>${css}</style></head><body><main><article>${renderBlocks(document, equationFragments)}</article></main></body></html>\n`;
   const bytes = new TextEncoder().encode(html);
   if (bytes.byteLength > HTML_MAX_BYTES) {
