@@ -1,0 +1,77 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  matrix:
+    name: node ${{ matrix.node }} on ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        node: [22, 24]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - name: Preserve machine diagnostics on failure
+        if: failure()
+        run: node dist/cli.js capabilities --probe --json > compatibility-diagnostics.json
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: compatibility-diagnostics-${{ matrix.os }}-node-${{ matrix.node }}
+          path: compatibility-diagnostics.json
+
+  canonical:
+    name: canonical golden (ubuntu x64, node 24)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run build --silent
+      - name: Run canonical acceptance
+        run: node scripts/acceptance.mjs --json > acceptance-report.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: canonical-acceptance-evidence
+          path: |
+            acceptance-report.json
+            acceptance/expected.json
+            acceptance/expected-png
+
+  smoke:
+    name: browser smoke on ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run build --silent
+      - name: Run browser-backed smoke
+        run: node scripts/acceptance.mjs --json > smoke-report.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: smoke-report-${{ matrix.os }}
+          path: smoke-report.json

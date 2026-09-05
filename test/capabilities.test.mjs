@@ -92,6 +92,11 @@ test("capabilities --json enumerates the P0 contract in canonical order", async 
   assert.deepEqual(payload.formats, ["html", "svg", "png", "pdf"]);
   assert.deepEqual(payload.source.azemarkVersions, [1]);
   assert.deepEqual(payload.document.schemaVersions, [1]);
+  assert.deepEqual(payload.runtime, {
+    node: { supported: [22, 24], canonical: 24 },
+    os: { supported: ["ubuntu", "macos", "windows"], canonical: "ubuntu" },
+    canonical: { os: "ubuntu", arch: "x64", node: 24 },
+  });
 
   // Static output is deterministic and reports availability as unknown.
   assert.equal(payload.engines.browser.availability, "unknown");

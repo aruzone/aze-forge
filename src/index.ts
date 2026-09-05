@@ -218,11 +218,16 @@ export { FragmentSecurityError, renderInlineHtml } from "./html-fragment.js";
 export {
   CAPABILITY_COMMANDS,
   CAPABILITY_FORMATS,
+  CANONICAL_ARCH,
+  CANONICAL_NODE_VERSION,
+  CANONICAL_OPERATING_SYSTEM,
+  SUPPORTED_NODE_VERSIONS,
+  SUPPORTED_OPERATING_SYSTEMS,
   buildCapabilities,
   probeBrowserAvailability,
   serializeCapabilities,
 } from "./capabilities.js";
-export type { CapabilitiesReport, EngineAvailability } from "./capabilities.js";
+export type { CapabilitiesReport, EngineAvailability, RuntimeSupport } from "./capabilities.js";
 export {
   CAPABILITIES_SCHEMA_ID,
   CAPABILITIES_SCHEMA_VERSION,

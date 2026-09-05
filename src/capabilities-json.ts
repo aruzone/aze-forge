@@ -26,6 +26,7 @@ export const capabilitiesJsonSchema: JsonValue = Object.freeze({
     "schema",
     "schemaVersion",
     "tool",
+    "runtime",
     "commands",
     "source",
     "document",
@@ -52,6 +53,41 @@ export const capabilitiesJsonSchema: JsonValue = Object.freeze({
       properties: {
         name: { const: "azeforge" },
         version: { type: "string", pattern: versionPattern },
+      },
+    },
+    runtime: {
+      type: "object",
+      required: ["node", "os", "canonical"],
+      additionalProperties: false,
+      properties: {
+        node: {
+          type: "object",
+          required: ["supported", "canonical"],
+          additionalProperties: false,
+          properties: {
+            supported: { const: [22, 24] },
+            canonical: { const: 24 },
+          },
+        },
+        os: {
+          type: "object",
+          required: ["supported", "canonical"],
+          additionalProperties: false,
+          properties: {
+            supported: { const: ["ubuntu", "macos", "windows"] },
+            canonical: { const: "ubuntu" },
+          },
+        },
+        canonical: {
+          type: "object",
+          required: ["os", "arch", "node"],
+          additionalProperties: false,
+          properties: {
+            os: { const: "ubuntu" },
+            arch: { const: "x64" },
+            node: { const: 24 },
+          },
+        },
       },
     },
     commands: {

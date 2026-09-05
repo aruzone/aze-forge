@@ -116,6 +116,31 @@ export const CAPABILITY_FORMATS: readonly ArtifactFormat[] = Object.freeze([
   "pdf",
 ]);
 
+/** Tested Node majors. Node Current is out of scope for P0. */
+export const SUPPORTED_NODE_VERSIONS = [22, 24] as const;
+export const CANONICAL_NODE_VERSION = 24 as const;
+/** Consumer operating systems in issue language. */
+export const SUPPORTED_OPERATING_SYSTEMS = ["ubuntu", "macos", "windows"] as const;
+export const CANONICAL_OPERATING_SYSTEM = "ubuntu" as const;
+/** Pinned canonical build host architecture. */
+export const CANONICAL_ARCH = "x64" as const;
+
+export interface RuntimeSupport {
+  readonly node: Readonly<{
+    supported: typeof SUPPORTED_NODE_VERSIONS;
+    canonical: typeof CANONICAL_NODE_VERSION;
+  }>;
+  readonly os: Readonly<{
+    supported: typeof SUPPORTED_OPERATING_SYSTEMS;
+    canonical: typeof CANONICAL_OPERATING_SYSTEM;
+  }>;
+  readonly canonical: Readonly<{
+    os: typeof CANONICAL_OPERATING_SYSTEM;
+    arch: typeof CANONICAL_ARCH;
+    node: typeof CANONICAL_NODE_VERSION;
+  }>;
+}
+
 export interface BrowserEngineStatus {
   readonly name: "chrome-headless-shell";
   readonly pinnedVersion: typeof CHROME_HEADLESS_SHELL_VERSION;
@@ -128,6 +153,7 @@ export interface CapabilitiesReport {
   readonly schema: typeof CAPABILITIES_SCHEMA_ID;
   readonly schemaVersion: typeof CAPABILITIES_SCHEMA_VERSION;
   readonly tool: Readonly<{ name: "azeforge"; version: typeof TOOL_VERSION }>;
+  readonly runtime: RuntimeSupport;
   readonly commands: readonly CommandEntry[];
   readonly source: Readonly<{
     azemarkVersions: readonly [1];
@@ -252,6 +278,15 @@ export async function buildCapabilities(
     schema: CAPABILITIES_SCHEMA_ID,
     schemaVersion: CAPABILITIES_SCHEMA_VERSION,
     tool: { name: "azeforge", version: TOOL_VERSION },
+    runtime: {
+      node: { supported: SUPPORTED_NODE_VERSIONS, canonical: CANONICAL_NODE_VERSION },
+      os: { supported: SUPPORTED_OPERATING_SYSTEMS, canonical: CANONICAL_OPERATING_SYSTEM },
+      canonical: {
+        os: CANONICAL_OPERATING_SYSTEM,
+        arch: CANONICAL_ARCH,
+        node: CANONICAL_NODE_VERSION,
+      },
+    },
     commands: CAPABILITY_COMMANDS,
     source: {
       azemarkVersions: [1],

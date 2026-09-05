@@ -163,6 +163,7 @@ export function humanCapabilitiesReport(report: CapabilitiesReport): string {
     `renderers: ${report.renderers.length} (${report.renderers.map((renderer) => renderer.id).join(", ")})`,
     `themes: ${report.themes.length} (${report.themes.map((theme) => theme.id).join(", ")})`,
     `source: azemark ${report.source.azemarkVersions.join(", ")}`,
+    `runtime: node ${report.runtime.node.supported.join(", ")} on ${report.runtime.os.supported.join(", ")} (canonical ${report.runtime.canonical.os} ${report.runtime.canonical.arch} node ${report.runtime.canonical.node})`,
     "Run `azeforge capabilities --json` for the complete machine manifest.",
     "",
   ].join("\n");
