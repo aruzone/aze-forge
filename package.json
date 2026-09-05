@@ -1,0 +1,36 @@
+{
+  "name": "@aruzone/aze-forge",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "azeforge": "./dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "npm run build --silent && node --test test/*.test.mjs",
+    "test:compiler": "npm run build --silent && node --test test/compiler.test.mjs",
+    "test:cli": "npm run build --silent && node --test test/cli.test.mjs"
+  },
+  "dependencies": {
+    "@fontsource/inter": "5.3.0",
+    "yaml": "2.9.0"
+  },
+  "devDependencies": {
+    "@types/node": "24.3.0",
+    "typescript": "5.9.2"
+  }
+}
