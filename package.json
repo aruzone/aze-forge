@@ -24,7 +24,10 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "npm run build --silent && node --test test/*.test.mjs",
     "test:compiler": "npm run build --silent && node --test test/compiler.test.mjs",
-    "test:cli": "npm run build --silent && node --test test/cli.test.mjs"
+    "test:cli": "npm run build --silent && node --test test/cli.test.mjs",
+    "test:acceptance": "npm run build --silent && node --test test/acceptance.test.mjs",
+    "acceptance": "node scripts/acceptance.mjs",
+    "acceptance:refresh": "node scripts/acceptance.mjs --refresh"
   },
   "dependencies": {
     "@fontsource/inter": "5.3.0",

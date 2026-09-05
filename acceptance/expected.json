@@ -1,0 +1,142 @@
+{
+  "schema": "azeforge.acceptance-expected/v1",
+  "tool": "azeforge",
+  "fingerprints": [
+    "sha256:c056598a8e5043b72e64ebf9e27bc97c1abe4075472098c699e83df51ca464f2",
+    "sha256:e7e18e43e3c90bf6e076e553121003c5d7666303eb5d7626e720274e44314151",
+    "sha256:49646108e767ee00678754e7f46ed86016c04e9cc4f5d5387225d59d8fc514fc",
+    "sha256:c1ea2bd2ce250b93db9168f200089ada21171a0866c1861296a9ce519c5caf97",
+    "sha256:57a4a23cd362cad896c7148faf98b754f13f25caa1cdf22d7656871c2a180252",
+    "sha256:17e11606b169ee589b356dd82582fba5592be9eadaeb678b54f375c7490738d7",
+    "sha256:db1f53b63a09e7a7705796f2cd9eff565f16fe22021620b1c8e24e5760a0a82b",
+    "sha256:6c32e27ec200dd9e09ff9b128be5f9107ad96b797226382b678d94c79fc26e42",
+    "sha256:b183f8b4241a67108e38f0cbffab9dc23c75bbb893e2d858aa07ff7a62afdb2a",
+    "sha256:6fda4a0a8d0ff415a1393071cebbd7d3b06708c763094e6f85fae00872672367",
+    "sha256:8876a49179ec61cdd40568d2aa70eb606089996088863ea3c0e20ef65df77d9e",
+    "sha256:c43b461a73cb3b497a9c99205200b74788eef290727ca1b0ed4c7739e7e272fe"
+  ],
+  "golden": {
+    "html/default": {
+      "contentHash": "sha256:95c0bc7288f15bed9669ec9db90ba0ac045cebb9cd85fca9715362d62b13c2d5",
+      "assetManifestHash": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "rendererFingerprint": "sha256:c056598a8e5043b72e64ebf9e27bc97c1abe4075472098c699e83df51ca464f2",
+      "artifactHash": "sha256:0777e02377b79c7cde7c2b3c9f9c472a067bdbc3c256af888be4848d7c8590d4",
+      "byteLength": 778865,
+      "profile": "azeforge.html.self-contained/v1"
+    },
+    "svg/default": {
+      "contentHash": "sha256:95c0bc7288f15bed9669ec9db90ba0ac045cebb9cd85fca9715362d62b13c2d5",
+      "assetManifestHash": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "rendererFingerprint": "sha256:e7e18e43e3c90bf6e076e553121003c5d7666303eb5d7626e720274e44314151",
+      "artifactHash": "sha256:500896deed179bd734cded572b4ea6be0aff2d12f8ef48ed3d28a2d33fcaa52a",
+      "byteLength": 779911,
+      "profile": "azeforge.svg.foreign-object/v1"
+    },
+    "png/default": {
+      "contentHash": "sha256:95c0bc7288f15bed9669ec9db90ba0ac045cebb9cd85fca9715362d62b13c2d5",
+      "assetManifestHash": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "rendererFingerprint": "sha256:49646108e767ee00678754e7f46ed86016c04e9cc4f5d5387225d59d8fc514fc",
+      "artifactHash": "sha256:49065ad326d9e425bea9a7446974c203b384d730c79f6da66017c4dc13865620",
+      "byteLength": 145444,
+      "profile": "azeforge.png.continuous/v1"
+    },
+    "pdf/default": {
+      "contentHash": "sha256:95c0bc7288f15bed9669ec9db90ba0ac045cebb9cd85fca9715362d62b13c2d5",
+      "assetManifestHash": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "rendererFingerprint": "sha256:c1ea2bd2ce250b93db9168f200089ada21171a0866c1861296a9ce519c5caf97",
+      "artifactHash": "sha256:e2e9199ab1b1cdc255e3a8999c00cda8c3bb8f1f3eb6943286072ced979df5c8",
+      "byteLength": 48265,
+      "profile": "azeforge.pdf.paged/v1"
+    },
+    "html/academic": {
+      "contentHash": "sha256:95c0bc7288f15bed9669ec9db90ba0ac045cebb9cd85fca9715362d62b13c2d5",
+      "assetManifestHash": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "rendererFingerprint": "sha256:57a4a23cd362cad896c7148faf98b754f13f25caa1cdf22d7656871c2a180252",
+      "artifactHash": "sha256:70022d05a3c8184cc2a6987b4c211f1366b96ab05c587785d60f1fec77013b1b",
+      "byteLength": 778985,
+      "profile": "azeforge.html.self-contained/v1"
+    },
+    "svg/academic": {
+      "contentHash": "sha256:95c0bc7288f15bed9669ec9db90ba0ac045cebb9cd85fca9715362d62b13c2d5",
+      "assetManifestHash": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "rendererFingerprint": "sha256:17e11606b169ee589b356dd82582fba5592be9eadaeb678b54f375c7490738d7",
+      "artifactHash": "sha256:45731d0023504b7ed03957f7884f5bb4f8d91b051fc19d958dfb996f696e372f",
+      "byteLength": 780031,
+      "profile": "azeforge.svg.foreign-object/v1"
+    },
+    "png/academic": {
+      "contentHash": "sha256:95c0bc7288f15bed9669ec9db90ba0ac045cebb9cd85fca9715362d62b13c2d5",
+      "assetManifestHash": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "rendererFingerprint": "sha256:db1f53b63a09e7a7705796f2cd9eff565f16fe22021620b1c8e24e5760a0a82b",
+      "artifactHash": "sha256:f5e438a838cb38ab4f10e78386234043517b5bb04d72aec58f1120fa1d4fa807",
+      "byteLength": 137196,
+      "profile": "azeforge.png.continuous/v1"
+    },
+    "pdf/academic": {
+      "contentHash": "sha256:95c0bc7288f15bed9669ec9db90ba0ac045cebb9cd85fca9715362d62b13c2d5",
+      "assetManifestHash": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "rendererFingerprint": "sha256:6c32e27ec200dd9e09ff9b128be5f9107ad96b797226382b678d94c79fc26e42",
+      "artifactHash": "sha256:3583de7663709022aed28a481d24dc9c0e925be23946cb9502fb99b3defee196",
+      "byteLength": 48969,
+      "profile": "azeforge.pdf.paged/v1"
+    },
+    "html/dark-presentation": {
+      "contentHash": "sha256:95c0bc7288f15bed9669ec9db90ba0ac045cebb9cd85fca9715362d62b13c2d5",
+      "assetManifestHash": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "rendererFingerprint": "sha256:b183f8b4241a67108e38f0cbffab9dc23c75bbb893e2d858aa07ff7a62afdb2a",
+      "artifactHash": "sha256:4c614f8f4600c56a690ca023a7e368d5e060382beddf0c2add2570fa6c3d671d",
+      "byteLength": 779461,
+      "profile": "azeforge.html.self-contained/v1"
+    },
+    "svg/dark-presentation": {
+      "contentHash": "sha256:95c0bc7288f15bed9669ec9db90ba0ac045cebb9cd85fca9715362d62b13c2d5",
+      "assetManifestHash": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "rendererFingerprint": "sha256:6fda4a0a8d0ff415a1393071cebbd7d3b06708c763094e6f85fae00872672367",
+      "artifactHash": "sha256:be5c77bca62d35c7d65567afd341e6bc42eef9efe838ca318bf7bd77a2ae4b12",
+      "byteLength": 780510,
+      "profile": "azeforge.svg.foreign-object/v1"
+    },
+    "png/dark-presentation": {
+      "contentHash": "sha256:95c0bc7288f15bed9669ec9db90ba0ac045cebb9cd85fca9715362d62b13c2d5",
+      "assetManifestHash": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "rendererFingerprint": "sha256:8876a49179ec61cdd40568d2aa70eb606089996088863ea3c0e20ef65df77d9e",
+      "artifactHash": "sha256:2c80c04084978d29b3205499f749f5238f95b9bfa79bbd2d9eafdf5969a10c4b",
+      "byteLength": 155080,
+      "profile": "azeforge.png.continuous/v1"
+    },
+    "pdf/dark-presentation": {
+      "contentHash": "sha256:95c0bc7288f15bed9669ec9db90ba0ac045cebb9cd85fca9715362d62b13c2d5",
+      "assetManifestHash": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "rendererFingerprint": "sha256:c43b461a73cb3b497a9c99205200b74788eef290727ca1b0ed4c7739e7e272fe",
+      "artifactHash": "sha256:00df6c1de7e9e1376c85d9e5a0716dfed894eb03696d3b24482515a0e03c4d05",
+      "byteLength": 49127,
+      "profile": "azeforge.pdf.paged/v1"
+    }
+  },
+  "pngDimensions": {
+    "png/default": {
+      "width": 1920,
+      "height": 2064
+    },
+    "png/academic": {
+      "width": 1760,
+      "height": 2112
+    },
+    "png/dark-presentation": {
+      "width": 2560,
+      "height": 2144
+    }
+  },
+  "pagination": {
+    "keep-next.aze.md": 1,
+    "widows.aze.md": 1,
+    "table-split.aze.md": 3,
+    "code-split.aze.md": 3,
+    "atomic-scale.aze.md": 1,
+    "long-callout-split.aze.md": 3
+  },
+  "authorLoop": {
+    "before": "sha256:95c0bc7288f15bed9669ec9db90ba0ac045cebb9cd85fca9715362d62b13c2d5",
+    "afterEdit": "sha256:8f09c86652d746489779e5e102e96611dd216354e9dd0e91255897b495b1033b"
+  }
+}
