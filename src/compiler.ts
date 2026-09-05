@@ -9,6 +9,7 @@ import type { DiagnosticLimits } from "./diagnostics.js";
 import {
   assertInterFontCoverage,
   FontCoverageError,
+  loadCodeFontFaces,
   loadInterFontFaces,
 } from "./font.js";
 import type { EmbeddedFontFace } from "./font.js";
@@ -1425,7 +1426,10 @@ export function createCompiler(options: CompilerOptions = {}): Compiler {
         ];
         collectRenderText(validation.document.blocks, renderedText);
         assertInterFontCoverage(renderedText);
-        fontFacesPromise ??= loadInterFontFaces();
+        fontFacesPromise ??= Promise.all([
+          loadInterFontFaces(),
+          loadCodeFontFaces(),
+        ]).then((faces) => faces.flat());
         const fontFaces = await fontFacesPromise;
         const contentHash = documentContentHash(validation.document);
         const pluginRenderers = {

@@ -9,6 +9,7 @@ import test from "node:test";
 import { SaxesParser } from "saxes";
 import {
   createCompiler,
+  defaultTheme,
   getBuiltInRegistry,
   sanitizeWholeDocumentSvg,
 } from "../dist/index.js";
@@ -196,4 +197,15 @@ flowchart LR
   );
   assert.doesNotMatch(svg, /figure\.svg/);
   assert.doesNotMatch(svg, /<script\b|\son[a-z]+=/i);
+});
+
+test("non-positive canvas width fails closed before any Artifact", () => {
+  const zeroWidth = {
+    ...defaultTheme,
+    geometry: { ...defaultTheme.geometry, canvasWidthPx: 0 },
+  };
+  assert.throws(() => createCompiler({ themes: [zeroWidth] }), (error) => {
+    assert.equal(error.code, "AZE_CONFIG_THEME_VALUES");
+    return true;
+  });
 });

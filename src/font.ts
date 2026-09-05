@@ -4,6 +4,7 @@ import type { Sha256Hash } from "./model.js";
 import { sha256 } from "./hash.js";
 
 interface FontSubsetDescriptor {
+  readonly family: "Inter" | "JetBrains Mono";
   readonly name: string;
   readonly unicodeRange: string;
   readonly weight: 400 | 700;
@@ -15,8 +16,12 @@ export interface EmbeddedFontFace extends FontSubsetDescriptor {
 }
 
 const INTER_WEIGHTS = [400, 700] as const;
+const CODE_FONT_WEIGHTS = [400] as const;
 
-const INTER_SUBSET_RANGES: readonly Omit<FontSubsetDescriptor, "weight">[] = [
+const INTER_SUBSET_RANGES: readonly Omit<
+  FontSubsetDescriptor,
+  "family" | "weight"
+>[] = [
   {
     name: "cyrillic-ext",
     unicodeRange: "U+0460-052F,U+1C80-1C8A,U+20B4,U+2DE0-2DFF,U+A640-A69F,U+FE2E-FE2F",
@@ -82,18 +87,20 @@ export function assertInterFontCoverage(values: readonly string[]): void {
   }
 }
 
-export async function loadInterFontFaces(): Promise<readonly EmbeddedFontFace[]> {
-  const descriptors: readonly FontSubsetDescriptor[] = INTER_SUBSET_RANGES.flatMap(
-    (subset) =>
-      INTER_WEIGHTS.map((weight) => ({
-        ...subset,
-        weight,
-      })),
+async function loadFontFaces(
+  packageName: "@fontsource/inter" | "@fontsource/jetbrains-mono",
+  filePrefix: "inter" | "jetbrains-mono",
+  family: EmbeddedFontFace["family"],
+  subsets: readonly Omit<FontSubsetDescriptor, "family" | "weight">[],
+  weights: readonly (400 | 700)[],
+): Promise<readonly EmbeddedFontFace[]> {
+  const descriptors: readonly FontSubsetDescriptor[] = subsets.flatMap((subset) =>
+    weights.map((weight) => ({ ...subset, family, weight })),
   );
   return Promise.all(
     descriptors.map(async (descriptor) => {
       const moduleUrl = import.meta.resolve(
-        `@fontsource/inter/files/inter-${descriptor.name}-${descriptor.weight}-normal.woff2`,
+        `${packageName}/files/${filePrefix}-${descriptor.name}-${descriptor.weight}-normal.woff2`,
       );
       const bytes = await readFile(new URL(moduleUrl));
       return Object.freeze({
@@ -102,5 +109,25 @@ export async function loadInterFontFaces(): Promise<readonly EmbeddedFontFace[]>
         sourceHash: sha256(bytes),
       });
     }),
+  );
+}
+
+export function loadInterFontFaces(): Promise<readonly EmbeddedFontFace[]> {
+  return loadFontFaces(
+    "@fontsource/inter",
+    "inter",
+    "Inter",
+    INTER_SUBSET_RANGES,
+    INTER_WEIGHTS,
+  );
+}
+
+export function loadCodeFontFaces(): Promise<readonly EmbeddedFontFace[]> {
+  return loadFontFaces(
+    "@fontsource/jetbrains-mono",
+    "jetbrains-mono",
+    "JetBrains Mono",
+    INTER_SUBSET_RANGES.filter(({ name }) => name !== "greek-ext"),
+    CODE_FONT_WEIGHTS,
   );
 }
