@@ -77,6 +77,17 @@ export {
   validateRegistry,
 } from "./registry.js";
 export {
+  PNG_DEVICE_SCALE_FACTOR,
+  PNG_RENDERER_ID,
+  PNG_RENDERER_VERSION,
+  PNG_REQUIRED_CAPABILITIES,
+  normalizePng,
+  pinnedPngBrowserCapability,
+  pngBlockRenderers,
+  pngRendererDescriptor,
+  renderPng,
+} from "./render-png.js";
+export {
   SVG_RENDERER_ID,
   SVG_RENDERER_VERSION,
   sanitizeWholeDocumentSvg,
@@ -139,6 +150,7 @@ export type {
   FormatResult,
   ParsedDocument,
   PluginDescriptor,
+  PngArtifactMetadata,
   RelatedLocation,
   RendererDescriptor,
   SourcePosition,

@@ -14,6 +14,10 @@ import {
   svgBlockRenderers,
   svgRendererDescriptor,
 } from "./render-svg.js";
+import {
+  pngBlockRenderers,
+  pngRendererDescriptor,
+} from "./render-png.js";
 import type {
   AnyBlockRenderer,
   AzeBlockPlugin,
@@ -52,8 +56,13 @@ export function getBuiltInRegistry(): ResolvedRegistry {
       mermaidHtmlBlockRenderer,
       tableHtmlBlockRenderer,
       ...svgBlockRenderers,
+      ...pngBlockRenderers,
     ]),
-    renderers: Object.freeze([htmlRendererDescriptor, svgRendererDescriptor]),
+    renderers: Object.freeze([
+      htmlRendererDescriptor,
+      svgRendererDescriptor,
+      pngRendererDescriptor,
+    ]),
   });
 }
 
