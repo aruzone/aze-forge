@@ -357,10 +357,24 @@ export interface PngArtifactMetadata extends ArtifactMetadataBase {
   readonly requiredCapabilities: readonly ["png-continuous", "srgb"];
 }
 
+export interface PdfArtifactMetadata extends ArtifactMetadataBase {
+  readonly format: "pdf";
+  readonly mimeType: "application/pdf";
+  readonly profile: "azeforge.pdf.paged/v1";
+  readonly pageCount: number;
+  readonly pageGeometry: Readonly<{
+    widthPt: number;
+    heightPt: number;
+    marginPt: number;
+  }>;
+  readonly requiredCapabilities: readonly ["pdf-paged"];
+}
+
 export type ArtifactMetadata =
   | HtmlArtifactMetadata
   | SvgArtifactMetadata
-  | PngArtifactMetadata;
+  | PngArtifactMetadata
+  | PdfArtifactMetadata;
 
 export interface Artifact {
   readonly bytes: Uint8Array;
@@ -368,7 +382,7 @@ export interface Artifact {
 }
 
 export interface CompileOptions extends ParseOptions {
-  readonly format: "html" | "svg" | "png";
+  readonly format: "html" | "svg" | "png" | "pdf";
   readonly theme?: string;
   readonly allowRawLatex?: boolean;
   readonly projectRoot?: string;
