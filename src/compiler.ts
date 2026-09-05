@@ -12,6 +12,7 @@ import {
   loadInterFontFaces,
 } from "./font.js";
 import type { EmbeddedFontFace } from "./font.js";
+import { formatSource } from "./format.js";
 import { documentContentHash } from "./hash.js";
 import { inlineTextValue } from "./markdown.js";
 import type {
@@ -25,6 +26,8 @@ import type {
   CompilerOptions,
   CompilerPolicy,
   Diagnostic,
+  FormatOptions,
+  FormatResult,
   JsonValue,
   ParsedBlock,
   ParseOptions,
@@ -187,6 +190,25 @@ function limitParseResult(
     document: { ...parsed.document, blocks },
     diagnostics,
   };
+}
+
+function sameFormatMeaning(
+  before: ValidationResult,
+  after: ValidationResult,
+): boolean {
+  if (before.document !== undefined) {
+    return (
+      after.document !== undefined &&
+      documentContentHash(after.document) === documentContentHash(before.document)
+    );
+  }
+  if (after.document !== undefined) return false;
+  const beforeCodes = before.diagnostics.map(({ code }) => code);
+  const afterCodes = after.diagnostics.map(({ code }) => code);
+  return (
+    beforeCodes.length === afterCodes.length &&
+    beforeCodes.every((code, index) => code === afterCodes[index])
+  );
 }
 
 function validateTheme(theme: Theme): void {
@@ -1122,6 +1144,60 @@ export function createCompiler(options: CompilerOptions = {}): Compiler {
     },
     validate(parsed: ParseResult): ValidationResult {
       return validateParsed(parsed, diagnosticLimits);
+    },
+    format(source: string, formatOptions: FormatOptions = {}): FormatResult {
+      const before = validateParsed(
+        limitParseResult(
+          parseSource(source, {
+            ...(formatOptions.sourceName === undefined
+              ? {}
+              : { sourceName: formatOptions.sourceName }),
+            plugins: registry.plugins,
+          }),
+          diagnosticLimits,
+        ),
+        diagnosticLimits,
+      );
+      const rewritten = formatSource(source, {
+        ...(formatOptions.sourceName === undefined
+          ? {}
+          : { sourceName: formatOptions.sourceName }),
+      });
+      if (rewritten.source === undefined) return rewritten;
+      const after = validateParsed(
+        limitParseResult(
+          parseSource(rewritten.source, {
+            ...(formatOptions.sourceName === undefined
+              ? {}
+              : { sourceName: formatOptions.sourceName }),
+            plugins: registry.plugins,
+          }),
+          diagnosticLimits,
+        ),
+        diagnosticLimits,
+      );
+      if (!sameFormatMeaning(before, after)) {
+        const range = {
+          start: { line: 1, column: 1, offset: 0 },
+          end: { line: 1, column: 1, offset: 0 },
+        };
+        return {
+          diagnostics: [
+            createDiagnostic(
+              "azeforge.format#ambiguous-structure",
+              "error",
+              "Formatting changed the semantic meaning of the Source.",
+              {
+                ...(formatOptions.sourceName === undefined
+                  ? { location: { range } }
+                  : { location: { source: formatOptions.sourceName, range } }),
+                suggestion: "Report this Source as a formatter failure.",
+              },
+            ),
+          ],
+        };
+      }
+      return rewritten;
     },
     async compile(source: string, compileOptions: CompileOptions): Promise<CompileResult> {
       const validation = validateParsed(

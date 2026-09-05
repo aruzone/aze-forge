@@ -97,6 +97,27 @@ A valid Source produces no stdout or stderr and exits with status `0`.
 
 Add `--diagnostics json` to `validate` or file-targeted `render` to emit exactly one `azeforge.diagnostics/v1` report on stdout. The package exports `diagnosticsJsonSchema` for JSON Schema 2020-12 validation. Human diagnostics remain on stderr.
 
+## Format Source
+
+```bash
+# Write LF-formatted UTF-8 Source to stdout.
+node dist/cli.js format /tmp/manual.aze.md
+
+# Atomically replace a file.
+node dist/cli.js format /tmp/manual.aze.md --write
+
+# Emit no Source; exit 1 only when formatting is required.
+node dist/cli.js format /tmp/manual.aze.md --check
+
+# Stdin is explicit; `-` is not an alias.
+cat /tmp/manual.aze.md | node dist/cli.js format --stdin
+```
+
+Formatting removes a leading BOM, emits LF line endings, preserves comments,
+unknown directive bodies, invalid regions, and denied raw content, and writes
+nothing when structural syntax is ambiguous. `--write` rejects stdin, and
+`--write` and `--check` cannot be combined.
+
 ## Render to a file
 
 ```bash

@@ -54,7 +54,16 @@ interface RenderArguments extends CommonArguments {
   readonly theme?: string;
 }
 
-type CliArguments = ValidateArguments | RenderArguments;
+interface FormatArguments {
+  readonly command: "format";
+  readonly sourcePath?: string;
+  readonly stdin: boolean;
+  readonly write: boolean;
+  readonly check: boolean;
+  readonly diagnosticsMode: DiagnosticsMode;
+}
+
+type CliArguments = ValidateArguments | RenderArguments | FormatArguments;
 
 function requestedDiagnosticsMode(arguments_: readonly string[]): DiagnosticsMode {
   return arguments_.some(
@@ -69,6 +78,67 @@ function claimAllowRawLatex(current: boolean): boolean {
     throw new CliUsageError('Option "--allow-raw-latex" was provided more than once.');
   }
   return true;
+}
+
+function claimFormatFlag(name: "--stdin" | "--write" | "--check", current: boolean): boolean {
+  if (current) {
+    throw new CliUsageError(`Option "${name}" was provided more than once.`);
+  }
+  return true;
+}
+
+function parseFormatArguments(
+  first: string | undefined,
+  rest: readonly string[],
+  diagnosticsMode: DiagnosticsMode,
+): FormatArguments {
+  const tokens = first === undefined ? [...rest] : [first, ...rest];
+  let stdin = false;
+  let write = false;
+  let check = false;
+  let sourcePath: string | undefined;
+  for (const token of tokens) {
+    if (token === "--stdin") {
+      stdin = claimFormatFlag("--stdin", stdin);
+    } else if (token === "--write") {
+      write = claimFormatFlag("--write", write);
+    } else if (token === "--check") {
+      check = claimFormatFlag("--check", check);
+    } else if (token.startsWith("-")) {
+      throw new CliUsageError(`Unknown option "${token}".`);
+    } else if (sourcePath !== undefined) {
+      throw new CliUsageError("Format accepts one Source path.");
+    } else {
+      sourcePath = token;
+    }
+  }
+  if (sourcePath === undefined && !stdin) {
+    throw new CliUsageError(
+      "Usage: azeforge format <source> [--write | --check] | azeforge format --stdin [--check]",
+    );
+  }
+  if (sourcePath !== undefined && stdin) {
+    throw new CliUsageError("Format accepts either a Source path or --stdin, not both.");
+  }
+  if (write && check) {
+    throw new CliUsageError('Options "--write" and "--check" cannot be combined.');
+  }
+  if (write && stdin) {
+    throw new CliUsageError('Option "--write" rejects stdin Source.');
+  }
+  if (!write && !check && diagnosticsMode === "json") {
+    throw new CliUsageError(
+      "JSON diagnostics cannot be combined with formatted Source stdout.",
+    );
+  }
+  return {
+    command: "format",
+    ...(sourcePath === undefined ? {} : { sourcePath }),
+    stdin,
+    write,
+    check,
+    diagnosticsMode,
+  };
 }
 
 function parseArguments(
@@ -95,6 +165,9 @@ function parseArguments(
   }
 
   const [command, sourcePath, ...rest] = arguments_;
+  if (command === "format") {
+    return parseFormatArguments(sourcePath, rest, diagnosticsMode);
+  }
   if (
     (command !== "validate" && command !== "render") ||
     sourcePath === undefined ||
@@ -241,13 +314,24 @@ function formatDiagnostic(
   return `${lines.join("\n")}\n`;
 }
 
-async function readSource(path: string): Promise<string> {
-  const bytes = await readFile(path);
+function decodeSource(bytes: Uint8Array, sourceLabel: string): string {
   try {
     return new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(bytes);
   } catch {
-    throw new InvalidUtf8Error(path);
+    throw new InvalidUtf8Error(sourceLabel);
   }
+}
+
+async function readSource(path: string): Promise<string> {
+  return decodeSource(await readFile(path), path);
+}
+
+async function readStdin(sourceLabel: string): Promise<string> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of process.stdin) {
+    chunks.push(typeof chunk === "string" ? Buffer.from(chunk, "utf8") : chunk);
+  }
+  return decodeSource(Buffer.concat(chunks), sourceLabel);
 }
 
 async function canonicalDestinationPath(path: string): Promise<string> {
@@ -320,6 +404,63 @@ async function main(): Promise<void> {
       if (canonicalSourcePath === canonicalArtifactPath) {
         throw new CliUsageError("The Artifact destination cannot replace its Source.");
       }
+    }
+    if (arguments_.command === "format") {
+      const filePath = arguments_.sourcePath;
+      const sourceLabel = filePath ?? "<stdin>";
+      const formatSourceText =
+        arguments_.stdin || filePath === undefined
+          ? await readStdin(sourceLabel)
+          : await readSource(filePath);
+      const compiler = createCompiler();
+      const formatted = compiler.format(formatSourceText, {
+        sourceName: sourceLabel,
+      });
+      if (formatted.source === undefined) {
+        emitDiagnostics(
+          arguments_.diagnosticsMode,
+          arguments_.command,
+          false,
+          formatted.diagnostics,
+          formatSourceText,
+        );
+        process.exitCode = 1;
+        return;
+      }
+      if (arguments_.check) {
+        if (formatted.source === formatSourceText) {
+          emitDiagnostics(arguments_.diagnosticsMode, arguments_.command, true, []);
+          return;
+        }
+        emitDiagnostics(
+          arguments_.diagnosticsMode,
+          arguments_.command,
+          false,
+          [
+            createDiagnostic(
+              "azeforge.format#format-required",
+              "error",
+              "Source requires formatting.",
+              {
+                location: { source: sourceLabel },
+                suggestion: "Run `azeforge format` to apply formatting.",
+              },
+            ),
+          ],
+          formatSourceText,
+        );
+        process.exitCode = 1;
+        return;
+      }
+      if (arguments_.write && filePath !== undefined) {
+        if (formatted.source !== formatSourceText) {
+          await commitArtifact(filePath, new TextEncoder().encode(formatted.source));
+        }
+        emitDiagnostics(arguments_.diagnosticsMode, arguments_.command, true, []);
+        return;
+      }
+      process.stdout.write(formatted.source);
+      return;
     }
     const source = await readSource(arguments_.sourcePath);
     const compiler = createCompiler();
@@ -410,7 +551,7 @@ async function main(): Promise<void> {
                   "azeforge.source#read-failed",
                   "error",
                   "The Source could not be read.",
-                  { location: { source: arguments_.sourcePath } },
+                  { location: { source: arguments_.sourcePath ?? "<stdin>" } },
                 )
               : createDiagnostic(
                   "azeforge.cli#operation-failed",

@@ -1,9 +1,6 @@
 export { createCompiler } from "./compiler.js";
 export { CompilerConfigurationError } from "./configuration-error.js";
-export {
-  DIAGNOSTICS_SCHEMA_ID,
-  diagnosticsJsonSchema,
-} from "./diagnostics-json.js";
+export { DIAGNOSTICS_SCHEMA_ID, diagnosticsJsonSchema } from "./diagnostics-json.js";
 export type { DiagnosticsReport } from "./diagnostics-json.js";
 export {
   CALLOUT_BODY_SYNTAX_ID,
@@ -130,6 +127,8 @@ export type {
   ParagraphBlock,
   ParseOptions,
   ParseResult,
+  FormatOptions,
+  FormatResult,
   ParsedDocument,
   PluginDescriptor,
   RelatedLocation,
