@@ -343,10 +343,9 @@ const pinnedCapabilities: BrowserCapabilities = Object.freeze({
   settleLayout: renderAndSettle,
 });
 
-export async function renderMermaidInBrowser(
-  input: MermaidBrowserInput,
-  capabilities: BrowserCapabilities = pinnedCapabilities,
-): Promise<MermaidBrowserOutput> {
+async function acquirePinnedBrowser(
+  capabilities: BrowserCapabilities,
+): Promise<{ readonly browser: Browser; readonly browserVersion: string }> {
   let browser: Browser;
   try {
     browser = await capabilities.launch(capabilities.resolveExecutable());
@@ -356,7 +355,6 @@ export async function renderMermaidInBrowser(
       `Pinned Chrome Headless Shell ${CHROME_HEADLESS_SHELL_VERSION} is unavailable. Reinstall AzeForge browser dependencies. ${detail}`,
     );
   }
-
   try {
     const browserVersion = await browser.version();
     if (browserVersion !== `HeadlessChrome/${CHROME_HEADLESS_SHELL_VERSION}`) {
@@ -364,6 +362,28 @@ export async function renderMermaidInBrowser(
         `Expected HeadlessChrome/${CHROME_HEADLESS_SHELL_VERSION}, received ${browserVersion}.`,
       );
     }
+    return { browser, browserVersion };
+  } catch (error) {
+    await browser.close();
+    if (error instanceof MermaidBrowserUnavailableError) throw error;
+    const detail = error instanceof Error ? error.message : String(error);
+    throw new MermaidBrowserUnavailableError(
+      `Pinned Chrome Headless Shell ${CHROME_HEADLESS_SHELL_VERSION} could not be verified. Reinstall AzeForge browser dependencies. ${detail}`,
+    );
+  }
+}
+
+export async function launchPinnedBrowser(): Promise<Browser> {
+  return (await acquirePinnedBrowser(pinnedCapabilities)).browser;
+}
+
+export async function renderMermaidInBrowser(
+  input: MermaidBrowserInput,
+  capabilities: BrowserCapabilities = pinnedCapabilities,
+): Promise<MermaidBrowserOutput> {
+  const { browser, browserVersion } = await acquirePinnedBrowser(capabilities);
+
+  try {
     const isolated = await capabilities.openPage(browser);
     try {
       const requests: string[] = [];

@@ -321,10 +321,7 @@ export interface AssetManifestEntry {
   readonly bytesHash: Sha256Hash;
 }
 
-export interface ArtifactMetadata {
-  readonly format: "html";
-  readonly mimeType: "text/html; charset=utf-8";
-  readonly profile: "azeforge.html.self-contained/v1";
+interface ArtifactMetadataBase {
   readonly byteLength: number;
   readonly contentHash: ContentHash;
   readonly assetManifestHash: Sha256Hash;
@@ -338,13 +335,29 @@ export interface ArtifactMetadata {
   }>;
 }
 
+export interface HtmlArtifactMetadata extends ArtifactMetadataBase {
+  readonly format: "html";
+  readonly mimeType: "text/html; charset=utf-8";
+  readonly profile: "azeforge.html.self-contained/v1";
+}
+
+export interface SvgArtifactMetadata extends ArtifactMetadataBase {
+  readonly format: "svg";
+  readonly mimeType: "image/svg+xml";
+  readonly profile: "azeforge.svg.foreign-object/v1";
+  readonly pixelDimensions: Readonly<{ width: number; height: number }>;
+  readonly requiredCapabilities: readonly ["svg2", "xhtml-foreign-object"];
+}
+
+export type ArtifactMetadata = HtmlArtifactMetadata | SvgArtifactMetadata;
+
 export interface Artifact {
   readonly bytes: Uint8Array;
   readonly metadata: ArtifactMetadata;
 }
 
 export interface CompileOptions extends ParseOptions {
-  readonly format: "html";
+  readonly format: "html" | "svg";
   readonly theme?: string;
   readonly allowRawLatex?: boolean;
   readonly projectRoot?: string;
@@ -386,6 +399,7 @@ export interface RendererDescriptor {
   readonly id: string;
   readonly version: string;
   readonly formats: readonly ArtifactFormat[];
+  readonly capabilities: readonly ("browser" | "filesystem" | "subprocess")[];
 }
 
 export interface AzeBlockPlugin {

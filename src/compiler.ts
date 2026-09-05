@@ -38,7 +38,6 @@ import type {
   ValidationResult,
 } from "./model.js";
 import {
-  HTML_RENDERER_ID,
   katexDependencyClosure,
   sanitizeKatexHtml,
 } from "./equation.js";
@@ -63,12 +62,21 @@ import {
 } from "./registry.js";
 import type { ResolvedRegistry } from "./registry.js";
 import { parseSource } from "./parse.js";
-import { ArtifactLimitError, renderHtml } from "./render-html.js";
+import { ArtifactLimitError, createHtmlLayout, renderHtml } from "./render-html.js";
+import {
+  pinnedSvgBrowserCapability,
+  renderSvg,
+  SvgArtifactLimitError,
+} from "./render-svg.js";
 import { validateBlockIds } from "./reference-validation.js";
 import { builtInThemes, copyAndFreezeTheme } from "./theme.js";
 import { validateDocumentSchema } from "./validate-document.js";
 const THEME_ID = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
 const SEMVER = /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$/;
+const BUILT_IN_RENDERER_VERSION_BY_FORMAT = {
+  html: "1.0.0",
+  svg: "1.0.0",
+} as const;
 
 function validateParsed(
   parsed: ParseResult,
@@ -428,6 +436,7 @@ function groupedAdapterDiagnostic(
 
 async function renderEquationFragments(
   document: AzeDocument,
+  rendererId: string,
   registry: ResolvedRegistry,
   policy: CompilerPolicy,
   sourceName: string | undefined,
@@ -437,11 +446,12 @@ async function renderEquationFragments(
   readonly diagnostics: readonly Diagnostic[];
 }> {
   const targets = equationTargets(document);
+  const rendererName = rendererId.toUpperCase();
   if (targets.length === 0) {
     return { fragments: new Map(), diagnostics: [] };
   }
   const renderer = registry.renderers.find(
-    (entry) => entry.id === HTML_RENDERER_ID,
+    (entry) => entry.id === rendererId,
   );
   if (renderer === undefined) {
     return {
@@ -449,11 +459,11 @@ async function renderEquationFragments(
       diagnostics: [
         groupedAdapterDiagnostic(
           "azeforge.renderer#adapter-missing",
-          'No HTML Renderer is registered for equation Blocks.',
+          `No ${rendererName} Renderer is registered for equation Blocks.`,
           targets,
           sourceName,
-          { blockType: "equation", rendererId: HTML_RENDERER_ID },
-          "Register the built-in HTML Renderer.",
+          { blockType: "equation", rendererId },
+          `Register the built-in ${rendererName} Renderer.`,
         ),
       ],
     };
@@ -464,7 +474,7 @@ async function renderEquationFragments(
       diagnostics: [
         groupedAdapterDiagnostic(
           "azeforge.renderer#adapter-disabled",
-          `HTML Renderer "${renderer.id}" is disabled by host policy.`,
+          `${rendererName} Renderer "${renderer.id}" is disabled by host policy.`,
           targets,
           sourceName,
           { rendererId: renderer.id },
@@ -476,7 +486,7 @@ async function renderEquationFragments(
   const candidates = registry.blockRenderers.filter(
     (entry) =>
       entry.descriptor.blockType === "equation" &&
-      entry.descriptor.rendererId === HTML_RENDERER_ID,
+      entry.descriptor.rendererId === rendererId,
   );
   if (candidates.length === 0) {
     return {
@@ -487,8 +497,8 @@ async function renderEquationFragments(
           "No Block renderer is registered for equation Blocks.",
           targets,
           sourceName,
-          { blockType: "equation", rendererId: HTML_RENDERER_ID },
-          "Register the built-in equation HTML Block renderer.",
+          { blockType: "equation", rendererId },
+          `Register the built-in equation ${rendererName} Block renderer.`,
         ),
       ],
     };
@@ -527,7 +537,7 @@ async function renderEquationFragments(
                     candidate.descriptor.rendererVersionRange,
                 }),
           },
-          "Register a Block renderer compatible with equation v1 and HTML v1.",
+          `Register a Block renderer compatible with equation v1 and ${rendererName} v1.`,
         ),
       ],
     };
@@ -645,6 +655,7 @@ async function renderEquationFragments(
 }
 async function renderMermaidFragments(
   document: AzeDocument,
+  rendererId: string,
   registry: ResolvedRegistry,
   policy: CompilerPolicy,
   sourceName: string | undefined,
@@ -655,11 +666,12 @@ async function renderMermaidFragments(
   readonly diagnostics: readonly Diagnostic[];
 }> {
   const targets = mermaidTargets(document);
+  const rendererName = rendererId.toUpperCase();
   if (targets.length === 0) {
     return { fragments: new Map(), diagnostics: [] };
   }
   const renderer = registry.renderers.find(
-    (entry) => entry.id === HTML_RENDERER_ID,
+    (entry) => entry.id === rendererId,
   );
   if (renderer === undefined) {
     return {
@@ -667,11 +679,11 @@ async function renderMermaidFragments(
       diagnostics: [
         groupedAdapterDiagnostic(
           "azeforge.renderer#adapter-missing",
-          "No HTML Renderer is registered for mermaid Blocks.",
+          `No ${rendererName} Renderer is registered for mermaid Blocks.`,
           targets,
           sourceName,
-          { blockType: MERMAID_PLUGIN_TYPE, rendererId: HTML_RENDERER_ID },
-          "Register the built-in HTML Renderer.",
+          { blockType: MERMAID_PLUGIN_TYPE, rendererId },
+          `Register the built-in ${rendererName} Renderer.`,
         ),
       ],
     };
@@ -682,7 +694,7 @@ async function renderMermaidFragments(
       diagnostics: [
         groupedAdapterDiagnostic(
           "azeforge.renderer#adapter-disabled",
-          `HTML Renderer "${renderer.id}" is disabled by host policy.`,
+          `${rendererName} Renderer "${renderer.id}" is disabled by host policy.`,
           targets,
           sourceName,
           { rendererId: renderer.id },
@@ -694,7 +706,7 @@ async function renderMermaidFragments(
   const candidates = registry.blockRenderers.filter(
     (entry) =>
       entry.descriptor.blockType === MERMAID_PLUGIN_TYPE &&
-      entry.descriptor.rendererId === HTML_RENDERER_ID,
+      entry.descriptor.rendererId === rendererId,
   );
   if (candidates.length === 0) {
     return {
@@ -705,8 +717,8 @@ async function renderMermaidFragments(
           "No Block renderer is registered for mermaid Blocks.",
           targets,
           sourceName,
-          { blockType: MERMAID_PLUGIN_TYPE, rendererId: HTML_RENDERER_ID },
-          "Register the built-in mermaid HTML Block renderer.",
+          { blockType: MERMAID_PLUGIN_TYPE, rendererId },
+          `Register the built-in mermaid ${rendererName} Block renderer.`,
         ),
       ],
     };
@@ -745,7 +757,7 @@ async function renderMermaidFragments(
                     candidate.descriptor.rendererVersionRange,
                 }),
           },
-          "Register a Block renderer compatible with mermaid v1 and HTML v1.",
+          `Register a Block renderer compatible with mermaid v1 and ${rendererName} v1.`,
         ),
       ],
     };
@@ -907,10 +919,12 @@ interface PluginAdapterResolution {
 
 function checkPluginAdapters(
   document: AzeDocument,
+  rendererId: string,
   registry: ResolvedRegistry,
   policy: CompilerPolicy,
   sourceName: string | undefined,
 ): PluginAdapterResolution {
+  const rendererName = rendererId.toUpperCase();
   const diagnostics: Diagnostic[] = [];
   let renderCallout:
     | ((block: CalloutBlock, context: BlockRendererContext) => string)
@@ -925,16 +939,16 @@ function checkPluginAdapters(
     const blocks = pluginBlocks(document, entry.blockType);
     if (blocks.length === 0) continue;
     const targets = blocks.map((block) => ({ block }));
-    const renderer = registry.renderers.find((item) => item.id === "html");
+    const renderer = registry.renderers.find((item) => item.id === rendererId);
     if (renderer === undefined) {
       diagnostics.push(
         groupedAdapterDiagnostic(
           "azeforge.renderer#adapter-missing",
-          `No HTML Renderer is registered for ${entry.blockType} Blocks.`,
+          `No ${rendererName} Renderer is registered for ${entry.blockType} Blocks.`,
           targets,
           sourceName,
-          { blockType: entry.blockType, rendererId: "html" },
-          "Register the built-in HTML Renderer.",
+          { blockType: entry.blockType, rendererId },
+          `Register the built-in ${rendererName} Renderer.`,
           entry.blockType,
         ),
       );
@@ -944,7 +958,7 @@ function checkPluginAdapters(
       diagnostics.push(
         groupedAdapterDiagnostic(
           "azeforge.renderer#adapter-disabled",
-          `HTML Renderer "${renderer.id}" is disabled by host policy.`,
+          `${rendererName} Renderer "${renderer.id}" is disabled by host policy.`,
           targets,
           sourceName,
           { rendererId: renderer.id },
@@ -957,7 +971,7 @@ function checkPluginAdapters(
     const candidates = registry.blockRenderers.filter(
       (item) =>
         item.descriptor.blockType === entry.blockType &&
-        item.descriptor.rendererId === "html",
+        item.descriptor.rendererId === rendererId,
     );
     if (candidates.length === 0) {
       diagnostics.push(
@@ -966,8 +980,8 @@ function checkPluginAdapters(
           `No Block renderer is registered for ${entry.blockType} Blocks.`,
           targets,
           sourceName,
-          { blockType: entry.blockType, rendererId: "html" },
-          `Register the built-in ${entry.blockType} HTML Block renderer.`,
+          { blockType: entry.blockType, rendererId },
+          `Register the built-in ${entry.blockType} ${rendererName} Block renderer.`,
           entry.blockType,
         ),
       );
@@ -996,7 +1010,7 @@ function checkPluginAdapters(
                   rendererVersionRange: candidate.descriptor.rendererVersionRange,
                 }),
           },
-          `Register a Block renderer compatible with ${entry.blockType} v1 and HTML v1.`,
+          `Register a Block renderer compatible with ${entry.blockType} v1 and ${rendererName} v1.`,
           entry.blockType,
         ),
       );
@@ -1210,7 +1224,7 @@ export function createCompiler(options: CompilerOptions = {}): Compiler {
       if (validation.document === undefined) {
         return { diagnostics: validation.diagnostics };
       }
-      if (compileOptions.format !== "html") {
+      if (compileOptions.format !== "html" && compileOptions.format !== "svg") {
         const unsupportedFormat = createDiagnostic(
           "azeforge.renderer#format-unsupported",
           "error",
@@ -1225,6 +1239,79 @@ export function createCompiler(options: CompilerOptions = {}): Compiler {
         return {
           diagnostics: normalizeAndLimitDiagnostics(
             [validation.diagnostics, [unsupportedFormat]],
+            diagnosticLimits,
+          ),
+        };
+      }
+      const selectedRenderer = registry.renderers.find((renderer) =>
+        renderer.formats.includes(compileOptions.format),
+      );
+      if (selectedRenderer === undefined) {
+        const unavailableRenderer = createDiagnostic(
+          "azeforge.renderer#format-unsupported",
+          "error",
+          `No Renderer is registered for Artifact format \"${compileOptions.format}\".`,
+          {
+            ...(compileOptions.sourceName === undefined
+              ? {}
+              : { location: { source: compileOptions.sourceName } }),
+            data: { format: compileOptions.format },
+          },
+        );
+        return {
+          diagnostics: normalizeAndLimitDiagnostics(
+            [validation.diagnostics, [unavailableRenderer]],
+            diagnosticLimits,
+          ),
+        };
+      }
+      if (
+        selectedRenderer.id !== compileOptions.format ||
+        selectedRenderer.version !==
+          BUILT_IN_RENDERER_VERSION_BY_FORMAT[compileOptions.format]
+      ) {
+        const unavailableImplementation = createDiagnostic(
+          "azeforge.renderer#adapter-missing",
+          "error",
+          `The registered Renderer for \"${compileOptions.format}\" has no trusted implementation.`,
+          {
+            ...(compileOptions.sourceName === undefined
+              ? {}
+              : { location: { source: compileOptions.sourceName } }),
+            data: {
+              format: compileOptions.format,
+              rendererId: selectedRenderer.id,
+              rendererVersion: selectedRenderer.version,
+            },
+            suggestion: `Register the built-in ${compileOptions.format.toUpperCase()} Renderer.`,
+          },
+        );
+        return {
+          diagnostics: normalizeAndLimitDiagnostics(
+            [validation.diagnostics, [unavailableImplementation]],
+            diagnosticLimits,
+          ),
+        };
+      }
+      if (policy.disabledRendererIds?.includes(selectedRenderer.id) === true) {
+        const disabledRenderer = createDiagnostic(
+          "azeforge.renderer#adapter-disabled",
+          "error",
+          `Renderer \"${selectedRenderer.id}\" is disabled by host policy.`,
+          {
+            ...(compileOptions.sourceName === undefined
+              ? {}
+              : { location: { source: compileOptions.sourceName } }),
+            data: {
+              format: compileOptions.format,
+              rendererId: selectedRenderer.id,
+            },
+            suggestion: "Enable the Renderer in Compiler policy.",
+          },
+        );
+        return {
+          diagnostics: normalizeAndLimitDiagnostics(
+            [validation.diagnostics, [disabledRenderer]],
             diagnosticLimits,
           ),
         };
@@ -1273,6 +1360,7 @@ export function createCompiler(options: CompilerOptions = {}): Compiler {
       try {
         const equationPreflight = await renderEquationFragments(
           validation.document,
+          selectedRenderer.id,
           registry,
           policy,
           compileOptions.sourceName,
@@ -1280,6 +1368,7 @@ export function createCompiler(options: CompilerOptions = {}): Compiler {
         );
         const mermaidPreflight = await renderMermaidFragments(
           validation.document,
+          selectedRenderer.id,
           registry,
           policy,
           compileOptions.sourceName,
@@ -1288,6 +1377,7 @@ export function createCompiler(options: CompilerOptions = {}): Compiler {
         );
         const pluginPreflight = checkPluginAdapters(
           validation.document,
+          selectedRenderer.id,
           registry,
           policy,
           compileOptions.sourceName,
@@ -1338,7 +1428,15 @@ export function createCompiler(options: CompilerOptions = {}): Compiler {
         fontFacesPromise ??= loadInterFontFaces();
         const fontFaces = await fontFacesPromise;
         const contentHash = documentContentHash(validation.document);
-        const artifact = await renderHtml(
+        const pluginRenderers = {
+          ...(pluginPreflight.renderCallout === undefined
+            ? {}
+            : { renderCallout: pluginPreflight.renderCallout }),
+          ...(pluginPreflight.renderTable === undefined
+            ? {}
+            : { renderTable: pluginPreflight.renderTable }),
+        };
+        const renderArguments = [
           imageResolution.document,
           contentHash,
           theme,
@@ -1347,16 +1445,27 @@ export function createCompiler(options: CompilerOptions = {}): Compiler {
           katexDependencyClosure(),
           mermaidPreflight.fragments,
           mermaidDependencyClosure(),
-          {
-            ...(pluginPreflight.renderCallout === undefined
-              ? {}
-              : { renderCallout: pluginPreflight.renderCallout }),
-            ...(pluginPreflight.renderTable === undefined
-              ? {}
-              : { renderTable: pluginPreflight.renderTable }),
-          },
-          imageResolution.manifest,
-        );
+          pluginRenderers,
+        ] as const;
+        const artifact =
+          compileOptions.format === "html"
+            ? await renderHtml(...renderArguments, imageResolution.manifest)
+            : await renderSvg(
+                createHtmlLayout(
+                  renderArguments[0],
+                  renderArguments[2],
+                  renderArguments[3],
+                  renderArguments[4],
+                  renderArguments[5],
+                  renderArguments[6],
+                  renderArguments[7],
+                  renderArguments[8],
+                ),
+                contentHash,
+                theme,
+                imageResolution.manifest,
+                pinnedSvgBrowserCapability,
+              );
         return {
           diagnostics: validation.diagnostics,
           document: validation.document,
@@ -1377,7 +1486,8 @@ export function createCompiler(options: CompilerOptions = {}): Compiler {
                     : { location: { source: compileOptions.sourceName } }),
                 },
               )
-            : error instanceof ArtifactLimitError
+            : error instanceof ArtifactLimitError ||
+                error instanceof SvgArtifactLimitError
               ? createDiagnostic(
                   "azeforge.renderer#artifact-limit",
                   "error",
@@ -1392,7 +1502,7 @@ export function createCompiler(options: CompilerOptions = {}): Compiler {
               : createDiagnostic(
                   "azeforge.renderer#unexpected-failure",
                   "error",
-                  "The HTML Renderer failed unexpectedly.",
+                  `The ${compileOptions.format.toUpperCase()} Renderer failed unexpectedly.`,
                   {
                     ...(compileOptions.sourceName === undefined
                       ? {}

@@ -1,6 +1,6 @@
 # AzeForge
 
-AzeForge currently compiles AzeMark prose into deterministic, self-contained HTML. This README documents the first CLI tracer bullet. Broader product documentation will replace it later.
+AzeForge compiles AzeMark into deterministic, self-contained HTML and continuous-layout SVG Artifacts.
 
 ## Supported syntax
 
@@ -130,6 +130,17 @@ open /tmp/manual.html
 ```
 
 A successful render exits with status `0` and atomically replaces `/tmp/manual.html`.
+
+Use an `.svg` destination or pass `--format svg` to produce SVG2 with an
+XHTML `foreignObject`. The SVG records its required `svg2` and
+`xhtml-foreign-object` capabilities in Artifact metadata; it does not emit a
+fallback format.
+
+```bash
+node dist/cli.js render \
+  /tmp/manual.aze.md \
+  --output /tmp/manual.svg
+```
 
 Check that the Artifact embeds its fonts and contains no scripts:
 
