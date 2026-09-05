@@ -9,6 +9,7 @@ import { artifactBytesHash, canonicalJson, sha256 } from "./hash.js";
 import {
   CHROME_HEADLESS_SHELL_VERSION,
   launchPinnedBrowser,
+  throwIfDeniedBrowserRequest,
 } from "./mermaid-browser.js";
 import { mermaidHtmlBlockRenderer } from "./mermaid.js";
 import type {
@@ -483,9 +484,7 @@ async function printPagedPdf(
       },
       { limit: contentHeightPx, selector: ATOMIC_SELECTOR, floor: PDF_MIN_ATOMIC_SCALE },
     );
-    if (deniedRequest !== undefined) {
-      throw new Error(`Layout requested an external resource: ${deniedRequest}`);
-    }
+    throwIfDeniedBrowserRequest(deniedRequest);
     if (overflow.length > 0) {
       throw new PdfArtifactLimitError(
         Buffer.byteLength(html, "utf8"),

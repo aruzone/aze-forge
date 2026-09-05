@@ -430,31 +430,51 @@ export function renderEquationToHtml(tex: string): string {
   return sanitizeKatexHtml(katex.renderToString(tex, { ...KATEX_RENDER_OPTIONS }));
 }
 
+export type EquationSanitizerFinding = "executable-markup" | "unsafe-url";
+
+export class EquationSanitizerError extends Error {
+  readonly finding: EquationSanitizerFinding;
+
+  constructor(finding: EquationSanitizerFinding) {
+    super(
+      finding === "executable-markup"
+        ? "KaTeX Fragment failed final sanitization: executable markup is refused."
+        : "KaTeX Fragment failed final sanitization: unsafe URL scheme is refused.",
+    );
+    this.name = "EquationSanitizerError";
+    this.finding = finding;
+  }
+}
+
+const UNSAFE_SANITIZER_URL_SCHEME =
+  /^(?:javascript|vbscript|file|ftp|blob):|^data:text\/html/i;
+
 /**
  * Final sanitization for KaTeX Fragments. KaTeX with trust:false never
- * emits scripts or remote loads; this deny-list pass discards execution
- * vectors deterministically while preserving visual HTML and MathML.
+ * emits scripts or remote loads, so any executable markup or unsafe URL
+ * scheme is a compromise signal and fails closed instead of being
+ * rewritten. Clean output passes through byte-identical.
  */
 export function sanitizeKatexHtml(html: string): string {
-  let clean = html
-    .replace(/<\s*(script|iframe|object|embed|link|meta|base)\b[^>]*>.*?<\s*\/\s*\1\s*>/gis, "")
-    .replace(/<\s*(script|iframe|object|embed|link|meta|base)\b[^>]*\/?>/gi, "");
-  clean = clean.replace(/\son[a-z]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, "");
-  clean = clean.replace(
-    /\s(href|src|xlink:href)\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi,
-    (match, _attr: string, quoted: string) => {
-      const url = quoted.replace(/^["']|["']$/g, "").trim().toLowerCase();
-      if (
-        url.startsWith("javascript:") ||
-        url.startsWith("data:text/html") ||
-        url.startsWith("vbscript:")
-      ) {
-        return "";
-      }
-      return match;
-    },
-  );
-  return clean;
+  if (
+    /<\s*(script|iframe|object|embed|link|meta|base)\b/i.test(html) ||
+    /\son[a-z]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/i.test(html)
+  ) {
+    throw new EquationSanitizerError("executable-markup");
+  }
+  const urlAttribute =
+    /\s(?:href|src|xlink:href)\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi;
+  for (let match = urlAttribute.exec(html); match !== null; match = urlAttribute.exec(html)) {
+    const raw = match[1] ?? "";
+    const url = raw
+      .replace(/^["']|["']$/g, "")
+      .replace(/[\s\0-\x1f]+/g, "")
+      .toLowerCase();
+    if (UNSAFE_SANITIZER_URL_SCHEME.test(url)) {
+      throw new EquationSanitizerError("unsafe-url");
+    }
+  }
+  return html;
 }
 
 export interface ValidatedEquation {
