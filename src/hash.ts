@@ -93,6 +93,18 @@ export function documentContentHash(document: AzeDocument): ContentHash {
       if (block.align !== undefined) projected.align = block.align;
       return projected;
     }
+    if (block.kind === "mermaid") {
+      const projected: Record<string, JsonValue> = {
+        kind: block.kind,
+        pluginVersion: block.pluginVersion,
+        diagramType: block.diagramType,
+        source: block.source,
+      };
+      if (block.id !== undefined) projected.id = block.id;
+      if (block.title !== undefined) projected.title = block.title;
+      if (block.description !== undefined) projected.description = block.description;
+      return projected;
+    }
     if (block.kind === "thematicBreak") {
       const projected: Record<string, JsonValue> = { kind: block.kind };
       if (block.id !== undefined) projected.id = block.id;

@@ -238,6 +238,29 @@ function isParsedBlock(value: unknown): value is ParsedBlock {
         value.align === "right")
     );
   }
+  if (value.kind === "mermaid") {
+    return (
+      hasOnlyKeys(value, [
+        "kind",
+        "range",
+        "id",
+        "pluginVersion",
+        "diagramType",
+        "source",
+        "title",
+        "description",
+      ]) &&
+      isSourceRange(value.range) &&
+      (value.id === undefined || typeof value.id === "string") &&
+      value.pluginVersion === "1.0.0" &&
+      typeof value.diagramType === "string" &&
+      value.diagramType.length > 0 &&
+      typeof value.source === "string" &&
+      value.source.length > 0 &&
+      (value.title === undefined || typeof value.title === "string") &&
+      (value.description === undefined || typeof value.description === "string")
+    );
+  }
   if (value.kind === "invalid") {
     return (
       hasOnlyKeys(value, [

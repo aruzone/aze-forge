@@ -254,7 +254,7 @@ After
   assert.deepEqual(invalid?.diagnosticIndexes, [0]);
   assert.deepEqual(parsed.diagnostics[0]?.data, {
     type: "mystery",
-    availableTypes: ["callout", "equation", "table"],
+    availableTypes: ["callout", "equation", "mermaid", "table"],
   });
   assert.equal(
     parsed.diagnostics[0]?.code,
@@ -421,11 +421,17 @@ azemark: 1
     [
       {
         code: "azeforge.source#unknown-directive",
-        data: { type: "one", availableTypes: ["callout", "equation", "table"] },
+        data: {
+          type: "one",
+          availableTypes: ["callout", "equation", "mermaid", "table"],
+        },
       },
       {
         code: "azeforge.source#unknown-directive",
-        data: { type: "two", availableTypes: ["callout", "equation", "table"] },
+        data: {
+          type: "two",
+          availableTypes: ["callout", "equation", "mermaid", "table"],
+        },
       },
       {
         code: "azeforge.diagnostics#truncated",

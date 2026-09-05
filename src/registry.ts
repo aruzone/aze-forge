@@ -6,6 +6,10 @@ import {
   htmlRendererDescriptor,
 } from "./equation.js";
 import { tableHtmlBlockRenderer, tablePlugin } from "./table.js";
+import {
+  mermaidHtmlBlockRenderer,
+  mermaidPlugin,
+} from "./mermaid.js";
 import type {
   AnyBlockRenderer,
   AzeBlockPlugin,
@@ -27,10 +31,16 @@ export interface ResolvedRegistry {
 
 export function getBuiltInRegistry(): ResolvedRegistry {
   return Object.freeze({
-    plugins: Object.freeze([equationPlugin, calloutPlugin, tablePlugin]),
+    plugins: Object.freeze([
+      equationPlugin,
+      calloutPlugin,
+      mermaidPlugin,
+      tablePlugin,
+    ]),
     blockRenderers: Object.freeze([
       equationHtmlBlockRenderer,
       calloutHtmlBlockRenderer,
+      mermaidHtmlBlockRenderer,
       tableHtmlBlockRenderer,
     ]),
     renderers: Object.freeze([htmlRendererDescriptor]),
@@ -96,7 +106,6 @@ function isSchemaObject(value: unknown): value is Record<string, unknown> {
     value.type === "object"
   );
 }
-
 export function validateRegistry(
   plugins: readonly AzeBlockPlugin[],
   blockRenderers: readonly AnyBlockRenderer[],

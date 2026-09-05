@@ -10,6 +10,12 @@ import {
   validateEquationBody,
 } from "./equation.js";
 import { isGfmTableStart, parseInlineFragment, splitTableRow, tryParseGfmTable } from "./markdown.js";
+import {
+  MERMAID_PLUGIN_TYPE,
+  mermaidPlugin,
+  parseMermaidHeader,
+  validateMermaidBody,
+} from "./mermaid.js";
 import type {
   ArtifactFormat,
   CalloutBlock,
@@ -1185,6 +1191,54 @@ function splitHeaderEntries(
   }
   return { entries, bodyStart: cursor };
 }
+function parseMermaidEnvelope(
+  source: string,
+  lines: readonly SourceLine[],
+  openIndex: number,
+  closingIndex: number,
+  first: SourceLine,
+  last: SourceLine,
+  options: ParseOptions,
+  diagnostics: Diagnostic[],
+): ParsedBlock {
+  const blockRange = rangeFromLines(first, last);
+  const startIndex = diagnostics.length;
+  const finishInvalid = (): ParsedBlock =>
+    invalidBlockFor(
+      source,
+      first,
+      last,
+      startIndex,
+      diagnostics,
+      MERMAID_PLUGIN_TYPE,
+    );
+  const { entries, bodyStart } = splitHeaderEntries(
+    lines,
+    openIndex,
+    closingIndex,
+  );
+  const header = parseMermaidHeader(
+    entries,
+    blockRange,
+    options.sourceName,
+  );
+  if (header.diagnostics.length > 0) {
+    diagnostics.push(...header.diagnostics);
+    return finishInvalid();
+  }
+  const bodyLines = lines.slice(bodyStart, closingIndex);
+  const validated = validateMermaidBody({
+    header,
+    body: bodyLines.map((line) => lineText(line)).join("\n"),
+    bodyRanges: bodyLines.map((line) => rangeFromLines(line, line)),
+    blockRange,
+    sourceName: options.sourceName,
+  });
+  if (validated.block !== undefined) return validated.block;
+  diagnostics.push(...validated.diagnostics);
+  return finishInvalid();
+}
+
 
 function parseCalloutEnvelope(
   source: string,
@@ -1390,7 +1444,6 @@ function parseTableEnvelope(
   return block;
 }
 
-
 function parseBlocks(
   source: string,
   lines: readonly SourceLine[],
@@ -1466,6 +1519,25 @@ function parseBlocks(
             last,
             options,
             allowRawLatex,
+            diagnostics,
+          ),
+        );
+        continue;
+      }
+      if (
+        closed &&
+        originalType === MERMAID_PLUGIN_TYPE &&
+        activeTypes.includes(MERMAID_PLUGIN_TYPE)
+      ) {
+        blocks.push(
+          parseMermaidEnvelope(
+            source,
+            lines,
+            openIndex,
+            closingIndex,
+            first,
+            last,
+            options,
             diagnostics,
           ),
         );
@@ -1915,7 +1987,12 @@ export function parseSource(source: string, options: ParseOptions = {}): ParseRe
     options,
   );
   if (versionDiagnostic !== undefined) diagnostics.push(versionDiagnostic);
-  const activePlugins = options.plugins ?? [equationPlugin, calloutPlugin, tablePlugin];
+  const activePlugins = options.plugins ?? [
+    equationPlugin,
+    calloutPlugin,
+    mermaidPlugin,
+    tablePlugin,
+  ];
   const activeTypes = [...new Set(activePlugins.map((plugin) => plugin.descriptor.type))].sort();
   const blocks = parseBlocks(
     source,

@@ -1,5 +1,6 @@
 import { renderCalloutFragment } from "./callout.js";
 import { KATEX_VERSION, getKatexCss } from "./equation.js";
+import { MERMAID_VERSION } from "./mermaid.js";
 import type { EmbeddedFontFace } from "./font.js";
 import { artifactBytesHash, canonicalJson, sha256 } from "./hash.js";
 import { escapeHtml, renderInlineHtml } from "./html-fragment.js";
@@ -14,6 +15,7 @@ import type {
   EquationBlock,
   JsonValue,
   TableBlock,
+  MermaidBlock,
   Theme,
 } from "./model.js";
 import { renderTableFragment } from "./table.js";
@@ -47,6 +49,7 @@ export interface HtmlPluginRenderers {
 interface RenderContext {
   readonly sourceName?: string;
   readonly equationFragments: ReadonlyMap<EquationBlock, string>;
+  readonly mermaidFragments: ReadonlyMap<MermaidBlock, string>;
   readonly renderCallout: (
     block: CalloutBlock,
     context: BlockRendererContext,
@@ -74,6 +77,11 @@ function renderBlock(block: AzeBlock, context: RenderContext): string {
     case "equation":
       return (
         context.equationFragments.get(block) ?? '<figure class="aze-equation"></figure>'
+      );
+    case "mermaid":
+      return (
+        context.mermaidFragments.get(block) ??
+        '<figure class="aze-mermaid"></figure>'
       );
     case "heading":
       return `<h${block.level}${idAttribute(block.id)}>${renderInlineHtml(block.children)}</h${block.level}>`;
@@ -118,7 +126,7 @@ function embeddedFontCss(fontFaces: readonly EmbeddedFontFace[]): string {
   return fontFaces
     .map(
       (font) =>
-        `@font-face{font-family:Inter;font-style:normal;font-weight:${font.weight};font-display:block;src:url(data:font/woff2;base64,${font.data}) format(\"woff2\");unicode-range:${font.unicodeRange}}`,
+        `@font-face{font-family:Inter;font-style:normal;font-weight:${font.weight};font-display:block;src:url(data:font/woff2;base64,${font.data}) format("woff2");unicode-range:${font.unicodeRange}}`,
     )
     .join("");
 }
@@ -135,6 +143,8 @@ export async function renderHtml(
   fontFaces: readonly EmbeddedFontFace[],
   equationFragments: ReadonlyMap<EquationBlock, string> = new Map(),
   equationDependencyClosure: JsonValue = { katex: KATEX_VERSION },
+  mermaidFragments: ReadonlyMap<MermaidBlock, string> = new Map(),
+  mermaidDependencyClosure: JsonValue = { mermaid: MERMAID_VERSION },
   pluginRenderers: HtmlPluginRenderers = {},
 ): Promise<Artifact> {
   const renderCallout =
@@ -152,6 +162,7 @@ export async function renderHtml(
         sourceHash,
       })),
       equations: equationDependencyClosure,
+      diagrams: mermaidDependencyClosure,
       prose: {
         serializer: "azeforge-prose/v1",
         callout: "1.0.0",
@@ -160,9 +171,10 @@ export async function renderHtml(
     }),
   );
   const title = escapeHtml(documentTitle(document));
-  const css = `${embeddedFontCss(fontFaces)}${themeCss(theme)}${getKatexCss()}.aze-equation{margin:1em 0;text-align:center}.aze-equation[data-align="left"]{text-align:left}.aze-equation[data-align="right"]{text-align:right}`;
+  const css = `${embeddedFontCss(fontFaces)}${themeCss(theme)}${getKatexCss()}.aze-equation{margin:1em 0;text-align:center}.aze-equation[data-align="left"]{text-align:left}.aze-equation[data-align="right"]{text-align:right}.aze-mermaid{margin:1em 0}.aze-mermaid svg{display:block;max-width:100%;height:auto;margin:0 auto}`;
   const context: RenderContext = {
     equationFragments,
+    mermaidFragments,
     renderCallout,
     renderTable,
   };

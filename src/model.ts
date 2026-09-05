@@ -171,6 +171,17 @@ export interface EquationBlock {
   readonly align?: "left" | "center" | "right";
 }
 
+export interface MermaidBlock {
+  readonly kind: "mermaid";
+  readonly range: SourceRange;
+  readonly id?: string;
+  readonly pluginVersion: string;
+  readonly diagramType: string;
+  readonly source: string;
+  readonly title?: string;
+  readonly description?: string;
+}
+
 export type ParsedBlock =
   | HeadingBlock
   | ParagraphBlock
@@ -181,6 +192,7 @@ export type ParsedBlock =
   | TableBlock
   | CalloutBlock
   | EquationBlock
+  | MermaidBlock
   | InvalidBlock;
 export type AzeBlock =
   | HeadingBlock
@@ -191,7 +203,8 @@ export type AzeBlock =
   | CodeBlock
   | TableBlock
   | CalloutBlock
-  | EquationBlock;
+  | EquationBlock
+  | MermaidBlock;
 export type ArtifactFormat = "html" | "svg" | "png" | "pdf";
 
 export interface DocumentMetadata {
@@ -368,6 +381,18 @@ export interface EquationBlockRenderer {
     context: Readonly<{ sourceName?: string }>,
   ) => string | Promise<string>;
 }
+export interface MermaidBlockRenderer {
+  readonly descriptor: BlockRendererDescriptor;
+  readonly render: (
+    block: MermaidBlock,
+    context: Readonly<{
+      sourceName?: string;
+      ordinal?: number;
+      theme?: Theme;
+    }>,
+  ) => string | Promise<string>;
+}
+
 
 export interface BlockRendererContext {
   readonly sourceName?: string;
@@ -386,7 +411,9 @@ export type AnyBlockRenderer =
   | AzeBlockRenderer<AzeBlock>
   | AzeBlockRenderer<EquationBlock>
   | AzeBlockRenderer<CalloutBlock>
-  | AzeBlockRenderer<TableBlock>;
+  | AzeBlockRenderer<TableBlock>
+  | MermaidBlockRenderer;
+export type BlockRenderer = AnyBlockRenderer;
 
 export interface CompilerPolicy {
   readonly disabledBlockRendererIds?: readonly string[];
