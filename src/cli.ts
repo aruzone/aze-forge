@@ -50,7 +50,7 @@ interface RenderArguments extends CommonArguments {
   readonly command: "render";
   readonly artifactPath?: string;
   readonly stdout: boolean;
-  readonly format: "html" | "svg";
+  readonly format: "html" | "svg" | "png";
   readonly theme?: string;
 }
 
@@ -247,7 +247,7 @@ function parseArguments(
   const inferredFormat = FORMAT_BY_EXTENSION[extension];
   const selectedFormat = format ?? inferredFormat;
   if (
-    (selectedFormat !== "html" && selectedFormat !== "svg") ||
+    (selectedFormat !== "html" && selectedFormat !== "svg" && selectedFormat !== "png") ||
     (format !== undefined && inferredFormat !== undefined && format !== inferredFormat)
   ) {
     throw new CliUsageError("The Artifact format and destination extension disagree.");
@@ -391,6 +391,22 @@ async function main(): Promise<void> {
   }
 
   try {
+    if (
+      arguments_.command === "render" &&
+      arguments_.stdout &&
+      arguments_.format === "png" &&
+      process.stdout.isTTY === true
+    ) {
+      emitDiagnostics(diagnosticsMode, arguments_.command, false, [
+        createDiagnostic(
+          "azeforge.cli#invalid-operation",
+          "error",
+          "Binary Artifact stdout requires a redirected destination, not an interactive terminal.",
+        ),
+      ]);
+      process.exitCode = 2;
+      return;
+    }
     if (arguments_.command === "render" && arguments_.artifactPath !== undefined) {
       const canonicalSourcePath = await realpath(arguments_.sourcePath);
       let canonicalArtifactPath: string;

@@ -69,6 +69,11 @@ import {
   renderSvg,
   SvgArtifactLimitError,
 } from "./render-svg.js";
+import {
+  pinnedPngBrowserCapability,
+  PngArtifactLimitError,
+  renderPng,
+} from "./render-png.js";
 import { validateBlockIds } from "./reference-validation.js";
 import { builtInThemes, copyAndFreezeTheme } from "./theme.js";
 import { validateDocumentSchema } from "./validate-document.js";
@@ -77,6 +82,7 @@ const SEMVER = /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$/;
 const BUILT_IN_RENDERER_VERSION_BY_FORMAT = {
   html: "1.0.0",
   svg: "1.0.0",
+  png: "1.0.0",
 } as const;
 
 function validateParsed(
@@ -1225,7 +1231,7 @@ export function createCompiler(options: CompilerOptions = {}): Compiler {
       if (validation.document === undefined) {
         return { diagnostics: validation.diagnostics };
       }
-      if (compileOptions.format !== "html" && compileOptions.format !== "svg") {
+      if (compileOptions.format !== "html" && compileOptions.format !== "svg" && compileOptions.format !== "png") {
         const unsupportedFormat = createDiagnostic(
           "azeforge.renderer#format-unsupported",
           "error",
@@ -1451,25 +1457,34 @@ export function createCompiler(options: CompilerOptions = {}): Compiler {
           mermaidDependencyClosure(),
           pluginRenderers,
         ] as const;
+        const htmlLayout = createHtmlLayout(
+          renderArguments[0],
+          renderArguments[2],
+          renderArguments[3],
+          renderArguments[4],
+          renderArguments[5],
+          renderArguments[6],
+          renderArguments[7],
+          renderArguments[8],
+        );
         const artifact =
           compileOptions.format === "html"
             ? await renderHtml(...renderArguments, imageResolution.manifest)
-            : await renderSvg(
-                createHtmlLayout(
-                  renderArguments[0],
-                  renderArguments[2],
-                  renderArguments[3],
-                  renderArguments[4],
-                  renderArguments[5],
-                  renderArguments[6],
-                  renderArguments[7],
-                  renderArguments[8],
-                ),
-                contentHash,
-                theme,
-                imageResolution.manifest,
-                pinnedSvgBrowserCapability,
-              );
+            : compileOptions.format === "svg"
+              ? await renderSvg(
+                  htmlLayout,
+                  contentHash,
+                  theme,
+                  imageResolution.manifest,
+                  pinnedSvgBrowserCapability,
+                )
+              : await renderPng(
+                  htmlLayout,
+                  contentHash,
+                  theme,
+                  imageResolution.manifest,
+                  pinnedPngBrowserCapability,
+                );
         return {
           diagnostics: validation.diagnostics,
           document: validation.document,
@@ -1491,7 +1506,8 @@ export function createCompiler(options: CompilerOptions = {}): Compiler {
                 },
               )
             : error instanceof ArtifactLimitError ||
-                error instanceof SvgArtifactLimitError
+                error instanceof SvgArtifactLimitError ||
+                error instanceof PngArtifactLimitError
               ? createDiagnostic(
                   "azeforge.renderer#artifact-limit",
                   "error",
@@ -1503,16 +1519,30 @@ export function createCompiler(options: CompilerOptions = {}): Compiler {
                       : { location: { source: compileOptions.sourceName } }),
                   },
                 )
-              : createDiagnostic(
-                  "azeforge.renderer#unexpected-failure",
-                  "error",
-                  `The ${compileOptions.format.toUpperCase()} Renderer failed unexpectedly.`,
-                  {
-                    ...(compileOptions.sourceName === undefined
-                      ? {}
-                      : { location: { source: compileOptions.sourceName } }),
-                  },
-                );
+              : error instanceof MermaidBrowserUnavailableError
+                ? createDiagnostic(
+                    "azeforge.renderer#browser-unavailable",
+                    "error",
+                    `The pinned browser engine is unavailable: ${error.message}`,
+                    {
+                      data: { engine: "HeadlessChrome" },
+                      suggestion:
+                        "Reinstall AzeForge browser dependencies and retry.",
+                      ...(compileOptions.sourceName === undefined
+                        ? {}
+                        : { location: { source: compileOptions.sourceName } }),
+                    },
+                  )
+                : createDiagnostic(
+                    "azeforge.renderer#unexpected-failure",
+                    "error",
+                    `The ${compileOptions.format.toUpperCase()} Renderer failed unexpectedly.`,
+                    {
+                      ...(compileOptions.sourceName === undefined
+                        ? {}
+                        : { location: { source: compileOptions.sourceName } }),
+                    },
+                  );
         return {
           diagnostics: normalizeAndLimitDiagnostics(
             [validation.diagnostics, [rendererFailure]],

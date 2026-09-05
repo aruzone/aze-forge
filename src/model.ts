@@ -349,7 +349,18 @@ export interface SvgArtifactMetadata extends ArtifactMetadataBase {
   readonly requiredCapabilities: readonly ["svg2", "xhtml-foreign-object"];
 }
 
-export type ArtifactMetadata = HtmlArtifactMetadata | SvgArtifactMetadata;
+export interface PngArtifactMetadata extends ArtifactMetadataBase {
+  readonly format: "png";
+  readonly mimeType: "image/png";
+  readonly profile: "azeforge.png.continuous/v1";
+  readonly pixelDimensions: Readonly<{ width: number; height: number }>;
+  readonly requiredCapabilities: readonly ["png-continuous", "srgb"];
+}
+
+export type ArtifactMetadata =
+  | HtmlArtifactMetadata
+  | SvgArtifactMetadata
+  | PngArtifactMetadata;
 
 export interface Artifact {
   readonly bytes: Uint8Array;
@@ -357,7 +368,7 @@ export interface Artifact {
 }
 
 export interface CompileOptions extends ParseOptions {
-  readonly format: "html" | "svg";
+  readonly format: "html" | "svg" | "png";
   readonly theme?: string;
   readonly allowRawLatex?: boolean;
   readonly projectRoot?: string;
