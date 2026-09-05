@@ -2,7 +2,6 @@ export { createCompiler } from "./compiler.js";
 export { CompilerConfigurationError } from "./configuration-error.js";
 export { DIAGNOSTICS_SCHEMA_ID, diagnosticsJsonSchema } from "./diagnostics-json.js";
 export type { DiagnosticsReport } from "./diagnostics-json.js";
-export { formatSource } from "./format.js";
 export {
   EQUATION_BODY_SYNTAX_ID,
   EQUATION_BODY_SYNTAX_VERSION,

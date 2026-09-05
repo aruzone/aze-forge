@@ -354,3 +354,68 @@ test("format --diagnostics json emits one finite report instead of Source", asyn
   );
   assert.deepEqual(result.stderr, Buffer.alloc(0));
 });
+
+test("format preserves multiline denied raw HTML while emitting LF", async () => {
+  const source = [
+    "---",
+    "azemark: 1",
+    "---",
+    "",
+    "Before",
+    "",
+    "<div>\r",
+    "content  \r",
+    "</div>\r",
+    "",
+    "After",
+    "",
+  ].join("\n");
+
+  const formatted = createCompiler().format(source);
+
+  assert.deepEqual(formatted.diagnostics, []);
+  assert.equal(
+    formatted.source,
+    "---\nazemark: 1\n---\n\nBefore\n\n<div>\ncontent  \n</div>\n\nAfter\n",
+  );
+});
+
+test("format preserves denied raw LaTeX body trivia while emitting LF", async () => {
+  const source = [
+    "---\r",
+    "azemark: 1\r",
+    "---\r",
+    "\r",
+    "::::: equation\r",
+    "syntax:latex\r",
+    "\r",
+    "\\begin{aligned}  \r",
+    "\r",
+    "x &= y\t\r",
+    "\\end{aligned}\r",
+    ":::::\r",
+    "",
+  ].join("\n");
+
+  const formatted = createCompiler().format(source);
+
+  assert.deepEqual(formatted.diagnostics, []);
+  assert.equal(
+    formatted.source,
+    [
+      "---",
+      "azemark: 1",
+      "---",
+      "",
+      ":::: equation",
+      "syntax: latex",
+      "",
+      "\\begin{aligned}  ",
+      "",
+      "x &= y\t",
+      "\\end{aligned}",
+      "::::",
+      "",
+    ].join("\n"),
+  );
+});

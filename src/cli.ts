@@ -314,13 +314,16 @@ function formatDiagnostic(
   return `${lines.join("\n")}\n`;
 }
 
-async function readSource(path: string): Promise<string> {
-  const bytes = await readFile(path);
+function decodeSource(bytes: Uint8Array, sourceLabel: string): string {
   try {
     return new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(bytes);
   } catch {
-    throw new InvalidUtf8Error(path);
+    throw new InvalidUtf8Error(sourceLabel);
   }
+}
+
+async function readSource(path: string): Promise<string> {
+  return decodeSource(await readFile(path), path);
 }
 
 async function readStdin(sourceLabel: string): Promise<string> {
@@ -328,13 +331,7 @@ async function readStdin(sourceLabel: string): Promise<string> {
   for await (const chunk of process.stdin) {
     chunks.push(typeof chunk === "string" ? Buffer.from(chunk, "utf8") : chunk);
   }
-  try {
-    return new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(
-      Buffer.concat(chunks),
-    );
-  } catch {
-    throw new InvalidUtf8Error(sourceLabel);
-  }
+  return decodeSource(Buffer.concat(chunks), sourceLabel);
 }
 
 async function canonicalDestinationPath(path: string): Promise<string> {

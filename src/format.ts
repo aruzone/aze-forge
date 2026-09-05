@@ -1,5 +1,6 @@
 import { createDiagnostic } from "./diagnostics.js";
 import type { FormatOptions, FormatResult, SourceRange } from "./model.js";
+import { sourceLines, type SourceLine } from "./source-map.js";
 
 const AMBIGUOUS_STRUCTURE = "azeforge.format#ambiguous-structure" as const;
 const EQUATION_TYPE = "equation" as const;
@@ -13,66 +14,26 @@ const HEADER_ENTRY = /^[ \t]*([A-Za-z][A-Za-z0-9-]*)[ \t]*:(.*)$/;
 const ATX_HEADING = /^ {0,3}(#{1,6})(?:[ \t]+(.*)|[ \t]*)$/;
 const SETEXT_UNDERLINE = /^ {0,3}(=+|-+)[ \t]*$/;
 
-interface FormatLine {
-  readonly text: string;
-  readonly ending: "\r\n" | "\n" | "\r" | "";
-  readonly startIndex: number;
-}
+type FormatLine = SourceLine;
 
-function splitLines(source: string): FormatLine[] {
-  const lines: FormatLine[] = [];
-  let start = 0;
-  let index = 0;
-  while (index < source.length) {
-    const character = source[index];
-    if (character === "\r" && source[index + 1] === "\n") {
-      lines.push({ text: source.slice(start, index), ending: "\r\n", startIndex: start });
-      index += 2;
-      start = index;
-    } else if (character === "\n" || character === "\r") {
-      lines.push({
-        text: source.slice(start, index),
-        ending: character,
-        startIndex: start,
-      });
-      index += 1;
-      start = index;
-    } else {
-      index += 1;
-    }
-  }
-  if (start < source.length) {
-    lines.push({ text: source.slice(start), ending: "", startIndex: start });
-  }
-  return lines;
-}
-
-function byteLength(value: string): number {
-  return Buffer.byteLength(value, "utf8");
-}
-
-function lineRange(source: string, line: FormatLine, lineNumber: number): SourceRange {
-  const startOffset = byteLength(source.slice(0, line.startIndex));
-  const endOffset = byteLength(source.slice(0, line.startIndex + line.text.length));
+function lineRange(line: FormatLine): SourceRange {
   return {
-    start: { line: lineNumber, column: 1, offset: startOffset },
+    start: { line: line.number, column: 1, offset: line.startOffset },
     end: {
-      line: lineNumber,
+      line: line.number,
       column: [...line.text].length + 1,
-      offset: endOffset,
+      offset: line.endOffset,
     },
   };
 }
 
 function ambiguous(
-  source: string,
   line: FormatLine,
-  lineNumber: number,
   message: string,
   suggestion: string,
   options: FormatOptions,
 ): FormatResult {
-  const range = lineRange(source, line, lineNumber);
+  const range = lineRange(line);
   return {
     diagnostics: [
       createDiagnostic(AMBIGUOUS_STRUCTURE, "error", message, {
@@ -138,12 +99,11 @@ function parseAtxHeading(text: string): { level: number; body: string } | undefi
 type OutLine = string;
 
 function preserved(line: FormatLine): OutLine {
-  return line.ending === "\r\n" ? `${line.text}\r` : line.text;
+  return line.text;
 }
 
 interface BlockCursor {
   lines: readonly FormatLine[];
-  source: string;
   options: FormatOptions;
 }
 
@@ -165,6 +125,7 @@ function formatEquationEnvelope(
   const emitted: OutLine[] = [`${":".repeat(4)} ${EQUATION_TYPE}`];
   let cursor = openIndex + 1;
   const entries: OutLine[] = [];
+  let deniedRawLatex = false;
   while (cursor < closingIndex) {
     const header = lines[cursor];
     if (header === undefined) break;
@@ -176,6 +137,7 @@ function formatEquationEnvelope(
     if (match === null) break;
     const key = match[1] ?? "";
     const value = (match[2] ?? "").trim();
+    if (key === "syntax" && value === "latex") deniedRawLatex = true;
     entries.push(value.length === 0 ? `${key}:` : `${key}: ${value}`);
     cursor += 1;
   }
@@ -198,7 +160,9 @@ function formatEquationEnvelope(
     if (candidate !== undefined && !BLANK.test(candidate.text)) break;
     bodyEnd -= 1;
   }
-  const bodyLines = body.slice(bodyStart, bodyEnd).map((line) => trimLineEnd(line.text));
+  const bodyLines = body
+    .slice(bodyStart, bodyEnd)
+    .map((line) => deniedRawLatex ? line.text : trimLineEnd(line.text));
   if (entries.length > 0 && bodyLines.length > 0) emitted.push("");
   emitted.push(...bodyLines);
   emitted.push(":".repeat(4));
@@ -209,7 +173,7 @@ function formatEnvelope(
   cursor: BlockCursor,
   openIndex: number,
 ): { emitted: OutLine[]; nextIndex: number } | FormatResult {
-  const { lines, source, options } = cursor;
+  const { lines, options } = cursor;
   const open = lines[openIndex];
   if (open === undefined) return { emitted: [], nextIndex: openIndex };
   const closingIndex = lines.findIndex(
@@ -219,9 +183,7 @@ function formatEnvelope(
   if (closingIndex < 0) {
     if (!isUnambiguousUnclosedTail(lines, openIndex)) {
       return ambiguous(
-        source,
         open,
-        openIndex + 1,
         "A directive Block must end with a closing `::::` delimiter.",
         "Add a closing `::::` delimiter before the next Block.",
         options,
@@ -282,7 +244,7 @@ function formatFencedBlock(
 
 export function formatSource(source: string, options: FormatOptions = {}): FormatResult {
   const stripped = source.startsWith("\uFEFF") ? source.slice(1) : source;
-  const lines = splitLines(stripped);
+  const lines = sourceLines(stripped);
   const blocks: OutLine[][] = [];
   let frontMatter: OutLine[] | undefined;
 
@@ -295,9 +257,7 @@ export function formatSource(source: string, options: FormatOptions = {}): Forma
       const first = lines[0];
       if (first === undefined) return { diagnostics: [] };
       return ambiguous(
-        stripped,
         first,
-        1,
         "Front matter must end with a --- delimiter.",
         "Add a closing `---` delimiter after the front matter.",
         options,
@@ -311,7 +271,7 @@ export function formatSource(source: string, options: FormatOptions = {}): Forma
     index = closingIndex + 1;
   }
 
-  const cursor: BlockCursor = { lines, source: stripped, options };
+  const cursor: BlockCursor = { lines, options };
   while (index < lines.length && BLANK.test(lines[index]?.text ?? "")) index += 1;
 
   while (index < lines.length) {
@@ -326,9 +286,6 @@ export function formatSource(source: string, options: FormatOptions = {}): Forma
       if ("diagnostics" in envelope) return envelope;
       blocks.push(envelope.emitted);
       index = envelope.nextIndex;
-    } else if (containsDeniedRawHtml(line.text)) {
-      blocks.push([preserved(line)]);
-      index += 1;
     } else {
       const heading = parseAtxHeading(line.text);
       if (heading !== undefined) {
