@@ -1,3 +1,4 @@
+import { resolveProjectImages } from "./assets.js";
 import { CompilerConfigurationError } from "./configuration-error.js";
 import {
   createDiagnostic,
@@ -61,7 +62,7 @@ import type { ResolvedRegistry } from "./registry.js";
 import { parseSource } from "./parse.js";
 import { ArtifactLimitError, renderHtml } from "./render-html.js";
 import { validateBlockIds } from "./reference-validation.js";
-import { copyAndFreezeTheme, defaultTheme } from "./theme.js";
+import { builtInThemes, copyAndFreezeTheme } from "./theme.js";
 import { validateDocumentSchema } from "./validate-document.js";
 const THEME_ID = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
 const SEMVER = /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$/;
@@ -189,6 +190,7 @@ function limitParseResult(
 }
 
 function validateTheme(theme: Theme): void {
+  const validScheme = theme.colorScheme === "light" || theme.colorScheme === "dark";
   const validColors = Object.values(theme.colors).every((color) =>
     /^#[0-9a-f]{6}$/i.test(color),
   );
@@ -214,7 +216,7 @@ function validateTheme(theme: Theme): void {
     theme.typography.bodyFontWeight === 400 &&
     theme.typography.headingFontWeight === 700 &&
     theme.typography.proseFontFamily === "Inter";
-  if (!validColors || !validGeometry || !validTypography) {
+  if (!validScheme || !validColors || !validGeometry || !validTypography) {
     throw new CompilerConfigurationError(
       "AZE_CONFIG_THEME_VALUES",
       `Theme "${theme.id}" contains unsafe or invalid tokens.`,
@@ -1042,7 +1044,7 @@ function checkPluginAdapters(
 
 export function createCompiler(options: CompilerOptions = {}): Compiler {
   const diagnosticLimits = resolveDiagnosticLimits(options);
-  const configuredThemes = options.themes ?? [defaultTheme];
+  const configuredThemes = options.themes ?? builtInThemes;
   const themes: Record<string, Theme> = {};
   for (const theme of configuredThemes) {
     if (!THEME_ID.test(theme.id) || !SEMVER.test(theme.version)) {
@@ -1092,6 +1094,11 @@ export function createCompiler(options: CompilerOptions = {}): Compiler {
           disabledRendererIds: Object.freeze([
             ...options.policy.disabledRendererIds,
           ]),
+        }),
+    ...(options.policy?.disabledThemeIds === undefined
+      ? {}
+      : {
+          disabledThemeIds: Object.freeze([...options.policy.disabledThemeIds]),
         }),
   });
   const renderTimeoutMs = options.renderTimeoutMs ?? DEFAULT_RENDER_TIMEOUT_MS;
@@ -1153,7 +1160,7 @@ export function createCompiler(options: CompilerOptions = {}): Compiler {
         const unknownTheme = createDiagnostic(
           "azeforge.renderer#unknown-theme",
           "error",
-          `Theme \"${themeId}\" is not registered.`,
+          `Theme "${themeId}" is not registered.`,
           {
             ...(compileOptions.sourceName === undefined
               ? {}
@@ -1164,6 +1171,25 @@ export function createCompiler(options: CompilerOptions = {}): Compiler {
         return {
           diagnostics: normalizeAndLimitDiagnostics(
             [validation.diagnostics, [unknownTheme]],
+            diagnosticLimits,
+          ),
+        };
+      }
+      if (policy.disabledThemeIds?.includes(themeId) === true) {
+        const disabledTheme = createDiagnostic(
+          "azeforge.renderer#disabled-theme",
+          "error",
+          `Theme "${themeId}" is disabled.`,
+          {
+            ...(compileOptions.sourceName === undefined
+              ? {}
+              : { location: { source: compileOptions.sourceName } }),
+            data: { theme: themeId },
+          },
+        );
+        return {
+          diagnostics: normalizeAndLimitDiagnostics(
+            [validation.diagnostics, [disabledTheme]],
             diagnosticLimits,
           ),
         };
@@ -1204,6 +1230,27 @@ export function createCompiler(options: CompilerOptions = {}): Compiler {
             ),
           };
         }
+        const imageResolution = await resolveProjectImages(validation.document, {
+          ...(compileOptions.projectRoot === undefined
+            ? {}
+            : { projectRoot: compileOptions.projectRoot }),
+          ...(compileOptions.sourceName === undefined
+            ? {}
+            : { sourceName: compileOptions.sourceName }),
+        });
+        if (
+          imageResolution.diagnostics.length > 0 ||
+          imageResolution.document === undefined ||
+          imageResolution.manifest === undefined
+        ) {
+          return {
+            diagnostics: normalizeAndLimitDiagnostics(
+              [validation.diagnostics, imageResolution.diagnostics],
+              diagnosticLimits,
+              collectBlockRanges(validation.document.blocks),
+            ),
+          };
+        }
         const renderedText = [
           ...(validation.document.metadata.title === undefined
             ? []
@@ -1216,7 +1263,7 @@ export function createCompiler(options: CompilerOptions = {}): Compiler {
         const fontFaces = await fontFacesPromise;
         const contentHash = documentContentHash(validation.document);
         const artifact = await renderHtml(
-          validation.document,
+          imageResolution.document,
           contentHash,
           theme,
           fontFaces,
@@ -1232,6 +1279,7 @@ export function createCompiler(options: CompilerOptions = {}): Compiler {
               ? {}
               : { renderTable: pluginPreflight.renderTable }),
           },
+          imageResolution.manifest,
         );
         return {
           diagnostics: validation.diagnostics,

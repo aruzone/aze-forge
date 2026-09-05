@@ -344,6 +344,7 @@ async function main(): Promise<void> {
     const result = await compiler.compile(source, {
       format: arguments_.format,
       sourceName: arguments_.sourcePath,
+      projectRoot: dirname(await realpath(arguments_.sourcePath)),
       ...(arguments_.theme === undefined ? {} : { theme: arguments_.theme }),
       ...(arguments_.allowRawLatex ? { allowRawLatex: true } : {}),
     });

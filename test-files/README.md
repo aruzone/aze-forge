@@ -1,7 +1,7 @@
 # AzeForge manual test files
 
 Fixtures for everything the compiler implements so far (P0-01 through
-P0-05). Each file lists its expected `validate` exit status, the
+P0-06). Each file lists its expected `validate` exit status, the
 diagnostic codes a failing `render --diagnostics json` reports, and the
 commands to run. All paths below are relative to the repo root.
 
@@ -9,7 +9,7 @@ commands to run. All paths below are relative to the repo root.
 
 ```bash
 npm run build
-for f in test-files/valid/*.aze.md test-files/equations/01-readable.aze.md test-files/mermaid/*.aze.md; do
+for f in test-files/valid/*.aze.md test-files/equations/01-readable.aze.md test-files/mermaid/*.aze.md test-files/images/01-project-images.aze.md; do
   node dist/cli.js validate "$f" || echo "FAIL: $f"
 done
 node dist/cli.js validate test-files/equations/02-latex.aze.md --allow-raw-latex
@@ -33,6 +33,7 @@ diagnostics on stderr. Files with raw LaTeX need `--allow-raw-latex`.
 | `equations/02-latex.aze.md` | Raw-LaTeX variant (`syntax: latex`); valid only with `--allow-raw-latex`, bounded KaTeX, `trust: false`, sanitized output. |
 | `mermaid/01-flowchart.aze.md` | Flowchart Blocks (TD and LR) with `id`/`title`/`description` headers and without; decision diamonds, edge labels, loops; deterministic seed, namespaced IDs, accessible `<title>`/`<desc>`. |
 | `mermaid/02-sequence.aze.md` | `sequenceDiagram` with participants, requests, and responses; deterministic participant/message layout. |
+| `images/01-project-images.aze.md` | P0-06: root-confined PNG plus sanitized SVG embedded as data under the `academic` metadata Theme; deterministic `assetManifestHash`. |
 
 ## Invalid (each exits `1`)
 
@@ -181,4 +182,63 @@ exit `1`; JSON mode lists exactly the codes documented above:
 node dist/cli.js validate test-files/invalid/07-links.aze.md
 node dist/cli.js render test-files/invalid/08-callouts-tables.aze.md \
   --output /tmp/bad.html --diagnostics json | python3 -m json.tool
+```
+
+## P0-06 manual walkthrough
+
+Render the image fixture under every Theme and inspect embedding,
+hashes, and self-containment:
+
+```bash
+npm run build
+for theme in default academic dark-presentation; do
+  node dist/cli.js render test-files/images/01-project-images.aze.md \
+    --output /tmp/images-$theme.html --theme $theme || echo "FAIL: $theme"
+done
+```
+
+Structural assertions on the Artifacts (run as-is; every line prints
+`PASS` when the feature works):
+
+```bash
+python3 - <<'EOF'
+pages = {t: open(f'/tmp/images-{t}.html').read() for t in ('default', 'academic', 'dark-presentation')}
+checks = {
+  'png embedded': 'src="data:image/png;base64,' in pages['default'],
+  'svg embedded': 'src="data:image/svg+xml;base64,' in pages['default'],
+  'no project paths': all('test-files' not in p and 'figures/' not in p for p in pages.values()),
+  'script-free': all('<script' not in p for p in pages.values()),
+  'csp constrained': all('img-src data:' in p for p in pages.values()),
+  'themes differ': len({pages['default'], pages['academic'], pages['dark-presentation']}) == 3,
+  'dark scheme': 'color-scheme:dark' in pages['dark-presentation'],
+  'responsive images': all('img{max-width:100%;height:auto}' in p for p in pages.values()),
+}
+for name, ok in checks.items():
+  print(('PASS' if ok else 'FAIL'), name)
+EOF
+```
+
+Manifest hash covers used bytes only; moving the project changes nothing:
+
+```bash
+node dist/cli.js render test-files/images/01-project-images.aze.md \
+  --output /tmp/images.html --diagnostics json | \
+  python3 -c "import json,sys; print(json.load(sys.stdin)['artifact']['assetManifestHash'])"
+rm -rf /tmp/relocated && mkdir -p /tmp/relocated
+cp test-files/images/01-project-images.aze.md test-files/images/plot.png \
+  test-files/images/logo.svg /tmp/relocated/
+node dist/cli.js render /tmp/relocated/01-project-images.aze.md --output /tmp/relocated.html
+cmp /tmp/images.html /tmp/relocated.html && echo "relocatable byte-identical"
+```
+
+Abuse cases fail before Artifact publication (exit `1`, previous
+Artifact preserved, one `azeforge.asset#` code each):
+
+```bash
+printf -- '---\nazemark: 1\n---\n\n# T\n\nBody.\n\n![x](https://example.com/x.png)\n' > /tmp/relocated/remote.aze.md
+node dist/cli.js render /tmp/relocated/remote.aze.md --output /tmp/no.html --diagnostics json | \
+  grep -o '"code":"azeforge.asset#[a-z-]*"'
+printf -- '---\nazemark: 1\n---\n\n# T\n\nBody.\n\n![x](../outside.png)\n' > /tmp/relocated/escape.aze.md
+node dist/cli.js render /tmp/relocated/escape.aze.md --output /tmp/no.html --diagnostics json | \
+  grep -o '"code":"azeforge.asset#[a-z-]*"'
 ```

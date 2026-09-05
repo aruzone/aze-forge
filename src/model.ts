@@ -284,6 +284,7 @@ export interface Theme {
   readonly id: string;
   readonly version: string;
   readonly title: string;
+  readonly colorScheme: "light" | "dark";
   readonly colors: Readonly<{
     background: string;
     foreground: string;
@@ -302,6 +303,13 @@ export interface Theme {
     contentWidthPx: number;
     paddingPx: number;
   }>;
+}
+
+export interface AssetManifestEntry {
+  readonly path: string;
+  readonly mediaType: "image/png" | "image/jpeg" | "image/svg+xml";
+  readonly byteLength: number;
+  readonly bytesHash: Sha256Hash;
 }
 
 export interface ArtifactMetadata {
@@ -330,6 +338,7 @@ export interface CompileOptions extends ParseOptions {
   readonly format: "html";
   readonly theme?: string;
   readonly allowRawLatex?: boolean;
+  readonly projectRoot?: string;
 }
 
 export interface CompileResult {
@@ -414,10 +423,10 @@ export type AnyBlockRenderer =
   | AzeBlockRenderer<TableBlock>
   | MermaidBlockRenderer;
 export type BlockRenderer = AnyBlockRenderer;
-
 export interface CompilerPolicy {
   readonly disabledBlockRendererIds?: readonly string[];
   readonly disabledRendererIds?: readonly string[];
+  readonly disabledThemeIds?: readonly string[];
 }
 
 export interface CompilerOptions {
