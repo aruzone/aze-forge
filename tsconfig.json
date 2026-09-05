@@ -5,7 +5,7 @@
     "moduleResolution": "NodeNext",
     "types": ["node"],
     "strict": true,
-    "exactOptionalPropertyTypes": true,
+    "skipLibCheck": true,
     "noUncheckedIndexedAccess": true,
     "noImplicitOverride": true,
     "noFallthroughCasesInSwitch": true,

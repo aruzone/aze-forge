@@ -44,6 +44,10 @@ import type {
   MermaidBlockRenderer,
 } from "./model.js";
 import {
+  MermaidBrowserParseError,
+  MermaidBrowserUnavailableError,
+} from "./mermaid-browser.js";
+import {
   MERMAID_PLUGIN_TYPE,
   mermaidDependencyClosure,
   sanitizeMermaidFragment,
@@ -800,19 +804,39 @@ async function renderMermaidFragments(
             },
           ),
         );
-      } else if (isCapabilityDenial(error)) {
+      } else if (error instanceof MermaidBrowserParseError) {
         diagnostics.push(
           createDiagnostic(
-            "azeforge.security#capability-denied",
+            "azeforge.mermaid#invalid-syntax",
             "error",
-            `Block renderer "${chosen.descriptor.id}" was denied a capability.`,
+            "The mermaid diagram could not be parsed.",
             {
               location,
-              data: { adapterId: chosen.descriptor.id },
+              suggestion: "Check node brackets, arrows, and participant declarations.",
+              data: {
+                diagramType: target.block.diagramType,
+                detail: error.message,
+              },
             },
           ),
         );
-      } else {
+      } else if (error instanceof MermaidBrowserUnavailableError) {
+        diagnostics.push(
+          createDiagnostic(
+            "azeforge.renderer#adapter-missing",
+            "error",
+            "The pinned Mermaid browser engine is unavailable.",
+            {
+              location,
+              data: {
+                blockType: MERMAID_PLUGIN_TYPE,
+                engine: "HeadlessChrome",
+              },
+              suggestion: "Reinstall AzeForge browser dependencies and retry.",
+            },
+          ),
+        );
+      } else if (isCapabilityDenial(error)) {
         diagnostics.push(
           createDiagnostic(
             "azeforge.renderer#unexpected-failure",

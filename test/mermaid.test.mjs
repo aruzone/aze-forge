@@ -7,16 +7,18 @@ import test from "node:test";
 
 import {
   assertRegistryDescriptorsImmutable,
+  CHROME_HEADLESS_SHELL_VERSION,
   createCompiler,
   defaultTheme,
   deriveMermaidSeed,
   getBuiltInRegistry,
-  getOfflineMermaidCapabilities,
   MERMAID_PLUGIN_VERSION,
   MERMAID_VERSION,
+  MermaidBrowserUnavailableError,
+  MermaidCapabilityError,
   mermaidHtmlBlockRenderer,
   mermaidPlugin,
-  renderMermaidSvg,
+  renderMermaidInBrowser,
   sanitizeMermaidSvg,
 } from "../dist/index.js";
 
@@ -86,21 +88,22 @@ test("valid diagrams render locally with zero non-loopback requests", async () =
   assert.equal(html.includes("@import"), false);
   assert.equal(/url\((?!#|data:)/i.test(html), false);
 
-  const requests = [];
   const block = compiled.document.blocks[0];
   assert.equal(block?.kind, "mermaid");
-  const svg = renderMermaidSvg(block, {
-    ordinal: 0,
+  const rendered = await renderMermaidInBrowser({
+    source: block.source,
+    elementId: "aze-m-test",
+    seed: "0123456789abcdef",
     theme: defaultTheme,
-    capabilities: {
-      ...getOfflineMermaidCapabilities(),
-      recordRequest: (url) => {
-        requests.push(url);
-      },
-    },
   });
-  assert.deepEqual(requests, ["about:blank"]);
-  assert.match(svg, /<svg/);
+  assert.match(rendered.browserVersion, /^HeadlessChrome\//);
+  for (const request of rendered.requests) {
+    assert.ok(
+      request === "about:blank" || request.startsWith("data:"),
+      `non-loopback request: ${request}`,
+    );
+  }
+  assert.match(rendered.svg, /<svg/);
 });
 
 test("identical Source, ordinal, Plugin version, and Theme produce byte-identical SVG", async () => {
@@ -156,7 +159,7 @@ test("embedded graphics carry finite viewBox, names, deterministic IDs, and no u
   const ids = [...svg.matchAll(/ id="([^"]+)"/g)].map((match) => match[1]);
   assert.ok(ids.length > 0);
   for (const id of ids) {
-    assert.match(id, /^aze-m-0-[a-z]+(-[a-z0-9]+)*$/);
+    assert.match(id, /^aze-m-0(?:-title|-desc|-n-\d+(?:-r\d+)?)?$/);
   }
   const lowered = svg.toLowerCase();
   for (const forbidden of [
@@ -184,18 +187,15 @@ test("embedded graphics carry finite viewBox, names, deterministic IDs, and no u
 
 test("invalid diagrams produce one scoped diagnostic and no Artifact", async () => {
   const compiler = createCompiler();
-  const cases = [
-    {
-      body: "flowchart TD\n  A - broken ???\n",
-      code: "azeforge.mermaid#invalid-syntax",
-    },
+  // Parse-time rejections: unknown diagram, empty Source.
+  const parseCases = [
     {
       body: "piechart\n  A -- B\n",
       code: "azeforge.mermaid#unsupported-diagram",
     },
     { body: "   \n", code: "azeforge.mermaid#empty" },
   ];
-  for (const { body, code } of cases) {
+  for (const { body, code } of parseCases) {
     const parsed = compiler.parse(sourceWith(body), {
       sourceName: "bad.aze.md",
     });
@@ -219,6 +219,32 @@ test("invalid diagrams produce one scoped diagnostic and no Artifact", async () 
       false,
     );
   }
+  // Deep syntax is owned by pinned Mermaid at compile time: the broken
+  // block parses clean, then fails with exactly one scoped diagnostic.
+  const broken = "flowchart TD\n  A - broken ???\n";
+  const parsedBroken = compiler.parse(sourceWith(broken), {
+    sourceName: "bad.aze.md",
+  });
+  assert.equal(parsedBroken.document.blocks[0]?.kind, "mermaid");
+  assert.deepEqual(
+    parsedBroken.diagnostics.map((diagnostic) => diagnostic.code),
+    [],
+  );
+  const compiledBroken = await compiler.compile(sourceWith(broken), {
+    format: "html",
+    sourceName: "bad.aze.md",
+  });
+  assert.equal(compiledBroken.artifact, undefined);
+  assert.equal(compiledBroken.document, undefined);
+  assert.deepEqual(
+    compiledBroken.diagnostics.map((diagnostic) => diagnostic.code),
+    ["azeforge.mermaid#invalid-syntax"],
+  );
+  assert.ok(compiledBroken.diagnostics[0]?.location?.range !== undefined);
+  assert.equal(
+    Buffer.from(JSON.stringify(compiledBroken.diagnostics)).toString("utf8").includes("<svg"),
+    false,
+  );
 });
 
 test("active content and external resources are rejected, never rewritten", async () => {
@@ -253,40 +279,45 @@ test("active content and external resources are rejected, never rewritten", asyn
         '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><title id="aze-m-0-title">T</title><script>alert(1)</script></svg>',
         { ordinal: 0 },
       ),
-    /Forbidden SVG content/,
+    /Forbidden SVG/,
   );
 });
 
-test("browser-adjacent work uses approved capability handles", () => {
-  const capabilities = getOfflineMermaidCapabilities();
-  assert.equal(capabilities.now(), 0);
-  assert.equal(capabilities.measureText("abc"), capabilities.measureText("abc"));
-  assert.throws(() => capabilities.recordRequest("https://example.com"), /blocked/);
-  assert.doesNotThrow(() => capabilities.recordRequest("about:blank"));
-  assert.doesNotThrow(() => capabilities.cleanup());
-  let cleaned = false;
-  const block = {
-    kind: "mermaid",
-    range: {
-      start: { line: 1, column: 1, offset: 0 },
-      end: { line: 2, column: 1, offset: 10 },
-    },
-    pluginVersion: MERMAID_PLUGIN_VERSION,
-    diagramType: "flowchart TD",
-    source: FLOWCHART.trim(),
+test("browser-adjacent work uses approved capability handles", async () => {
+  assert.equal(new MermaidCapabilityError("denied").code, "AZE_CAPABILITY_DENIED");
+  assert.equal(CHROME_HEADLESS_SHELL_VERSION, "152.0.7977.75");
+  // An unavailable engine fails closed with a reinstall remedy, never a hang.
+  const unavailable = {
+    resolveExecutable: () => "/nonexistent/chrome-headless-shell",
+    loadMermaidScript: () => Promise.reject(new Error("unreachable")),
+    loadFontCss: () => Promise.reject(new Error("unreachable")),
+    launch: () => Promise.reject(new Error("no engine here")),
+    openPage: () => Promise.reject(new Error("unreachable")),
+    settleLayout: () => Promise.reject(new Error("unreachable")),
   };
-  const svg = renderMermaidSvg(block, {
-    ordinal: 3,
-    theme: defaultTheme,
-    capabilities: {
-      ...capabilities,
-      cleanup: () => {
-        cleaned = true;
+  await assert.rejects(
+    renderMermaidInBrowser(
+      {
+        source: FLOWCHART.trim(),
+        elementId: "aze-m-test",
+        seed: "0123456789abcdef",
+        theme: defaultTheme,
       },
+      unavailable,
+    ),
+    (error) => {
+      assert.ok(error instanceof MermaidBrowserUnavailableError);
+      assert.match(error.message, /Reinstall AzeForge browser dependencies/);
+      return true;
     },
-  });
-  assert.equal(cleaned, true);
-  assert.match(svg, /aze-m-3-title/);
+  );
+  // The real isolated context renders end to end through the Block renderer.
+  const compiler = createCompiler();
+  const parsed = compiler.parse(sourceWith(`${FLOWCHART}`, "id: caps\n"));
+  const block = parsed.document.blocks[0];
+  assert.equal(block?.kind, "mermaid");
+  const fragment = await mermaidHtmlBlockRenderer.render(block, { ordinal: 3 });
+  assert.match(fragment, /aze-m-3-title/);
 });
 
 test("sequence diagrams and repeated blocks render deterministically", async () => {

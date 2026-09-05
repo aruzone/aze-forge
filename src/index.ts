@@ -42,6 +42,7 @@ export {
   translateReadableToTex,
 } from "./equation.js";
 export {
+  CHROME_HEADLESS_SHELL_VERSION,
   MERMAID_BODY_SYNTAX_ID,
   MERMAID_BODY_SYNTAX_VERSION,
   MERMAID_HTML_BLOCK_RENDERER_ID,
@@ -49,10 +50,10 @@ export {
   MERMAID_PLUGIN_TYPE,
   MERMAID_PLUGIN_VERSION,
   MERMAID_VERSION,
-  MermaidCapabilityError,
+  MermaidBrowserParseError,
+  MermaidBrowserUnavailableError,
   MermaidSanitizerError,
   deriveMermaidSeed,
-  getOfflineMermaidCapabilities,
   mermaidDataSchema,
   mermaidDependencyClosure,
   mermaidHtmlBlockRenderer,
@@ -64,6 +65,10 @@ export {
   sanitizeMermaidSvg,
   validateMermaidBody,
 } from "./mermaid.js";
+export {
+  MermaidCapabilityError,
+  renderMermaidInBrowser,
+} from "./mermaid-browser.js";
 export {
   REGISTRY_CONFORMANCE_SEAM_VERSION,
   assertRegistryDescriptorsImmutable,
