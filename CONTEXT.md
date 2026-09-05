@@ -40,6 +40,10 @@ _Avoid_: Output, build, file
 The stable identity of an error-free Document's semantic content, distinct from the byte-level identity of any Artifact rendered from it.
 _Avoid_: Artifact hash, file checksum
 
+**Asset manifest**:
+The canonical inventory of project images a Document uses, keyed by root-relative logical path with media types and byte hashes. Its hash identifies the used bytes separately from the content hash.
+_Avoid_: File list, attachment bundle
+
 **Circuit**:
 A semantic schematic composed of Circuit components, Circuit nodes, explicit terminal–node relations, and typed annotations. Electrical connectivity never comes from drawing placement.
 _Avoid_: Circuit drawing, schematic image, netlist

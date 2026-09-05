@@ -76,13 +76,14 @@ export {
   satisfiesSemverRange,
   validateRegistry,
 } from "./registry.js";
-export { defaultTheme } from "./theme.js";
+export { academicTheme, builtInThemes, darkPresentationTheme, defaultTheme } from "./theme.js";
 export type {
   AnyBlockRenderer,
   Artifact,
   ArtifactHash,
   ArtifactFormat,
   ArtifactMetadata,
+  AssetManifestEntry,
   AzeBlock,
   AzeBlockPlugin,
   AzeBlockRenderer,

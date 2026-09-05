@@ -1,3 +1,4 @@
+import { assetManifestHash } from "./assets.js";
 import { renderCalloutFragment } from "./callout.js";
 import { KATEX_VERSION, getKatexCss } from "./equation.js";
 import { MERMAID_VERSION } from "./mermaid.js";
@@ -7,6 +8,7 @@ import { escapeHtml, renderInlineHtml } from "./html-fragment.js";
 import { inlineTextValue } from "./markdown.js";
 import type {
   Artifact,
+  AssetManifestEntry,
   AzeBlock,
   AzeDocument,
   BlockRendererContext,
@@ -22,7 +24,6 @@ import { renderTableFragment } from "./table.js";
 
 const HTML_MIME_TYPE = "text/html; charset=utf-8";
 const HTML_PROFILE = "azeforge.html.self-contained/v1";
-const EMPTY_ASSET_MANIFEST_HASH = sha256("[]");
 const HTML_MAX_BYTES = 64 * 1024 * 1024;
 
 export class ArtifactLimitError extends Error {
@@ -61,10 +62,11 @@ interface RenderContext {
 }
 
 function documentTitle(document: AzeDocument): string {
-  if (document.metadata.title !== undefined) return document.metadata.title;
+  const metadataTitle = document.metadata.title?.trim();
+  if (metadataTitle !== undefined && metadataTitle !== "") return metadataTitle;
   const firstHeading = document.blocks.find((block) => block.kind === "heading");
   if (firstHeading?.kind !== "heading") return "AzeForge document";
-  const text = inlineTextValue(firstHeading.children);
+  const text = inlineTextValue(firstHeading.children).trim();
   return text === "" ? "AzeForge document" : text;
 }
 
@@ -133,7 +135,8 @@ function embeddedFontCss(fontFaces: readonly EmbeddedFontFace[]): string {
 
 function themeCss(theme: Theme): string {
   const { colors, geometry, typography } = theme;
-  return `:root{color-scheme:light;background:${colors.background};color:${colors.foreground};font-family:${typography.proseFontFamily};font-weight:${typography.bodyFontWeight};line-height:${typography.lineHeight}}*{box-sizing:border-box}body{margin:0;background:${colors.background}}main{max-width:${geometry.canvasWidthPx}px;margin:0 auto;padding:${geometry.paddingPx}px}article{max-width:${geometry.contentWidthPx}px;margin:0 auto}h1,h2,h3,h4,h5,h6{font-weight:${typography.headingFontWeight};line-height:${typography.headingLineHeight}}p{margin:${typography.paragraphSpacingEm}em 0;color:${colors.foreground}}a{color:inherit}hr{border:none;border-top:1px solid ${colors.muted};margin:1.5em 0}blockquote{margin:1em 0;padding:0 0 0 1em;border-left:3px solid ${colors.muted}}ul,ol{margin:1em 0;padding-left:2em}li{margin:0.25em 0}li>p{margin:0.25em 0}pre{margin:1em 0;padding:1em;overflow-x:auto;background:rgba(127,127,127,.08)}pre code{font-family:"JetBrains Mono",ui-monospace,monospace}code{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.9em}table{border-collapse:collapse;margin:1em 0;width:100%}caption{caption-side:top;text-align:left;font-weight:${typography.headingFontWeight};padding:.5em 0}th,td{border:1px solid ${colors.muted};padding:.5em .75em;text-align:left}thead th{background:rgba(127,127,127,.08)}figure.aze-table{margin:1em 0}.aze-callout{margin:1em 0;padding:.75em 1em;border:1px solid ${colors.muted};border-left-width:4px}.aze-callout-title{margin:0 0 .5em;font-weight:${typography.headingFontWeight}}.aze-callout-body>:first-child{margin-top:0}.aze-callout-body>:last-child{margin-bottom:0}`;
+  const colorScheme = theme.colorScheme;
+  return `:root{color-scheme:${colorScheme};background:${colors.background};color:${colors.foreground};font-family:${typography.proseFontFamily};font-weight:${typography.bodyFontWeight};line-height:${typography.lineHeight}}*{box-sizing:border-box}body{margin:0;background:${colors.background}}main{max-width:${geometry.canvasWidthPx}px;margin:0 auto;padding:${geometry.paddingPx}px}article{max-width:${geometry.contentWidthPx}px;margin:0 auto}h1,h2,h3,h4,h5,h6{font-weight:${typography.headingFontWeight};line-height:${typography.headingLineHeight}}p{margin:${typography.paragraphSpacingEm}em 0;color:${colors.foreground}}a{color:inherit}img{max-width:100%;height:auto}hr{border:none;border-top:1px solid ${colors.muted};margin:1.5em 0}blockquote{margin:1em 0;padding:0 0 0 1em;border-left:3px solid ${colors.muted}}ul,ol{margin:1em 0;padding-left:2em}li{margin:0.25em 0}li>p{margin:0.25em 0}pre{margin:1em 0;padding:1em;overflow-x:auto;background:rgba(127,127,127,.08)}pre code{font-family:"JetBrains Mono",ui-monospace,monospace}code{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.9em}table{border-collapse:collapse;margin:1em 0;width:100%}caption{caption-side:top;text-align:left;font-weight:${typography.headingFontWeight};padding:.5em 0}th,td{border:1px solid ${colors.muted};padding:.5em .75em;text-align:left}thead th{background:rgba(127,127,127,.08)}figure.aze-table{margin:1em 0}.aze-callout{margin:1em 0;padding:.75em 1em;border:1px solid ${colors.muted};border-left-width:4px}.aze-callout-title{margin:0 0 .5em;font-weight:${typography.headingFontWeight}}.aze-callout-body>:first-child{margin-top:0}.aze-callout-body>:last-child{margin-bottom:0}`;
 }
 
 export async function renderHtml(
@@ -146,6 +149,7 @@ export async function renderHtml(
   mermaidFragments: ReadonlyMap<MermaidBlock, string> = new Map(),
   mermaidDependencyClosure: JsonValue = { mermaid: MERMAID_VERSION },
   pluginRenderers: HtmlPluginRenderers = {},
+  assetManifest: readonly AssetManifestEntry[] = [],
 ): Promise<Artifact> {
   const renderCallout =
     pluginRenderers.renderCallout ?? renderCalloutFragment;
@@ -193,7 +197,7 @@ export async function renderHtml(
       profile: HTML_PROFILE,
       byteLength: bytes.byteLength,
       contentHash,
-      assetManifestHash: EMPTY_ASSET_MANIFEST_HASH,
+      assetManifestHash: assetManifestHash(assetManifest),
       rendererFingerprint,
       artifactHash,
       theme: { id: theme.id, version: theme.version },
