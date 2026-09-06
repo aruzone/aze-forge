@@ -50,6 +50,14 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
+      # GitHub's Ubuntu 24.04 images restrict unprivileged user namespaces
+      # with AppArmor, which blocks Chrome's sandbox and fails every
+      # browser-backed render. Re-enabling them is ephemeral CI-host
+      # configuration only; the packaged browser still launches sandboxed
+      # and product behavior is unchanged.
+      - name: Enable unprivileged user namespaces (Linux)
+        if: runner.os == 'Linux'
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       - run: npm run build --silent
       - name: Run packaged pinned-browser smoke
         run: npm run test:browser-smoke --silent > browser-smoke.tap
@@ -75,6 +83,10 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
+      # See browser-smoke: Chrome's sandbox needs unprivileged user
+      # namespaces on Ubuntu 24.04 runners; ephemeral host configuration.
+      - name: Enable unprivileged user namespaces
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       - run: npm run build --silent
       - name: Assert canonical architecture
         run: node -e "if (process.arch !== 'x64') throw new Error('Canonical evidence requires x64')"

@@ -8,12 +8,22 @@ import { fileURLToPath } from "node:url";
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const NPM = process.platform === "win32" ? "npm.cmd" : "npm";
 
-function run(command, arguments_, options) {
-  const result = spawnSync(command, arguments_, {
+function spawnPortable(command, arguments_, options) {
+  const argv =
+    process.platform === "win32"
+      ? arguments_.map((part) =>
+          /[\s"]/.test(part) ? `"${part.replace(/"/g, '""')}"` : part,
+        )
+      : arguments_;
+  return spawnSync(command, argv, {
     encoding: null,
     shell: process.platform === "win32",
     ...options,
   });
+}
+
+function run(command, arguments_, options) {
+  const result = spawnPortable(command, arguments_, options);
   assert.equal(
     result.status,
     0,
@@ -55,14 +65,12 @@ export async function installPackedCli(
 }
 
 export function runInstalledCli(directory, arguments_, options = {}) {
-  return spawnSync(
+  return spawnPortable(
     NPM,
     ["--silent", "exec", "--offline", "--", "azeforge", ...arguments_],
     {
       cwd: directory,
-      encoding: null,
       env: process.env,
-      shell: process.platform === "win32",
       ...options,
     },
   );
