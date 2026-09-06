@@ -59,10 +59,21 @@ There is no standalone binary: the npm global install is the distribution
 path, so the Node prerequisite always applies. A single-file binary would
 have to bundle Node plus the pinned browser engine and fonts below, and is
 deferred; users re-install for new versions (no auto-update).
-
 The install downloads the pinned browser engine (Chrome Headless Shell
 `152.0.7977.75` into `~/.cache/puppeteer`) via the `puppeteer` postinstall
-script, so the installing machine needs network access once. Verify it with
+script, so the installing machine needs network access once.
+
+npm 11 and newer skip install scripts on global installs by default. If the
+install prints `npm warn install-scripts`, the engine was not downloaded;
+rerun with scripts allowed:
+
+```bash
+npm install -g @aruzone/aze-forge --allow-scripts=puppeteer
+```
+
+(or `npm config set allow-scripts=puppeteer --location=user` to allow it
+for all global installs). Without the engine, browser-backed formats fail
+with the structured remedy below instead of downloading anything. Verify it with
 a browser-backed format:
 
 ```bash
