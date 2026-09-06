@@ -86,8 +86,7 @@
             "supported": {
               "const": [
                 "ubuntu",
-                "macos",
-                "windows"
+                "macos"
               ]
             },
             "canonical": {

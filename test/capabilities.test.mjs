@@ -8,7 +8,7 @@ const CLI_PATH = fileURLToPath(new URL("../dist/cli.js", import.meta.url));
 const ROOT = fileURLToPath(new URL("../", import.meta.url));
 const EXPECTED_RUNTIME = {
   node: { supported: [22, 24], canonical: 24 },
-  os: { supported: ["ubuntu", "macos", "windows"], canonical: "ubuntu" },
+  os: { supported: ["ubuntu", "macos"], canonical: "ubuntu" },
   canonical: { os: "ubuntu", arch: "x64", node: 24 },
 };
 

@@ -7,7 +7,6 @@ export const CANONICAL_NODE_VERSION = 24 as const;
 export const SUPPORTED_OPERATING_SYSTEMS = Object.freeze([
   "ubuntu",
   "macos",
-  "windows",
 ] as const);
 export const CANONICAL_OPERATING_SYSTEM = "ubuntu" as const;
 /** Pinned canonical build host architecture. */
@@ -64,8 +63,8 @@ export const runtimeSupportJsonSchema: JsonValue = Object.freeze({
       required: ["supported", "canonical"],
       additionalProperties: false,
       properties: {
-        supported: { const: ["ubuntu", "macos", "windows"] },
-        canonical: { const: "ubuntu" },
+            supported: { const: ["ubuntu", "macos"] },
+            canonical: { const: "ubuntu" },
       },
     },
     canonical: {

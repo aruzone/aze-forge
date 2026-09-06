@@ -169,6 +169,12 @@ async function renderAndSettle(
     const root = document.querySelector("#azeforge-mermaid-root");
     if (root === null) throw new Error("Mermaid render root is missing.");
 
+    // Mermaid measures labels during render: force every Inter face the
+    // Source can need before layout, so fallback metrics can never bake
+    // host-dependent geometry into deterministic Artifacts.
+    for (const weight of ["400", "700"] as const) {
+      await document.fonts.load(`${weight} 16px "Inter"`, browserInput.source);
+    }
     mermaid.initialize({
       startOnLoad: false,
       securityLevel: "strict",

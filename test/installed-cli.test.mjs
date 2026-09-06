@@ -36,7 +36,7 @@ test("packed installation exposes the supported CLI and ignores installation pat
   assert.equal(versionResult.status, 0, versionResult.stderr.toString("utf8"));
   const version = JSON.parse(versionResult.stdout.toString("utf8"));
   assert.deepEqual(version.runtime.node.supported, [22, 24]);
-  assert.deepEqual(version.runtime.os.supported, ["ubuntu", "macos", "windows"]);
+  assert.deepEqual(version.runtime.os.supported, ["ubuntu", "macos"]);
 
   await Promise.all([
     writeFile(join(directory, "installed.aze.md"), SOURCE),
