@@ -1,0 +1,31 @@
+name: publish
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    name: publish azeforge to npm
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          registry-url: https://registry.npmjs.org
+      - name: Assert tag matches package version
+        run: node -e "const v = require('./package.json').version; if (process.env.GITHUB_REF_NAME !== 'v' + v) throw new Error(`Tag ${process.env.GITHUB_REF_NAME} does not match package version ${v}`)"
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test --silent
+      - name: Publish with provenance
+        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

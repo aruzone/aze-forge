@@ -37,6 +37,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "prepublishOnly": "npm run build --silent",
     "test": "npm run build --silent && node --test test/*.test.mjs",
     "test:matrix": "node --test --test-reporter=tap test/capabilities.test.mjs test/cli.test.mjs test/compatibility.test.mjs test/compiler.test.mjs test/equation.test.mjs test/fail-closed.test.mjs test/format.test.mjs test/installed-cli.test.mjs test/schemas.test.mjs test/theme-assets.test.mjs test/watch-serve.test.mjs",
     "test:browser-smoke": "node --test --test-reporter=tap test/browser-smoke.test.mjs",
