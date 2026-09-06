@@ -9,8 +9,10 @@ structured-document languages best reduce author complexity while preserving
 deterministic parsing, explicit semantics, inspectability, and useful diagnostics?
 
 **Scope.** Cited comparison of reusable patterns and traps for AzeMark.
-This note deliberately does **not** choose the AzeMark Technical object catalog,
-concrete declaration syntax, or any implementation slice.
+External-language facts are evidence, not AzeMark requirements. The application
+paragraphs and synthesis propose candidates for later owner-approved decisions.
+Existing AzeForge contracts remain binding unless a decision explicitly replaces
+them. This corrected revision withdraws the original survey's unsupported mandates.
 Vocabulary follows `CONTEXT.md` (Source, Document, Block, Technical object,
 Plugin, Block renderer, Renderer, Fragment, Artifact, Content hash, Circuit,
 Circuit component, Circuit node, Terminal–node relation, Golden report,
@@ -18,6 +20,10 @@ Pilot Circuit fixture, Acceptance catalog).
 
 **Method.** Primary specifications and official documentation only.
 Every external claim below links directly to the source that owns it.
+
+The six review corrections and their downstream decision owners are indexed in
+section 10. Implementation tickets must cite those corrections and the eventual
+owner-approved decisions rather than importing external-language behavior wholesale.
 
 ---
 
@@ -40,11 +46,11 @@ To counter that, the spec ships many side-by-side Markdown/HTML examples that
 with the accompanying `spec_tests.py`
 ([CommonMark spec 0.31.2, introduction](https://spec.commonmark.org/0.31.2/)).
 
-**Reusable for AzeMark.** (a) Keep ordinary prose readable as plain text; show
-nesting through layout, not ceremony. (b) Every accepted Source form needs an
-example oracle that doubles as a conformance test. (c) "Accept anything, reject
-nothing" is a documented failure mode: silent divergence surfaces late, so
-validation should fail loudly with alternatives rather than guess.
+**Candidate application.** Examples can expose ambiguous nesting and parser
+disagreements before syntax is frozen. CommonMark's permissive parsing is not
+itself a failure: its conformance examples specify how ambiguous input is handled.
+For typed AzeMark declarations, compare permissive recovery with explicit
+diagnostics without changing ordinary Markdown behavior.
 
 ### 1.2 Directive anatomy: name, arguments, options, content (MyST)
 
@@ -67,12 +73,12 @@ Three conventions stand out:
   unknown roles still parse rather than breaking the Document
   ([MyST syntax overview](https://mystmd.org/guide/syntax-overview)).
 
-**Reusable for AzeMark.** A Technical object Block wants the same four-slot
-anatomy (type, positional arguments, named options, body) so Plugins validate one
-predictable shape. Fence choice should follow payload kind (prose-like vs
-code-like), and unknown Block types should produce a diagnostic that names
-available alternatives — the same posture the blueprint already requires for
-unknown blocks.
+**Candidate application.** MyST's four-slot anatomy is one envelope design to
+compare with AzeMark's existing directives. Positional arguments and multiple
+fence styles add flexibility but also more forms to learn and normalize.
+The language-contract decision owns that tradeoff. Unknown AzeMark Block types
+already require diagnostics naming available alternatives; parsing recovery does
+not authorize rendering an invalid Document.
 
 ### 1.3 One explicit-block marker (reStructuredText)
 
@@ -99,9 +105,10 @@ triggers processing ([Jekyll front matter docs](https://jekyllrb.com/docs/front-
 Repeated variables are factored out into front-matter defaults rather than
 restated ([Jekyll front matter docs](https://jekyllrb.com/docs/front-matter/)).
 
-**Reusable for AzeMark.** The Source envelope pattern (version key, title,
-outputs, Theme selection) is proven; add a defaults mechanism early so repeated
-per-Block options do not bloat Sources.
+**Candidate application.** Front-matter defaults could reduce repeated per-Block
+options, but inheritance adds precedence and diagnostic rules. Compare explicit
+Source values, versioned built-in defaults, and bounded inherited defaults in the
+language-contract decision; this survey does not schedule a defaults mechanism.
 
 ---
 
@@ -136,11 +143,11 @@ equations take an explicit natural-language `alt` parameter today; automatic
 descriptions are future work
 ([Typst math docs](https://typst.app/docs/reference/math/)).
 
-**Reusable for AzeMark.** (a) Never let significant whitespace or implicit
-multi-character rules hide: Typst's space-delimited block vs inline and its
-single-vs-multiple-letter rule are the two highest-risk traps to either adopt
-consciously or forbid. (b) Accessibility descriptions belong in the semantic
-model from the start (`alt` on the equation), not bolted onto a Renderer later.
+**Candidate application.** Typst exposes two questions for the language contract:
+whether whitespace should carry meaning, and how names differ from literal text.
+Its `alt` field is a precedent for owner-supplied equation descriptions.
+The selected object schemas and acceptance decision must determine AzeMark's
+description requirements; the survey does not add a new field.
 
 ### 2.3 Publish the coverage boundary (KaTeX)
 
@@ -150,24 +157,23 @@ functions" ([KaTeX supported functions](https://katex.org/docs/supported.html)).
 Display-only environments additionally render outside math delimiters via the
 auto-render extension ([KaTeX supported functions](https://katex.org/docs/supported.html)).
 
-**Reusable for AzeMark.** A readable math core plus a raw-LaTeX escape hatch
-needs exactly this artifact: a versioned, per-construct supported/unsupported
-table so authors and diagnostics share one boundary definition. The escape hatch
-stays bounded instead of becoming the language.
+**Candidate application.** A per-construct coverage table could give authors and
+diagnostics one supported/unsupported boundary. The catalog decision owns that
+inventory; readable native syntax and bounded escape hatches remain the map's
+approved direction.
 
-### 2.4 Structure *and* content, subsetted on purpose (MathML Core)
+### 2.4 An explicit browser-rendering subset: MathML Core
 
-MathML Core is "a core subset of Mathematical Markup Language … suitable for
-browser implementation", where "MathML is a markup language for describing
-mathematical notation and capturing both its structure and content", with the
-goal of letting mathematics "be served, received, and processed on the World
-Wide Web, just as HTML has enabled this functionality for text"
-([MathML Core, W3C Candidate Recommendation](https://www.w3.org/TR/mathml-core/)).
+MathML Core defines a subset suitable for browser implementation. Its introduction
+focuses on precise visual rendering rules, browser integration, and automated tests
+([MathML Core introduction](https://w3c.github.io/mathml-core/#introduction)).
+The abstract's statement about capturing structure and content describes MathML
+generally, not a guarantee that MathML Core supplies a domain-semantic expression
+model.
 
-**Reusable for AzeMark.** The semantic Document should capture structure and
-content (meaning), leaving presentation to Block renderers — and subsetting a
-large standard into an explicit, implementable core is itself the pattern for
-scoping each Technical object.
+**Candidate application.** Explicit subsetting and conformance tests are useful
+precedents for sizing each Technical object. AzeForge's renderer-independent
+Document remains its own contract; MathML rendering does not replace that model.
 
 ---
 
@@ -188,11 +194,15 @@ a leading `o`/`x` in a connection creates circle/cross edge terminators instead
 of plain links
 ([Mermaid flowchart syntax](https://mermaid.js.org/syntax/flowchart.html)).
 
-**Reusable for AzeMark.** (a) Node identity vs displayed label must be separate
-fields. (b) Layout direction is a hint, not semantics — keep it out of the
-semantic core. (c) Prefer one general extension mechanism (shape tables with
-aliases) over per-shape syntax. (d) Maintain a linted reserved-word list from
-day one; Mermaid's `end`/`o`/`x` traps show what happens without one.
+**Candidate application.** Separate node identity from displayed labels and compare
+general shape properties with specialized syntax. Reserved identifiers need a
+documented quoting or naming policy. Authored layout intent must not be confused
+with electrical meaning: the approved
+[Circuit semantic model and validation](https://github.com/aruzone/aze-forge/issues/11#issuecomment-5543076289)
+retains `layout.flow`, optional component orientation, and declaration order in
+Document data. Order enters `contentHash` and may break layout ties; none of these
+fields creates or changes terminal connectivity. Renderer-generated coordinates
+remain distinct from authored intent.
 
 ### 3.2 Grammar first; layout is not semantics (Graphviz DOT)
 
@@ -223,12 +233,11 @@ optionality/grouping notation
   (`&beta;`) as an ASCII-safe fallback for labels
   ([DOT language](https://graphviz.org/doc/info/lang.html)).
 
-**Reusable for AzeMark.** (a) Publish a real grammar, however small; DOT shows
-how little it takes (one page) and how much it settles. (b) Mark every
-layout-only construct as layout-only, the way DOT disowns `cluster`. (c) Make
-default-inheritance time-explicit or scoped; the subgraph-label leak is the trap
-to design out. (d) Fix the encoding story (UTF-8 default, named override,
-entity fallback) once for all Technical objects.
+**Candidate application.** DOT's grammar makes its alternatives and inheritance
+rules inspectable. For AzeMark, compare scoped defaults and explicit values rather
+than copying temporal inheritance. Layout hints can remain authored Document data
+without defining connectivity. Encoding overrides and entity spellings are
+external examples, not additions to AzeMark's Source contract.
 
 ---
 
@@ -244,11 +253,11 @@ legends) … using a rule-based approach, but users can explicit[ly] specify the
 properties to override default values"
 ([Vega-Lite view specification](https://vega.github.io/vega-lite/docs/spec.html)).
 
-**Reusable for AzeMark.** The plot authoring pattern is mappings-plus-defaults:
-authors state data→channel intent, the Plugin fills scales/axes/legends by rule,
-explicit values always win. Also a pipeline precedent: readable spec compiles to
-a complete lower-level spec before rendering — the same shape as
-Source → semantic Document → Renderer-specific Fragments.
+**Candidate application.** Named data-to-channel mappings with rule-based defaults
+could reduce plot boilerplate. The plot decision must distinguish semantic data,
+authored presentation intent, and renderer-derived scales or geometry before
+assigning responsibility. Vega-Lite's lower rendering specification is an analogy
+for a compilation stage, not a replacement for AzeForge's Plugin/Renderer boundary.
 
 ### 4.2 Name the composition hierarchy; offer two interfaces honestly (matplotlib)
 
@@ -267,13 +276,14 @@ Plotting functions also accept a `data` keyword so string-indexable objects
 (dicts, data frames) can be referenced by variable name
 ([Matplotlib quick start](https://matplotlib.org/stable/users/explain/quick_start.html)).
 
-**Reusable for AzeMark.** (a) A composition hierarchy with single ownership
-(Document → Block → Fragment) prevents a whole class of aliasing bugs; state
-the ownership rule. (b) If a terse convenience spelling ever appears beside the
-explicit declaration form, document which is canonical and deprecate flat
-alternatives loudly. (c) Data-by-name (`data` + column references) is the
-readable-plot pattern to copy; scale generation (Locator) stays separate from
-label formatting (Formatter).
+**Candidate application.** Matplotlib illustrates why ownership should be explicit,
+but its containment hierarchy is not AzeForge's model. A Document contains semantic
+Blocks. A Block renderer consumes validated Block data and produces an opaque
+Fragment owned by the document Renderer, as required by
+[ADR 0003](../adr/0003-separate-plugins-from-renderers.md).
+Fragments are not children of Blocks and do not enter the public Document, its
+schema, or its content hash. Data-by-name and explicit versus convenience plot
+forms remain candidates for the plot and language decisions.
 
 ---
 
@@ -301,15 +311,14 @@ with "an extensive set of geometry routines, including `perpendicular` symbols
 and a `triangle` structure"
 ([Asymptote geometry module](https://asymptote.sourceforge.io/doc/geometry.html)).
 
-**Reusable for AzeMark.** (a) Geometry authoring wants declared constraints and
-named constructions (midpoints, perpendiculars, triangles), not raw
-coordinates; Asymptote's module pattern (core language + domain modules written
-in the language itself) mirrors Plugins owning Technical objects. (b) Path
-operators should each mean exactly one thing (`--` vs `..` vs `..cycle`) with a
-stated equivalence to the render model. (c) Fixed-size vs scalable-object
-tension is real — solve it as deferred layout inside the Renderer, never by
-letting authors hand-tune coordinates. (d) Label typography consistency across
-targets is a requirement on Block renderers, not an accident.
+**Candidate application.** Compare named constructions, coordinate-based input,
+and a bounded combination for the chosen geometry subset. Named constraints may
+reduce manual placement; coordinates can preserve exact data or intentional
+diagrams without requiring a general constraint solver. Asymptote supplies
+precedents for coordinates and deferred sizing, not evidence for banning author
+coordinates. The geometry decision owns allowed inputs and layout limits.
+Fixed label sizes, scaling, and deterministic output need acceptance scenarios
+under whichever approach the owner approves.
 
 ---
 
@@ -334,10 +343,14 @@ Five encoding rules cover atoms, bonds, branches (parentheses), ring closures
 ([Daylight SMILES theory](https://www.daylight.com/dayhtml/doc/theory/theory.smiles.html)).
 Three further conventions matter:
 
-- **Three name kinds.** Generic SMILES (graph only), unique SMILES (one
-  canonical name per structure — "the name is universal"), and isomeric/absolute
-  SMILES (with isotope/chiral specifications)
-  ([Daylight SMILES theory](https://www.daylight.com/dayhtml/doc/theory/theory.smiles.html)).
+- **Information content and canonical spelling are separate axes.** Generic SMILES
+  describes the labeled graph without isotope/chirality information; its canonical
+  form is unique SMILES. Isomeric SMILES carries isotope/chirality specifications;
+  its canonical form is absolute SMILES. Isomeric does not itself mean canonical.
+  Thus generic → unique and isomeric → absolute are distinct normalization paths,
+  not a generic → unique → absolute enrichment pipeline. Missing chirality cannot
+  be recovered by canonicalization
+  ([Daylight SMILES theory, §3.1](https://www.daylight.com/dayhtml/doc/theory/theory.smiles.html)).
 - **Local, order-dependent chirality.** `@`/`@@` list neighbors
   anticlockwise/clockwise *in SMILES order*, so meaning is tied to string order
   and "the Daylight software is responsible for retaining the meaning of the
@@ -357,15 +370,14 @@ Three further conventions matter:
   canonicalization
   ([Daylight SMILES theory](https://www.daylight.com/dayhtml/doc/theory/theory.smiles.html)).
 
-**Reusable for AzeMark.** (a) The authoring-vs-canonical split is the deepest
-pattern in this survey: accept many readable forms, canonicalize to one, and
-keep both names (generic vs unique vs absolute). (b) Make omission rules
-explicit and total (what may be implied, what must be bracketed). (c) Treat
-*unspecified* as a value distinct from *default* wherever partial knowledge is
-normal. (d) Wherever meaning depends on Source order, the compiler owns
-meaning-preservation across rewrites. (e) Deduce-then-flag beats
-deduce-then-guess: infer aromaticity if you must, but reject the impossible
-with a diagnostic.
+**Candidate application.** Distinguish information completeness from canonical
+spelling. If chemistry enters the catalog, normalization must retain specified
+isotopes and chirality and preserve unspecified attributes as unspecified.
+For example, unspecified alanine chirality cannot become either specified
+enantiomer through formatting; the two specified enantiomers cannot collapse
+to the same semantic identity. Equivalence rules and the canonicalization
+algorithm/version need an explicit contract. Omission, aromaticity, and validation
+policies remain chemistry decisions, not rules inferred from other domains.
 
 ### 6.2 Machine identity is layered, fixed, and explicitly not readable (InChI)
 
@@ -381,10 +393,11 @@ Interoperability came from *fixing* parameters: the 2009 standard versions
 so that interoperability between databases and resources … could be achieved"
 ([InChI Trust, about the standard](https://www.inchi-trust.org/about-the-inchi-standard/)).
 
-**Reusable for AzeMark.** Content identity (the Content hash analogue) must be a
-separate, layered, parameter-fixed construct — never the readable Source
-itself, and never tunable per document. A key that is "not designed to be
-human-understandable" is a feature: it stops authors from hand-editing identity.
+**Candidate application.** InChI illustrates the importance of defined identity
+parameters, not a requirement for layered or deliberately unreadable AzeForge data.
+[ADR 0002](../adr/0002-document-and-artifact-hashes.md) already defines the content
+hash and separate Artifact hash. Preserve that contract; any new normalization
+policy needs an explicit semantic equivalence and versioning decision.
 
 ---
 
@@ -409,9 +422,10 @@ Numbers take scale suffixes, but "letters immediately following a number that
 are not scale factors are ignored", so `10`, `10V`, and `10Hz` are the same
 number, and `M`/`m` mean *milli* — `meg` is required for mega
 ([ngspice manual v47, §2.1.3](https://ngspice.sourceforge.io/docs/ngspice-manual.pdf)).
-Topology itself is validated: no voltage-source/inductor loops, every node
-needs a dc path to ground, every node needs at least two connections
+The manual lists simulation topology constraints, including restrictions on
+voltage-source/inductor loops, DC paths to ground, and node connections
 ([ngspice manual v47, §2.1.4](https://ngspice.sourceforge.io/docs/ngspice-manual.pdf)).
+These are simulator constraints, not general requirements for drawing schematics.
 The front end even scans for valid UTF-8 and warns on special leading
 characters (escalatable to a hard error)
 ([ngspice manual v47, §2.1.2](https://ngspice.sourceforge.io/docs/ngspice-manual.pdf)).
@@ -420,13 +434,16 @@ global and must be unique, nesting to level 10, and brace expressions may not
 parameterize node names
 ([ngspice manual v47, §2.11](https://ngspice.sourceforge.io/docs/ngspice-manual.pdf)).
 
-**Reusable for AzeMark.** This is the reference model for explicit Circuit
-semantics: instance = reference + Terminal–node relations + values; node names
-are the connectivity (never drawing placement); ground/reference is mandatory;
-topology rules are validation errors, not layout warnings. Adopt the traps list
-whole: unit-blind suffixes, `M`-means-milli, string-vs-number node identity,
-and the discipline that names of connectivity may not be computed by
-expressions.
+**Existing AzeForge contract.** Named terminal-to-node relations are reusable
+evidence for explicit connectivity, but ngspice's simulation rules do not transfer.
+[Circuit semantic model and validation](https://github.com/aruzone/aze-forge/issues/11#issuecomment-5543076289)
+permits floating Circuits and at most one reference node. An unused node warns;
+each disconnected component-bearing subgraph warns. Duplicate references,
+unknown nodes or terminals, unbound or multiply bound required terminals,
+incompatible quantities, and the other specified invalid declarations remain
+errors. A Circuit must not fail merely for lacking ground, a DC path, or
+simulator-compatible topology. Readable syntax, unit spelling, and identifier
+rules must follow the AzeForge decision rather than ngspice conventions.
 
 ### 7.2 State the defaults, version the migration, teach first (CircuiTikZ)
 
@@ -434,18 +451,22 @@ CircuiTikZ provides "a set of macros … for naturally typesetting electrical an
 electronic networks", born for writing exercise books and exam sheets, "easy to
 use, with a lean syntax, native to LaTeX, and supporting directly PDF output"
 ([CircuiTikZ README](https://github.com/circuitikz/circuitikz),
-[CTAN package page](https://ctan.org/pkg/circuitikz)). Units go through a
-dedicated library (`siunitx`), and authors must state at least a voltage
-direction option such as `RPvoltages`
+[CTAN package page](https://ctan.org/pkg/circuitikz)). The optional `siunitx`
+integration is listed as a dependency "if used". The README recommends stating
+a preferred voltage-direction option such as `RPvoltages`; it does not make that
+choice a universal mandatory input
 ([CircuiTikZ README](https://github.com/circuitikz/circuitikz)). The project
 ships a roll-back mechanism with a manual section on incompatibilities between
 versions, plus tutorials and a hyperlinked HTML manual
 ([CircuiTikZ README](https://github.com/circuitikz/circuitikz)).
 
-**Reusable for AzeMark.** (a) Route all units/values through one unit-aware
-library rather than per-Plugin ad-hoc parsing. (b) Global orientation/polarity
-defaults must be *stated in the Source*, never ambient. (c) Version every
-Technical object schema with a documented migration path from day one.
+**Candidate application.** A common quantity parser could avoid inconsistent unit
+rules across Plugins; per-domain parsers may offer narrower dependencies. Compare
+those approaches rather than treating optional `siunitx` integration as a mandate.
+Source-explicit settings and versioned defaults are also distinct choices.
+Preserve existing Circuit requirements such as the explicit per-Document symbol
+convention. Do not generalize that requirement to every setting, or introduce a
+second Circuit data version beside its approved Plugin SemVer.
 
 ---
 
@@ -483,79 +504,111 @@ JSON forms. The surveyed languages converge on the same anatomy:
 
 ---
 
-## 9. Synthesis: reusable patterns and traps
+## 9. Synthesis: candidate patterns and traps
 
-### Reusable patterns (P)
+These are inputs to decisions, not an approved syntax or implementation checklist.
+The existing-contract qualifications in section 10 take precedence.
 
-- **P1 — Four-slot Block anatomy.** type / positional arguments / named options /
-  body (MyST directives; ngspice instance lines; Vega-Lite mappings). One shape
-  for every Plugin to parse and validate.
-- **P2 — Authoring/canonical split.** Accept many readable forms; canonicalize
-  to exactly one (SMILES generic→unique→absolute; Vega-Lite→Vega; readable
-  math→core subset). Keep both names visible for inspectability.
-- **P3 — Explicit relations, never spatial inference.** Connectivity from named
-  Circuit nodes (ngspice), not drawing proximity; layout constructs marked
-  layout-only (DOT `cluster`); direction as hint (Mermaid).
-- **P4 — Rule-based defaults with explicit override.** Scales/axes/legends
-  (Vega-Lite); figure sizing (Asymptote deferred drawing). Authors state intent;
-  the compiler fills the rest; explicit values always win.
-- **P5 — Unspecified ≠ default.** First-class partial specification (SMILES
-  chirality absence; atom-map partiality). Diagnostics, not defaults, handle
-  the gaps.
-- **P6 — Identity is layered, fixed, and unreadable.** Parameter-fixed standard
-  identifiers (InChI/standard InChIKey); never hand-editable, never per-document
-  tunable. The Content hash analogue.
-- **P7 — Published coverage boundary.** Supported/unsupported tables (KaTeX);
-  bounded escape hatch for the rest (raw backend blocks).
-- **P8 — Stated global defaults.** Voltage direction (CircuiTikZ `RPvoltages`);
-  orientation; ground reference. Ambient defaults are a bug source.
-- **P9 — Examples are conformance tests.** Spec examples executable against any
-  implementation (CommonMark `spec_tests.py`); Golden report fixtures play this
-  role per Technical object.
-- **P10 — One unit library.** All quantities through a single unit-aware path
-  (`siunitx` precedent); never per-Plugin suffix folklore.
-- **P11 — Accessibility in the semantic model.** Natural-language `alt` on
-  equations (Typst) from the start, available to every Renderer.
-- **P12 — Graceful foreign fallback.** Markdown legible without the extension
-  renderer (MyST colon fences); unknown constructs parse and diagnose with
-  alternatives rather than aborting the whole Document.
+### Candidate patterns
 
-### Traps (T)
+- **P1. Consistent Block anatomy.** MyST separates type, arguments, options, and
+  body. Compare that shape with existing AzeMark envelopes before adopting
+  positional arguments or additional delimiters.
+- **P2. Meaning-preserving normalization.** Daylight distinguishes generic →
+  unique from isomeric → absolute. Canonicalization preserves known information;
+  it cannot supply missing isotope or chirality specifications.
+- **P3. Explicit relations with separate presentation intent.** Circuit connectivity
+  comes from named terminal-to-node relations, not proximity, orientation, or order.
+  Authored layout hints can remain in Document data.
+- **P4. Rule-based defaults with overrides.** Vega-Lite demonstrates reduced
+  boilerplate. Default values, precedence, and version identity still need an
+  AzeMark decision.
+- **P5. Unspecified is distinct from default.** SMILES permits partial information.
+  Each selected domain must state whether an omission is valid partial knowledge,
+  a documented default, or an error.
+- **P6. Defined semantic identity.** InChI demonstrates fixed identity parameters.
+  AzeForge's existing content/Artifact hash contract remains authoritative.
+- **P7. Published coverage boundary.** KaTeX's supported/unsupported tables provide
+  a precedent for an inspectable native subset and bounded escape hatches.
+- **P8. Explicit configuration policy.** CircuiTikZ recommends visible conventions.
+  Source-explicit values and versioned built-in defaults are alternatives; every
+  global option need not be repeated in Source.
+- **P9. Executable specification examples.** CommonMark uses examples for
+  conformance. The alpha acceptance decision owns which AzeMark cases warrant
+  persistent regression coverage.
+- **P10. Consistent quantities.** Optional `siunitx` support is a precedent for
+  shared unit formatting, not proof that AzeMark requires a particular library.
+- **P11. Semantic descriptions.** Typst's equation `alt` is a candidate precedent;
+  the selected object schemas and acceptance decision own AzeMark's requirements.
+- **P12. Recovery without false success.** MyST demonstrates readable foreign
+  fallback. AzeForge can recover parsing while still refusing to render an
+  invalid Document under its existing validated-render boundary.
 
-- **T1 — Reserved words.** `end`, leading `o`/`x` (Mermaid); first-letter
-  device typing (ngspice). Maintain a linted list; quote-or-rename diagnostics.
-- **T2 — Order-dependent meaning.** `@`/`@@` chirality in SMILES order; DOT
-  default inheritance at definition time. Whoever rewrites Source must preserve
-  meaning (canonicalizer's burden).
-- **T3 — Unit-blind suffixes.** `10V` = `10`; `M` = milli (ngspice). Require
-  explicit units through P10.
-- **T4 — String-vs-number identity.** `0` vs `00` distinct nodes; case folding
-  (ngspice). Fix node-identity rules once, globally.
-- **T5 — Significant whitespace.** Block-vs-inline `$ … $` (Typst); indentation
-  (reST). Either specify exactly or reject.
-- **T6 — Implicit multi-token rules.** Multi-letter = function (Typst). Prefer
-  explicit operators/quoting over reader-must-know heuristics.
-- **T7 — Layout leaking into semantics.** `cluster` naming, visual proximity
-  (DOT). Keep a hard semantics/layout boundary per Technical object.
-- **T8 — Silent acceptance.** Nothing-is-an-error divergence (CommonMark);
-  last-definition-wins (Mermaid ids). Fail loudly with named alternatives.
-- **T9 — Ambient, unstated configuration.** Root-label inheritance (DOT);
-  unstated voltage direction (CircuiTikZ). Every global default is declared in
-  Source or it does not exist.
-- **T10 — Parallel overlapping grammars.** ngspice warns of "three expression
-  parsers" with differing behavior; AzeMark should have exactly one expression
-  grammar shared by all Plugins.
+### Traps to consider
 
----
+- **T1. Reserved tokens.** Mermaid's `end` and leading `o`/`x` show why quoting and
+  identifier rules need examples. ngspice's device-prefix convention is not an
+  AzeForge requirement.
+- **T2. Order-dependent meaning.** SMILES chirality and DOT inheritance show why
+  rewrites need an explicit equivalence rule. AzeForge Circuit order remains
+  hash-significant and may guide layout without creating connectivity.
+- **T3. Unit-blind suffixes.** ngspice treats `10V` and `10` alike and `M` as milli.
+  AzeMark must not silently inherit these conventions.
+- **T4. Identifier coercion.** ngspice distinguishes `0` and `00`. Compare identifier
+  rules per domain; preserve the approved separate Circuit namespaces.
+- **T5. Significant whitespace.** Typst and reStructuredText demonstrate both
+  convenience and hidden rules. The language decision must choose and document
+  the tradeoff rather than assume a ban.
+- **T6. Implicit token interpretation.** Typst distinguishes single letters from
+  multi-letter names. Explicit quoting is one candidate, not the only design.
+- **T7. Presentation confused with meaning.** Layout must not change connectivity.
+  This does not exclude authored layout intent from Document data or require a
+  coordinate ban across all Technical objects.
+- **T8. Silent semantic replacement.** Mermaid's last-definition-wins rule is a
+  reason to specify duplicates. CommonMark's permissive syntax is not itself
+  a defect to remove from ordinary Markdown.
+- **T9. Uncontrolled configuration.** DOT's temporal inheritance complicates
+  reasoning. Versioned defaults with defined precedence can be deterministic
+  without repeating every setting in Source.
+- **T10. Overlapping grammars.** ngspice's multiple expression parsers motivate
+  comparing shared expression subsets with clearly delimited domain grammars,
+  not mandating one grammar across every Plugin
+  ([ngspice manual](https://ngspice.sourceforge.io/docs/ngspice-manual.pdf)).
 
-## 10. Non-decisions and fog status
+## 10. Review corrections and decision handoff
 
-No catalog, syntax, or implementation choice is made here — those belong to
-later tickets on the map. The fog items on the map stay foggy: object-specific
-schemas, declaration forms, Renderer constraints, and escape-hatch boundaries
-still depend on the curated catalog decision, which this survey intentionally
-does not pre-empt. No new tickets are created: no finding above makes a
-previously foggy decision precisely stateable on its own.
+The initial revision overstated external conventions as AzeMark requirements.
+This revision corrects those statements. The following identifiers let downstream
+tickets trace the correction without copying the entire research answer.
+
+| Correction | Existing contract or corrected fact | Decision owners |
+| --- | --- | --- |
+| R1 | Floating Circuits are valid; unused nodes and disconnected component-bearing subgraphs warn. Do not import simulation topology gates. | [Define the alpha Technical object catalog](https://github.com/aruzone/aze-forge/issues/51), [Define owner-led alpha acceptance](https://github.com/aruzone/aze-forge/issues/53) |
+| R2 | Retain approved `layout.flow`, optional orientation, and hash-significant declaration order. They never create connectivity. | [Define the controlled AzeMark language contract](https://github.com/aruzone/aze-forge/issues/52), [Map the compiler gap to the alpha catalog](https://github.com/aruzone/aze-forge/issues/45) |
+| R3 | Documents contain Blocks. Block renderers produce opaque Fragments owned by document Renderers, not semantic Blocks. | [Define the compiler library and web service boundary](https://github.com/aruzone/aze-forge/issues/46), [Map the compiler gap to the alpha catalog](https://github.com/aruzone/aze-forge/issues/45) |
+| R4 | Generic → unique and isomeric → absolute are separate canonicalization paths. Normalization cannot invent or erase isotope/chirality information. | [Define the controlled AzeMark language contract](https://github.com/aruzone/aze-forge/issues/52), [Define owner-led alpha acceptance](https://github.com/aruzone/aze-forge/issues/53) |
+| R5 | `siunitx` is optional and explicit voltage-direction selection is recommended by CircuiTikZ, not universally required. | [Define the compiler library and web service boundary](https://github.com/aruzone/aze-forge/issues/46), [Map the compiler gap to the alpha catalog](https://github.com/aruzone/aze-forge/issues/45) |
+| R6 | Geometry coordinates, default policy, expression-grammar sharing, quantity-library choice, and envelope syntax remain owner-approved decisions, not survey mandates. | [Define the controlled AzeMark language contract](https://github.com/aruzone/aze-forge/issues/52), [Taste representative AzeMark authoring forms](https://github.com/aruzone/aze-forge/issues/50) |
+
+### Questions now explicit
+
+- In selected geometry capabilities, should authors use named constructions,
+  coordinates, or a bounded combination? What precision and solver/layout limits
+  does each approach entail? The catalog chooses capability scope; the
+  language-contract decision owns authoring-policy consistency.
+- Which settings require explicit Source, and which may use versioned defaults?
+  How are resolved values, precedence, and hash/fingerprint effects documented?
+- Which expression and quantity rules can be shared, and where do delimited
+  domain grammars need different semantics? What prevents ambiguous boundaries?
+- Does the existing directive envelope suffice, or do positional arguments and
+  alternate fences earn their complexity?
+
+These questions belong to existing decision tickets. Detailed per-object schemas
+and implementation slices still depend on the catalog; no new ticket is necessary.
+[Sequence the alpha implementation handoff](https://github.com/aruzone/aze-forge/issues/48)
+must map R1–R6 to the affected execution issues and acceptance evidence, or record
+an explicit out-of-scope disposition. A research recommendation alone is not
+authorization to replace an inherited contract.
 
 ## Sources
 
