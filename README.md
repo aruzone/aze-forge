@@ -1,419 +1,235 @@
 # AzeForge
 
-AzeForge compiles AzeMark into deterministic, self-contained HTML and continuous-layout SVG Artifacts.
+Write once in readable **AzeMark**, publish everywhere: deterministic,
+self-contained **HTML**, **SVG**, **PNG**, and **PDF** from a single Source —
+no build chain, no runtime dependencies in your output.
 
-## Supported syntax
-
-- AzeMark v1 YAML front matter
-- ATX headings such as `# Heading`
-- Setext headings
-- paragraphs
-- plain inline text
-- equation directive Blocks (readable aliases plus trusted-local raw LaTeX)
-
-Readable equation example:
-
-```text
-:::: equation
-id: euler
-number: true
-align: center
-
-F(omega) =
-  integral t=-infinity..infinity of
-  f(t) exp(-i omega t) dt
-::::
-```
-
-Header attributes are `id`, `number: true|false`, `align: left|center|right`,
-and `syntax: readable|latex` (default `readable`). Readable aliases cover
-Greek letters, `sqrt`/`frac`/`root`, `sum`/`product`, `integral`, `limit`,
-derivatives, `matrix`, `cases`, and relations/sets; they render through
-pinned KaTeX (`0.18.5`, offline `htmlAndMathml`, `trust: false`, bounded,
-sanitized). Raw LaTeX is denied by default with
-`azeforge.security#raw-latex-disabled` and renders only with
-`--allow-raw-latex` on `validate` or `render`:
-
-```text
-:::: equation
-syntax: latex
-
-\frac{a}{b}
-::::
-```
-
-Directive envelopes are recovered as `InvalidBlock` values until Plugins are registered. Raw HTML is denied and never rendered as text or markup. Lists, Mermaid, images, and other Markdown constructs are not implemented yet.
+- **Deterministic.** The same Source always produces byte-identical
+  Artifacts. Every Artifact carries the content hash of the Document it
+  represents, so you can prove what you published.
+- **Self-contained.** Fonts are embedded, scripts are never emitted, and
+  Artifacts phone home to nothing. Send the file; it renders as-is.
+- **Fail-closed.** Invalid Sources produce precise, ranged diagnostics —
+  never a half-written Artifact, never a stack trace.
+- **Offline math.** Equations render through a pinned, sandboxed KaTeX
+  bundle. Readable aliases cover Greek, fractions, sums, integrals, limits,
+  matrices, and more; raw LaTeX stays denied unless you explicitly opt in.
+- **Diagrams included.** Mermaid flowcharts, GFM-style tables, and callouts
+  are first-class Blocks rendered through a pinned browser engine.
 
 ## Install
-
-Consumers install the published package; no repo checkout is needed:
 
 ```bash
 npm install -g @aruzone/aze-forge
 azeforge --help
 ```
 
-Prerequisites: Node.js 22 or 24, on Ubuntu or macOS.
-Windows support is parked until platform-specific verification lands (see issue #43).
-There is no standalone binary: the npm global install is the distribution
-path, so the Node prerequisite always applies. A single-file binary would
-have to bundle Node plus the pinned browser engine and fonts below, and is
-deferred; users re-install for new versions (no auto-update).
-The install downloads the pinned browser engine (Chrome Headless Shell
-`152.0.7977.75` into `~/.cache/puppeteer`) via the `puppeteer` postinstall
-script, so the installing machine needs network access once.
-
-npm 11 and newer skip install scripts on global installs by default. If the
-install prints `npm warn install-scripts`, the engine was not downloaded;
-rerun with scripts allowed:
+Requires Node.js 22 or 24 on Ubuntu or macOS (Windows support is parked).
+The install fetches a pinned browser engine for diagrams and visual formats;
+on npm 11+ allow its install script once:
 
 ```bash
 npm install -g @aruzone/aze-forge --allow-scripts=puppeteer
 ```
 
-(or `npm config set allow-scripts=puppeteer --location=user` to allow it
-for all global installs). Without the engine, browser-backed formats fail
-with the structured remedy below instead of downloading anything. Verify it with
-a browser-backed format:
+Details, offline installs, and uninstall live in
+[docs/development.md](docs/development.md#browser-engine-and-offline-installs).
+
+## Try it: your first document
+
+Create a Source file — plain Markdown with a small front matter header:
 
 ```bash
-azeforge capabilities --probe --json
-azeforge render /tmp/manual.aze.md --output /tmp/manual.svg
-```
-
-Offline or browser-missing installs stay structured: browser-backed formats
-(`svg`, `png`, `pdf`, Mermaid diagrams) fail with exit `1` and a
-`azeforge.renderer#browser-unavailable` (or `adapter-missing`) diagnostic
-suggesting `Reinstall AzeForge browser dependencies and retry`, never a
-stack trace. Plain-HTML rendering without diagrams keeps working. Remedy:
-re-install with network access, or fetch only the engine with
-`npx puppeteer browsers install chrome-headless-shell@152.0.7977.75`.
-
-The acceptance gate runs identically against the consumer install by
-pointing the runner at the `azeforge` on `PATH`:
-
-```bash
-AZEFORGE_CLI=azeforge node scripts/acceptance.mjs
-```
-
-(from a checkout; the runner itself ships in the repo, the CLI under test
-is the installed one).
-
-Uninstall:
-
-```bash
-npm uninstall -g @aruzone/aze-forge
-# optional: remove the downloaded browser engine
-rm -rf ~/.cache/puppeteer
-```
-
-## Build
-
-The project requires Node.js 22 or newer.
-
-Supported releases run on Node.js 22 and 24 (Ubuntu, macOS);
-Windows support is parked until platform-specific verification lands (see issue #43).
-Canonical HTML/SVG/PNG/PDF golden and visual evidence is built on pinned
-Ubuntu x64 with Node 24. `azeforge capabilities --json` reports the exact
-support matrix under `runtime`.
-
-```bash
-npm install
-npm run build
-```
-
-The examples below invoke the built CLI directly:
-
-```bash
-node dist/cli.js
-```
-## Create a Source file
-
-```bash
-cat >/tmp/manual.aze.md <<'EOF'
+cat > hello.aze.md <<'EOF'
 ---
 azemark: 1
-title: Manual AzeForge test
+title: Hello AzeForge
 author:
   - Test Author
 theme: default
-outputs:
-  - html
 ---
 
 # Introduction
 
 This document tests the current compiler.
-
-Results
--------
-
-The render is deterministic.
 EOF
 ```
 
-## Validate
+Validate it (silence means valid) and render it:
 
 ```bash
-node dist/cli.js validate /tmp/manual.aze.md
-echo $?
+azeforge validate hello.aze.md && echo VALID
+azeforge render hello.aze.md --output hello.html && open hello.html
 ```
 
-A valid Source produces no stdout or stderr and exits with status `0`.
+## Try it: equations
 
-Add `--diagnostics json` to `validate` or file-targeted `render` to emit exactly one `azeforge.diagnostics/v1` report on stdout. The package exports `diagnosticsJsonSchema` for JSON Schema 2020-12 validation. Human diagnostics remain on stderr.
-
-## Format Source
+Readable math — no LaTeX required:
 
 ```bash
-# Write LF-formatted UTF-8 Source to stdout.
-node dist/cli.js format /tmp/manual.aze.md
-
-# Atomically replace a file.
-node dist/cli.js format /tmp/manual.aze.md --write
-
-# Emit no Source; exit 1 only when formatting is required.
-node dist/cli.js format /tmp/manual.aze.md --check
-
-# Stdin is explicit; `-` is not an alias.
-cat /tmp/manual.aze.md | node dist/cli.js format --stdin
-```
-
-Formatting removes a leading BOM, emits LF line endings, preserves comments,
-unknown directive bodies, invalid regions, and denied raw content, and writes
-nothing when structural syntax is ambiguous. `--write` rejects stdin, and
-`--write` and `--check` cannot be combined.
-
-## Render to a file
-
-```bash
-node dist/cli.js render \
-  /tmp/manual.aze.md \
-  --output /tmp/manual.html
-
-echo $?
-open /tmp/manual.html
-```
-
-A successful render exits with status `0` and atomically replaces `/tmp/manual.html`.
-
-Use an `.svg` destination or pass `--format svg` to produce SVG2 with an
-XHTML `foreignObject`. The SVG records its required `svg2` and
-`xhtml-foreign-object` capabilities in Artifact metadata; it does not emit a
-fallback format.
-
-```bash
-node dist/cli.js render \
-  /tmp/manual.aze.md \
-  --output /tmp/manual.svg
-```
-
-Check that the Artifact embeds its fonts and contains no scripts:
-
-```bash
-grep -o 'data:font/woff2;base64' /tmp/manual.html | sort -u
-grep -i '<script' /tmp/manual.html
-```
-
-The first command prints `data:font/woff2;base64`. The second prints nothing.
-
-## Render to stdout
-
-```bash
-node dist/cli.js render \
-  /tmp/manual.aze.md \
-  --stdout \
-  --format html \
-  >/tmp/manual-stdout.html
-
-cmp /tmp/manual.html /tmp/manual-stdout.html
-echo $?
-```
-
-`cmp` produces no output and exits with status `0`.
-
-## Watch a Source
-
-```bash
-node dist/cli.js watch \
-  /tmp/manual.aze.md \
-  --output /tmp/manual.html
-```
-
-`watch` compiles immediately, then fully recompiles after coalesced changes to
-the Source or its project images. Compiles are serialized; a failed cycle
-preserves the last successful Artifact and keeps watching. Add
-`--diagnostics json` to stream `azeforge.event/v1` NDJSON records on stdout
-instead of human diagnostics on stderr.
-
-## Serve a preview
-
-```bash
-node dist/cli.js serve /tmp/manual.aze.md --port 0
-# serve: listening on http://127.0.0.1:62545/ for /tmp/manual.aze.md
-```
-
-`serve` binds only loopback (ephemeral port by default) and shows the current
-HTML preview or the current diagnostics, never stale content. The preview
-wraps the exact Artifact bytes in an unhashable reload shell; only preview,
-SSE, and opaque asset routes exist. Stop with `SIGINT` or `SIGTERM`.
-
-## Check deterministic output
-
-```bash
-cp /tmp/manual.html /tmp/manual-first.html
-
-node dist/cli.js render \
-  /tmp/manual.aze.md \
-  --output /tmp/manual.html
-
-cmp /tmp/manual-first.html /tmp/manual.html
-shasum -a 256 /tmp/manual-first.html /tmp/manual.html
-```
-
-The files must be byte-identical and have the same SHA-256 value.
-
-The HTML also records the semantic content hash:
-
-```bash
-grep -o 'name="azeforge-content-hash" content="sha256:[^"]*"' \
-  /tmp/manual.html
-```
-
-## Check failure handling
-
-```bash
-cat >/tmp/invalid.aze.md <<'EOF'
----
-azemark: 2
----
-
-This version is unsupported.
-EOF
-
-printf 'previous successful Artifact' >/tmp/preserved.html
-
-node dist/cli.js render \
-  /tmp/invalid.aze.md \
-  --output /tmp/preserved.html
-
-echo "exit: $?"
-cat /tmp/preserved.html
-```
-
-The command reports `azeforge.source#version-unsupported`, exits with status `1`, and leaves the previous Artifact unchanged.
-
-CLI exit statuses:
-
-- `0`: the operation succeeded, including warning-only validation
-- `1`: an accepted operation failed on Source or component diagnostics
-- `2`: arguments or options could not form an operation
-
-## Test invalid Source recovery
-
-Exercise the recovery seam with malformed UTF-8, malformed front matter, duplicate IDs, unknown directives, raw HTML, CRLF, and multi-error Source:
-
-```bash
-node dist/cli.js validate /tmp/bad.aze.md; echo "exit=$?"
-node dist/cli.js validate /tmp/bad.aze.md --diagnostics json > /tmp/report.json; echo "exit=$?"
-node dist/cli.js render /tmp/bad.aze.md --output /tmp/bad.html --diagnostics json; echo "exit=$?"
-```
-
-Exit `2` is reserved for malformed operations (bad flags or arguments). Exit `1` means an accepted operation failed on Source or component diagnostics. Exit `0` with no stdout or stderr means a valid Source.
-
-Confirm the JSON report is the single finite `azeforge.diagnostics/v1` document on stdout while human diagnostics stay on stderr, and validate it against the exported `diagnosticsJsonSchema` (JSON Schema 2020-12):
-
-```bash
-node dist/cli.js render /tmp/bad.aze.md --output /tmp/bad.html --diagnostics json 2>/tmp/stderr.txt | tee /tmp/report.json
-test ! -s /tmp/stderr.txt && echo "stderr clean in json mode"
-```
-
-Confirm a failed render never commits an Artifact by pre-seeding the destination:
-
-```bash
-echo "last successful Artifact" > /tmp/out.html
-node dist/cli.js render /tmp/bad.aze.md --output /tmp/out.html; echo "exit=$?"
-grep -qx "last successful Artifact" /tmp/out.html && echo "artifact preserved"
-```
-
-Probe raw HTML denial, which must report `azeforge.security#raw-html-disabled`, exit `1`, and never render the markup:
-
-```bash
-printf -- '---\nazemark: 1\n---\n\nBefore\n\n<div>\n\nAfter\n' > /tmp/html.aze.md
-node dist/cli.js render /tmp/html.aze.md --output /tmp/html.html --diagnostics json
-grep -i '<script\|<div' /tmp/html.html || echo "no raw html rendered"
-```
-
-Repeat the probes with CRLF line endings and a BOM prefix; diagnostic ranges, columns, and offsets must still line up in the JSON report.
-
-## Automated checks
-
-```bash
-npm run typecheck
-npm test
-```
-
-`npm test` rebuilds `dist/` and runs the full suite (`test/*.test.mjs`).
-Bare `node --test` reuses the last build, so rebuild after editing `src/`.
-Target one layer while working:
-
-```bash
-npm run build
-npm run test:compiler
-npm run test:cli
-npm run test:matrix
-npm run test:browser-smoke
-npm run test:canonical-suite
-npm run test:canonical
-node --test test/equation.test.mjs
-```
-
-`test:matrix` is the browser-independent unit, schema, and installed-CLI
-compatibility seam. `test:browser-smoke` invokes the packaged pinned engine.
-`test:canonical-suite` and `test:canonical` own Golden report and visual
-evidence and are authoritative only on Ubuntu 24.04 x64 with Node 24.
-
-`test/equation.test.mjs` is the equation seam: versioned Blocks, alias
-coverage, ranged diagnostics, raw-LaTeX policy, adapter failure modes,
-registry rejection, descriptor conformance, and real CLI calls.
-
-Probe equations by hand:
-
-```bash
-cat >/tmp/eq.aze.md <<'EOF'
+cat > equation.aze.md <<'EOF'
 ---
 azemark: 1
 title: Equation check
 ---
 
-:::: equation
+::::: equation
 id: euler
 
 F(omega) = integral x=0..infinity of x^2 dx
-::::
+:::::
 EOF
 
-node dist/cli.js validate /tmp/eq.aze.md && echo VALID
-node dist/cli.js render /tmp/eq.aze.md --output /tmp/eq.html
-grep -o 'class="katex"\|<math\|<annotation' /tmp/eq.html | sort | uniq -c
+azeforge render equation.aze.md --output equation.html
 ```
 
-Probe the raw-LaTeX gate (denied by default, trusted-local opt-in):
+Need raw LaTeX? It is denied by default and opt-in per command:
 
 ```bash
-cat >/tmp/raw.aze.md <<'EOF'
+azeforge validate equation.aze.md --allow-raw-latex && echo ALLOWED
+```
+
+## Try it: tables and callouts
+
+```bash
+cat > blocks.aze.md <<'EOF'
 ---
 azemark: 1
+title: Blocks
 ---
 
-:::: equation
-syntax: latex
+::::: callout
+variant: note
+title: Determinism note
 
-\frac{a}{b}
-::::
+Callout bodies parse ordinary Markdown, including nested equations.
+:::::
+
+::::: table
+caption: Thermal properties
+id: materials
+
+| material | density [kg/m^3] | conductivity [W/(m K)] |
+| :--- | :---: | ---: |
+| Aluminum | 2700 | 205 |
+| Steel | 7850 | 50 |
+:::::
 EOF
 
-node dist/cli.js validate /tmp/raw.aze.md; echo "exit=$? (expect 1)"
-node dist/cli.js validate /tmp/raw.aze.md --allow-raw-latex && echo ALLOWED
-node dist/cli.js render /tmp/raw.aze.md --output /tmp/raw.html --allow-raw-latex
+azeforge render blocks.aze.md --output blocks.html
 ```
+
+## Try it: diagrams
+
+Mermaid flowcharts render through the pinned browser engine:
+
+```bash
+cat > diagram.aze.md <<'EOF'
+---
+azemark: 1
+title: Diagram
+---
+
+:::::: mermaid
+id: flow
+title: Measurement flow
+
+flowchart LR
+  start[Start] --> inspect[Inspect setup]
+  inspect --> done[Done]
+::::::
+EOF
+
+azeforge render diagram.aze.md --output diagram.html
+```
+
+## Try it: every format and theme
+
+One Source, four Artifacts, three themes (`default`, `academic`,
+`dark-presentation`):
+
+```bash
+for format in html svg png pdf; do
+  azeforge render hello.aze.md --output "hello.${format}"
+done
+azeforge render hello.aze.md --output hello-academic.html --theme academic
+```
+
+Artifacts embed their fonts and contain no scripts:
+
+```bash
+grep -o 'data:font/woff2;base64' hello.html | sort -u
+grep -i '<script' hello.html || echo "no scripts"
+```
+
+## Try it: machine diagnostics
+
+One JSON report on stdout, human text on stderr:
+
+```bash
+azeforge validate hello.aze.md --diagnostics json
+```
+
+Break something and watch it fail closed — exit `1`, previous Artifact
+untouched:
+
+```bash
+printf -- '---\nazemark: 2\n---\n\nUnsupported.\n' > invalid.aze.md
+printf 'previous Artifact' > preserved.html
+azeforge render invalid.aze.md --output preserved.html; echo "exit: $?"
+cat preserved.html
+```
+
+## Try it: live rebuild and preview
+
+Recompile on every save, or preview in a loopback browser tab:
+
+```bash
+azeforge watch hello.aze.md --output hello.html
+azeforge serve hello.aze.md --port 0
+# serve: listening on http://127.0.0.1:62545/ for hello.aze.md
+```
+
+`watch` preserves the last successful Artifact through failed cycles; `serve`
+binds loopback only and never shows stale content. Stop either with
+`SIGINT` or `SIGTERM`.
+
+## Try it: prove determinism
+
+Render twice; the bytes — and their hashes — must match exactly:
+
+```bash
+azeforge render hello.aze.md --output hello-first.html
+azeforge render hello.aze.md --output hello.html
+cmp hello-first.html hello.html && echo IDENTICAL
+shasum -a 256 hello-first.html hello.html
+```
+
+## Commands
+
+| Command        | Purpose                                              |
+| -------------- | ---------------------------------------------------- |
+| `render`       | Compile a Source to `html`, `svg`, `png`, or `pdf`   |
+| `validate`     | Check a Source; silent success, ranged diagnostics   |
+| `format`       | Canonical LF/UTF-8 formatting (`--write`, `--check`) |
+| `watch`        | Recompile on save, preserving last good Artifact     |
+| `serve`        | Loopback live preview with reload                    |
+| `capabilities` | Supported commands, formats, engines (`--probe`)     |
+| `version`      | Tool, runtime, and schema versions (`--json`)        |
+
+Exit statuses: `0` success (including warning-only validation), `1` the
+operation was accepted but the Source failed, `2` the invocation itself was
+malformed. Run `azeforge <command> --help` for full options.
+
+## Uninstall
+
+```bash
+npm uninstall -g @aruzone/aze-forge
+rm -rf ~/.cache/puppeteer  # optional: remove the downloaded browser engine
+```
+
+## Contribute
+
+Development setup, the test seams, the acceptance runner, and the release
+process are in [docs/development.md](docs/development.md). AzeForge is
+[MIT](LICENSE)-licensed.
