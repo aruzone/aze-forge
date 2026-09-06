@@ -3,9 +3,10 @@ import { spawn, spawnSync } from "node:child_process";
 import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
 
-const CLI_PATH = new URL("../dist/cli.js", import.meta.url);
+const CLI_PATH = fileURLToPath(new URL("../dist/cli.js", import.meta.url));
 
 const MINIMAL_SOURCE = `---
 azemark: 1
@@ -24,7 +25,7 @@ const EXPECTED_RUNTIME = {
 };
 
 function runCli(arguments_, workingDirectory, environment = {}) {
-  return spawnSync(process.execPath, [CLI_PATH.pathname, ...arguments_], {
+  return spawnSync(process.execPath, [CLI_PATH, ...arguments_], {
     cwd: workingDirectory,
     encoding: null,
     env: { ...process.env, ...environment },
@@ -35,7 +36,7 @@ function renderAsync(sourcePath, outputArguments, workingDirectory, environment)
   return new Promise((resolve, reject) => {
     const child = spawn(
       process.execPath,
-      [CLI_PATH.pathname, "render", sourcePath, ...outputArguments, "--diagnostics", "json"],
+      [CLI_PATH, "render", sourcePath, ...outputArguments, "--diagnostics", "json"],
       { cwd: workingDirectory, env: { ...process.env, ...environment } },
     );
     const chunks = { stdout: [], stderr: [] };
@@ -80,11 +81,12 @@ test("compatibility matrix matches the declared Node and OS support", () => {
   assert.deepEqual(payload.runtime, EXPECTED_RUNTIME);
 });
 
-test("version metadata carries no workstation facts", () => {
+test("version metadata matches support without workstation facts", () => {
   const result = runCli(["version", "--json"], tmpdir());
   assert.equal(result.status, 0);
   const text = result.stdout.toString("utf8");
-  assert.doesNotMatch(text, /darwin|linux|win32|x64|arm64|ubuntu|macos|windows|Users|home/i);
+  assert.deepEqual(JSON.parse(text).runtime, EXPECTED_RUNTIME);
+  assert.doesNotMatch(text, /Users|home|darwin|linux|win32|arm64/i);
 });
 
 test("system-font absence cannot change eligibility or substitute glyphs", async (context) => {
@@ -142,7 +144,7 @@ test("locale, timezone, env ordering, paths, and temp dirs do not change output"
       await writeFile(join(directory, "probe.aze.md"), MINIMAL_SOURCE);
       const result = spawnSync(
         process.execPath,
-        [CLI_PATH.pathname, "render", "probe.aze.md", "--output", "probe.html", "--diagnostics", "json"],
+        [CLI_PATH, "render", "probe.aze.md", "--output", "probe.html", "--diagnostics", "json"],
         { cwd: directory, encoding: null, env: reversedProcessEnvironment },
       );
       const report = parseReport(result, "render with reversed environment order");
@@ -175,29 +177,4 @@ test("concurrent renders share one deterministic identity", async () => {
   for (const bytes of rendered.slice(1)) {
     assert.deepEqual(bytes, rendered[0]);
   }
-});
-
-test("browser-backed smoke renders through the packaged pinned engine", async () => {
-  const probe = runCli(["capabilities", "--probe", "--json"], tmpdir());
-  assert.equal(probe.status, 0);
-  const capabilities = JSON.parse(probe.stdout.toString("utf8"));
-  assert.equal(capabilities.engines.browser.pinnedVersion, "152.0.7977.75");
-  assert.equal(capabilities.engines.browser.availability, "available");
-
-  const first = await mkdtemp(join(tmpdir(), "compat-svg-a-"));
-  const second = await mkdtemp(join(tmpdir(), "compat-svg-b-"));
-  for (const directory of [first, second]) {
-    await writeFile(join(directory, "probe.aze.md"), MINIMAL_SOURCE);
-  }
-  const firstResult = runCli(["render", "probe.aze.md", "--output", "probe.svg", "--format", "svg", "--diagnostics", "json"], first);
-  const firstReport = parseReport(firstResult, "browser-backed svg render");
-  assert.equal(firstReport.artifact.format, "svg");
-  const secondResult = runCli(
-    ["render", "probe.aze.md", "--output", "probe.svg", "--format", "svg", "--diagnostics", "json"],
-    second,
-    { LANG: "C", LC_ALL: "C", TZ: "Pacific/Kiritimati" },
-  );
-  const secondReport = parseReport(secondResult, "browser-backed svg render under a second environment");
-  assert.deepEqual(await readFile(join(second, "probe.svg")), await readFile(join(first, "probe.svg")));
-  assert.equal(secondReport.artifact.artifactHash, firstReport.artifact.artifactHash);
 });

@@ -4,9 +4,10 @@ import { createServer } from "node:http";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
 
-const CLI_PATH = new URL("../dist/cli.js", import.meta.url);
+const CLI_PATH = fileURLToPath(new URL("../dist/cli.js", import.meta.url));
 const VALID_SOURCE = `---
 azemark: 1
 title: Watch report
@@ -23,14 +24,14 @@ const PNG_BYTES = Buffer.from(
 );
 
 function runCliSync(arguments_, cwd) {
-  return spawnSync(process.execPath, [CLI_PATH.pathname, ...arguments_], {
+  return spawnSync(process.execPath, [CLI_PATH, ...arguments_], {
     cwd,
     encoding: null,
   });
 }
 
 function startCli(arguments_, cwd) {
-  const child = spawn(process.execPath, [CLI_PATH.pathname, ...arguments_], {
+  const child = spawn(process.execPath, [CLI_PATH, ...arguments_], {
     cwd,
     stdio: ["ignore", "pipe", "pipe"],
   });

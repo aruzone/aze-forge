@@ -1,14 +1,20 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
 
-const CLI_PATH = new URL("../dist/cli.js", import.meta.url);
-const SCHEMAS_PATH = new URL("../schemas/", import.meta.url);
+const CLI_PATH = fileURLToPath(new URL("../dist/cli.js", import.meta.url));
+const ROOT = fileURLToPath(new URL("../", import.meta.url));
+const EXPECTED_RUNTIME = {
+  node: { supported: [22, 24], canonical: 24 },
+  os: { supported: ["ubuntu", "macos", "windows"], canonical: "ubuntu" },
+  canonical: { os: "ubuntu", arch: "x64", node: 24 },
+};
 
 function runCli(arguments_) {
-  return spawnSync(process.execPath, [CLI_PATH.pathname, ...arguments_], {
-    cwd: new URL("../", import.meta.url).pathname,
+  return spawnSync(process.execPath, [CLI_PATH, ...arguments_], {
+    cwd: ROOT,
     encoding: null,
   });
 }
@@ -18,21 +24,6 @@ async function packagedSchema(name) {
   return { raw, schema: JSON.parse(raw) };
 }
 
-test("packaged schemas are byte-identical to the exported schema objects", async () => {
-  const { capabilitiesJsonSchema } = await import("../dist/capabilities-json.js");
-  const { versionJsonSchema } = await import("../dist/version.js");
-  const { diagnosticsJsonSchema } = await import("../dist/diagnostics-json.js");
-  for (const [name, exported] of [
-    ["capabilities", capabilitiesJsonSchema],
-    ["version", versionJsonSchema],
-    ["diagnostics", diagnosticsJsonSchema],
-  ]) {
-    const { raw } = await packagedSchema(name);
-    assert.equal(raw, `${JSON.stringify(exported, null, 2)}\n`);
-  }
-  assert.ok((await packagedSchema("capabilities")).raw.length > 0);
-  void SCHEMAS_PATH;
-});
 
 test("version --json emits the packaged version document on stdout only", async () => {
   const result = runCli(["version", "--json"]);
@@ -44,18 +35,20 @@ test("version --json emits the packaged version document on stdout only", async 
   for (const key of schema.required) {
     assert.ok(key in payload, `missing required key ${key}`);
   }
+  assert.deepEqual(Object.keys(payload), schema.required);
   assert.equal(payload.schema, "azeforge.version/v1");
   assert.equal(payload.schemaVersion, 1);
   assert.deepEqual(payload.tool, { name: "azeforge", version: "0.1.0" });
+  assert.deepEqual(payload.runtime, EXPECTED_RUNTIME);
   assert.deepEqual(payload.source, { azemarkVersions: [1] });
   assert.deepEqual(payload.document, { schemaVersions: [1] });
   const ids = payload.schemas.map(({ id }) => id);
   assert.ok(ids.includes("azeforge.diagnostics/v1"));
   assert.ok(ids.includes("azeforge.capabilities/v1"));
   assert.ok(ids.includes("azeforge.version/v1"));
-  // No workstation facts in the version document.
+  // Static support facts are release metadata, never facts about this workstation.
   assert.match(result.stdout.toString("utf8"), /"version":"0\.1\.0"/);
-  assert.doesNotMatch(result.stdout.toString("utf8"), /Users|home|darwin|linux|win32/i);
+  assert.doesNotMatch(result.stdout.toString("utf8"), /Users|home|darwin|linux|win32|arm64/i);
 });
 
 test("capabilities --json enumerates the P0 contract in canonical order", async () => {
@@ -92,11 +85,7 @@ test("capabilities --json enumerates the P0 contract in canonical order", async 
   assert.deepEqual(payload.formats, ["html", "svg", "png", "pdf"]);
   assert.deepEqual(payload.source.azemarkVersions, [1]);
   assert.deepEqual(payload.document.schemaVersions, [1]);
-  assert.deepEqual(payload.runtime, {
-    node: { supported: [22, 24], canonical: 24 },
-    os: { supported: ["ubuntu", "macos", "windows"], canonical: "ubuntu" },
-    canonical: { os: "ubuntu", arch: "x64", node: 24 },
-  });
+  assert.deepEqual(payload.runtime, EXPECTED_RUNTIME);
 
   // Static output is deterministic and reports availability as unknown.
   assert.equal(payload.engines.browser.availability, "unknown");

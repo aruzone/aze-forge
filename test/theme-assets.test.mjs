@@ -4,11 +4,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { deflateSync } from "node:zlib";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
 
 import { academicTheme, createCompiler, darkPresentationTheme } from "../dist/index.js";
 
-const CLI_PATH = new URL("../dist/cli.js", import.meta.url);
+const CLI_PATH = fileURLToPath(new URL("../dist/cli.js", import.meta.url));
 
 // --- Minimal binary builders (self-contained, no fixtures on disk) ---
 
@@ -369,7 +370,7 @@ test("CLI renders rooted projects under every theme", async (context) => {
     const result = spawnSync(
       process.execPath,
       [
-        CLI_PATH.pathname,
+        CLI_PATH,
         "render",
         "report.aze.md",
         "--output",

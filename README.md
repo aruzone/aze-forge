@@ -300,8 +300,17 @@ Target one layer while working:
 npm run build
 npm run test:compiler
 npm run test:cli
+npm run test:matrix
+npm run test:browser-smoke
+npm run test:canonical-suite
+npm run test:canonical
 node --test test/equation.test.mjs
 ```
+
+`test:matrix` is the browser-independent unit, schema, and installed-CLI
+compatibility seam. `test:browser-smoke` invokes the packaged pinned engine.
+`test:canonical-suite` and `test:canonical` own Golden report and visual
+evidence and are authoritative only on Ubuntu 24.04 x64 with Node 24.
 
 `test/equation.test.mjs` is the equation seam: versioned Blocks, alias
 coverage, ranged diagnostics, raw-LaTeX policy, adapter failure modes,

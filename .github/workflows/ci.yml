@@ -10,7 +10,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-24.04, macos-latest, windows-latest]
         node: [22, 24]
     runs-on: ${{ matrix.os }}
     steps:
@@ -21,44 +21,27 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run typecheck
-      - run: npm test
-      - name: Preserve machine diagnostics on failure
-        if: failure()
-        run: node dist/cli.js capabilities --probe --json > compatibility-diagnostics.json
-      - uses: actions/upload-artifact@v4
-        if: failure()
-        with:
-          name: compatibility-diagnostics-${{ matrix.os }}-node-${{ matrix.node }}
-          path: compatibility-diagnostics.json
-
-  canonical:
-    name: canonical golden (ubuntu x64, node 24)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: npm
-      - run: npm ci
       - run: npm run build --silent
-      - name: Run canonical acceptance
-        run: node scripts/acceptance.mjs --json > acceptance-report.json
+      - name: Run unit, schema, and CLI integration
+        run: npm run test:matrix --silent > matrix-report.tap
+      - name: Capture compatibility diagnostics
+        if: failure()
+        run: node scripts/compatibility-diagnostics.mjs > compatibility-diagnostics.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: canonical-acceptance-evidence
+          name: compatibility-${{ matrix.os }}-node-${{ matrix.node }}
+          if-no-files-found: ignore
           path: |
-            acceptance-report.json
-            acceptance/expected.json
-            acceptance/expected-png
+            matrix-report.tap
+            compatibility-diagnostics.json
 
-  smoke:
+  browser-smoke:
     name: browser smoke on ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-24.04, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -68,10 +51,48 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build --silent
-      - name: Run browser-backed smoke
-        run: node scripts/acceptance.mjs --json > smoke-report.json
+      - name: Run packaged pinned-browser smoke
+        run: npm run test:browser-smoke --silent > browser-smoke.tap
+      - name: Capture browser diagnostics
+        if: failure()
+        run: node scripts/compatibility-diagnostics.mjs > compatibility-diagnostics.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: smoke-report-${{ matrix.os }}
-          path: smoke-report.json
+          name: browser-smoke-${{ matrix.os }}
+          if-no-files-found: ignore
+          path: |
+            browser-smoke.tap
+            compatibility-diagnostics.json
+
+  canonical:
+    name: canonical golden (ubuntu 24.04 x64, node 24)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run build --silent
+      - name: Assert canonical architecture
+        run: node -e "if (process.arch !== 'x64') throw new Error('Canonical evidence requires x64')"
+      - name: Run canonical browser and visual suites
+        run: npm run test:canonical-suite --silent > canonical-suite.tap
+      - name: Run canonical acceptance
+        run: npm run test:canonical --silent > acceptance-report.json
+      - name: Capture canonical diagnostics
+        if: failure()
+        run: node scripts/compatibility-diagnostics.mjs > compatibility-diagnostics.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: canonical-acceptance-evidence
+          if-no-files-found: ignore
+          path: |
+            acceptance-report.json
+            canonical-suite.tap
+            compatibility-diagnostics.json
+            acceptance/expected.json
+            acceptance/expected-png

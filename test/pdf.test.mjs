@@ -4,6 +4,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { inflateSync } from "node:zlib";
 
@@ -15,7 +16,17 @@ import {
   PdfArtifactLimitError,
 } from "../dist/index.js";
 
-const CLI_PATH = new URL("../dist/cli.js", import.meta.url);
+const CLI_PATH = fileURLToPath(new URL("../dist/cli.js", import.meta.url));
+
+function ptyArguments(commandArguments) {
+  if (process.platform === "linux") {
+    const command = commandArguments
+      .map((part) => `'${part.replace(/'/g, `'\\''`)}'`)
+      .join(" ");
+    return ["-qec", command, "/dev/null"];
+  }
+  return ["-q", "/dev/null", ...commandArguments];
+}
 const SOURCE = `---
 title: Probe report
 author: ["Ada Lovelace", "Alan Turing"]
@@ -33,7 +44,7 @@ Ordered **semantic** content with a [link](https://example.com) and <mailto:a@b.
 `;
 
 function runCli(arguments_, cwd, options = {}) {
-  return spawnSync(process.execPath, [CLI_PATH.pathname, ...arguments_], {
+  return spawnSync(process.execPath, [CLI_PATH, ...arguments_], {
     cwd,
     encoding: null,
     ...options,
@@ -360,7 +371,7 @@ test("binary PDF stdout refuses an interactive terminal", async (context) => {
   try {
     result = spawnSync(
       "script",
-      ["-q", "/dev/null", process.execPath, CLI_PATH.pathname, "render", "report.aze.md", "--stdout", "--format", "pdf"],
+      ptyArguments([process.execPath, CLI_PATH, "render", "report.aze.md", "--stdout", "--format", "pdf"]),
       { cwd: directory, encoding: null, stdio: ["ignore", "pipe", "pipe"] },
     );
   } catch (error) {
