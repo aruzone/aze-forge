@@ -49,7 +49,7 @@ Directive envelopes are recovered as `InvalidBlock` values until Plugins are reg
 The project requires Node.js 22 or newer.
 
 Supported releases run on Node.js 22 and 24 (Ubuntu, macOS);
-Windows support is parked until platform-specific verification lands.
+Windows support is parked until platform-specific verification lands (see issue #43).
 Canonical HTML/SVG/PNG/PDF golden and visual evidence is built on pinned
 Ubuntu x64 with Node 24. `azeforge capabilities --json` reports the exact
 support matrix under `runtime`.
