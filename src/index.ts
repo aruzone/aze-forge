@@ -224,6 +224,16 @@ export {
 } from "./capabilities.js";
 export type { CapabilitiesReport, EngineAvailability } from "./capabilities.js";
 export {
+  CANONICAL_ARCH,
+  CANONICAL_NODE_VERSION,
+  CANONICAL_OPERATING_SYSTEM,
+  RUNTIME_SUPPORT,
+  SUPPORTED_NODE_VERSIONS,
+  SUPPORTED_OPERATING_SYSTEMS,
+  runtimeSupportJsonSchema,
+} from "./runtime-support.js";
+export type { RuntimeSupport } from "./runtime-support.js";
+export {
   CAPABILITIES_SCHEMA_ID,
   CAPABILITIES_SCHEMA_VERSION,
   capabilitiesJsonSchema,

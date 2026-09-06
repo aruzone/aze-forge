@@ -1,4 +1,5 @@
 import type { JsonValue } from "./model.js";
+import { runtimeSupportJsonSchema } from "./runtime-support.js";
 
 export const CAPABILITIES_SCHEMA_ID = "azeforge.capabilities/v1" as const;
 export const CAPABILITIES_SCHEMA_VERSION = 1 as const;
@@ -26,6 +27,7 @@ export const capabilitiesJsonSchema: JsonValue = Object.freeze({
     "schema",
     "schemaVersion",
     "tool",
+    "runtime",
     "commands",
     "source",
     "document",
@@ -54,6 +56,7 @@ export const capabilitiesJsonSchema: JsonValue = Object.freeze({
         version: { type: "string", pattern: versionPattern },
       },
     },
+    runtime: runtimeSupportJsonSchema,
     commands: {
       type: "array",
       minItems: 7,

@@ -57,6 +57,7 @@ import { builtInThemes } from "./theme.js";
 import { DEFAULT_RENDER_TIMEOUT_MS } from "./compiler.js";
 import { TOOL_VERSION } from "./tool-version.js";
 import { publicSchemaVersions, type VersionedSchema } from "./version.js";
+import { RUNTIME_SUPPORT, type RuntimeSupport } from "./runtime-support.js";
 
 export type EngineAvailability = "unknown" | "available" | "unavailable";
 
@@ -116,6 +117,7 @@ export const CAPABILITY_FORMATS: readonly ArtifactFormat[] = Object.freeze([
   "pdf",
 ]);
 
+
 export interface BrowserEngineStatus {
   readonly name: "chrome-headless-shell";
   readonly pinnedVersion: typeof CHROME_HEADLESS_SHELL_VERSION;
@@ -128,6 +130,7 @@ export interface CapabilitiesReport {
   readonly schema: typeof CAPABILITIES_SCHEMA_ID;
   readonly schemaVersion: typeof CAPABILITIES_SCHEMA_VERSION;
   readonly tool: Readonly<{ name: "azeforge"; version: typeof TOOL_VERSION }>;
+  readonly runtime: RuntimeSupport;
   readonly commands: readonly CommandEntry[];
   readonly source: Readonly<{
     azemarkVersions: readonly [1];
@@ -252,6 +255,7 @@ export async function buildCapabilities(
     schema: CAPABILITIES_SCHEMA_ID,
     schemaVersion: CAPABILITIES_SCHEMA_VERSION,
     tool: { name: "azeforge", version: TOOL_VERSION },
+    runtime: RUNTIME_SUPPORT,
     commands: CAPABILITY_COMMANDS,
     source: {
       azemarkVersions: [1],

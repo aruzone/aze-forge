@@ -3,6 +3,7 @@ import { spawnSync } from "node:child_process";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
 
 import {
@@ -17,14 +18,14 @@ import {
   satisfiesSemverRange,
 } from "../dist/index.js";
 
-const CLI_PATH = new URL("../dist/cli.js", import.meta.url);
+const CLI_PATH = fileURLToPath(new URL("../dist/cli.js", import.meta.url));
 
 function sourceWith(body, header = "") {
   return `---\nazemark: 1\n---\n\n:::: equation\n${header}${body}\n::::\n`;
 }
 
 function runCli(arguments_, cwd) {
-  return spawnSync(process.execPath, [CLI_PATH.pathname, ...arguments_], {
+  return spawnSync(process.execPath, [CLI_PATH, ...arguments_], {
     cwd,
     encoding: null,
   });

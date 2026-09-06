@@ -6,6 +6,7 @@
     "schema",
     "schemaVersion",
     "tool",
+    "runtime",
     "source",
     "document",
     "schemas"
@@ -32,6 +33,76 @@
         "version": {
           "type": "string",
           "pattern": "^(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)$"
+        }
+      }
+    },
+    "runtime": {
+      "type": "object",
+      "required": [
+        "node",
+        "os",
+        "canonical"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "node": {
+          "type": "object",
+          "required": [
+            "supported",
+            "canonical"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "supported": {
+              "const": [
+                22,
+                24
+              ]
+            },
+            "canonical": {
+              "const": 24
+            }
+          }
+        },
+        "os": {
+          "type": "object",
+          "required": [
+            "supported",
+            "canonical"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "supported": {
+              "const": [
+                "ubuntu",
+                "macos",
+                "windows"
+              ]
+            },
+            "canonical": {
+              "const": "ubuntu"
+            }
+          }
+        },
+        "canonical": {
+          "type": "object",
+          "required": [
+            "os",
+            "arch",
+            "node"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "os": {
+              "const": "ubuntu"
+            },
+            "arch": {
+              "const": "x64"
+            },
+            "node": {
+              "const": 24
+            }
+          }
         }
       }
     },

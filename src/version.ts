@@ -27,6 +27,11 @@ import {
 import { TOOL_VERSION } from "./tool-version.js";
 import { WATCH_EVENT_SCHEMA_ID } from "./watch-events.js";
 import { CAPABILITIES_SCHEMA_ID } from "./capabilities-json.js";
+import {
+  RUNTIME_SUPPORT,
+  runtimeSupportJsonSchema,
+  type RuntimeSupport,
+} from "./runtime-support.js";
 
 export const VERSION_SCHEMA_ID = "azeforge.version/v1" as const;
 export const VERSION_SCHEMA_VERSION = 1 as const;
@@ -67,6 +72,7 @@ export interface VersionReport {
   readonly schema: typeof VERSION_SCHEMA_ID;
   readonly schemaVersion: typeof VERSION_SCHEMA_VERSION;
   readonly tool: Readonly<{ name: "azeforge"; version: typeof TOOL_VERSION }>;
+  readonly runtime: RuntimeSupport;
   readonly source: Readonly<{ azemarkVersions: readonly [1] }>;
   readonly document: Readonly<{ schemaVersions: readonly [1] }>;
   readonly schemas: readonly VersionedSchema[];
@@ -81,6 +87,7 @@ export function createVersionReport(): VersionReport {
     schema: VERSION_SCHEMA_ID,
     schemaVersion: VERSION_SCHEMA_VERSION,
     tool: { name: "azeforge", version: TOOL_VERSION },
+    runtime: RUNTIME_SUPPORT,
     source: { azemarkVersions: [1] },
     document: { schemaVersions: [1] },
     schemas: publicSchemaVersions(),
@@ -91,7 +98,7 @@ export const versionJsonSchema: JsonValue = Object.freeze({
   $schema: "https://json-schema.org/draft/2020-12/schema",
   $id: VERSION_SCHEMA_ID,
   type: "object",
-  required: ["schema", "schemaVersion", "tool", "source", "document", "schemas"],
+  required: ["schema", "schemaVersion", "tool", "runtime", "source", "document", "schemas"],
   additionalProperties: false,
   properties: {
     schema: { const: VERSION_SCHEMA_ID },
@@ -105,6 +112,7 @@ export const versionJsonSchema: JsonValue = Object.freeze({
         version: { type: "string", pattern: "^(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)$" },
       },
     },
+    runtime: runtimeSupportJsonSchema,
     source: {
       type: "object",
       required: ["azemarkVersions"],

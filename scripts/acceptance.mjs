@@ -25,6 +25,7 @@ import {
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { isDeepStrictEqual } from "node:util";
 import { inflateSync } from "node:zlib";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -708,9 +709,34 @@ function diffExpected(oldExpected, next) {
   return lines;
 }
 
+async function isCanonicalRefreshHost() {
+  if (
+    process.platform !== "linux" ||
+    process.arch !== "x64" ||
+    Number(process.versions.node.split(".")[0]) !== 24
+  ) {
+    return false;
+  }
+  try {
+    const osRelease = await readFile("/etc/os-release", "utf8");
+    return (
+      /^ID=ubuntu$/m.test(osRelease) &&
+      /^VERSION_ID="?24\.04"?$/m.test(osRelease)
+    );
+  } catch {
+    return false;
+  }
+}
+
 async function main() {
   if (REFRESH_MODE && process.env.CI !== undefined && process.env.CI !== "") {
     process.stderr.write("REFUSE --refresh under CI: baselines are developer-only.\n");
+    process.exit(2);
+  }
+  if (REFRESH_MODE && !(await isCanonicalRefreshHost())) {
+    process.stderr.write(
+      "REFUSE --refresh outside Ubuntu 24.04 x64 with Node 24.\n",
+    );
     process.exit(2);
   }
   const live = { golden: {}, pngDimensions: {}, pngBytes: {}, pagination: {}, authorLoop: {} };
@@ -726,7 +752,6 @@ async function main() {
   for (const [cell, entry] of Object.entries(live.golden)) {
     fingerprints[entry.rendererFingerprint] = true;
   }
-  const failures = results.filter((result) => result.pass !== true);
   if (REFRESH_MODE) {
     const previous = await readExpected();
     const next = buildExpected(live, Object.keys(fingerprints));
@@ -740,30 +765,97 @@ async function main() {
     if (diffs.length === 0) process.stderr.write("DIFF no baseline changes\n");
   } else {
     const expected = await readExpected();
-    if (expected !== undefined) {
+    if (
+      expected === undefined ||
+      expected === null ||
+      typeof expected !== "object" ||
+      Array.isArray(expected)
+    ) {
+      fail(
+        "P0-OUT-002",
+        "approved baseline is available",
+        "acceptance/expected.json is missing or invalid",
+      );
+    } else {
+      const completeManifest = buildExpected(live, Object.keys(fingerprints));
+      const manifestMatches = isDeepStrictEqual(expected, completeManifest);
+      check(
+        "P0-OUT-002",
+        "approved evidence matches the complete live manifest",
+        manifestMatches,
+        manifestMatches
+          ? "all manifest fields match"
+          : "committed manifest fields differ",
+      );
+      const manifestFields = [
+        "contentHash",
+        "assetManifestHash",
+        "rendererFingerprint",
+        "artifactHash",
+        "byteLength",
+        "profile",
+      ];
       for (const [cell, entry] of Object.entries(live.golden)) {
         const previous = expected.golden?.[cell];
-        if (previous === undefined) continue;
-        if (previous.artifactHash !== entry.artifactHash && cell.startsWith("png/")) {
-          let detail = `${previous.artifactHash ?? "none"} -> ${entry.artifactHash}`;
+        if (previous === undefined) {
+          fail(
+            "P0-OUT-002",
+            `${cell} has an approved baseline`,
+            "missing Golden cell",
+          );
+          continue;
+        }
+        const mismatches = manifestFields.filter(
+          (field) => previous[field] !== entry[field],
+        );
+        check(
+          "P0-OUT-002",
+          `${cell} matches the approved manifest`,
+          mismatches.length === 0,
+          mismatches.length === 0
+            ? entry.artifactHash
+            : `mismatched fields: ${mismatches.join(", ")}`,
+        );
+        if (cell.startsWith("png/")) {
+          let referenceDetail = "byte-identical";
+          let referenceMatches = false;
           try {
-            const reference = await readFile(join(EXPECTED_PNG_DIR, `${cell.replace("/", "-")}.png`));
-            const compared = comparePng(reference, live.pngBytes[cell]);
-            detail += ` changed=${compared.changedFraction.toFixed(4)} maxDelta=${compared.maxDelta} ssim=${compared.ssim.toFixed(4)} ${compared.width}x${compared.height}`;
-          } catch {
-            detail += " (no reference pixels)";
+            const reference = await readFile(
+              join(EXPECTED_PNG_DIR, `${cell.replace("/", "-")}.png`),
+            );
+            referenceMatches = reference.equals(live.pngBytes[cell]);
+            if (!referenceMatches) {
+              const compared = comparePng(reference, live.pngBytes[cell]);
+              referenceDetail = `changed=${compared.changedFraction.toFixed(4)} maxDelta=${compared.maxDelta} ssim=${compared.ssim.toFixed(4)} ${compared.width}x${compared.height}`;
+            }
+          } catch (error) {
+            referenceDetail =
+              error instanceof Error
+                ? `invalid or missing PNG evidence: ${error.message}`
+                : "invalid or missing PNG evidence";
           }
-          check("P0-OUT-002", `${cell} matches the approved baseline`, false, detail);
-        } else {
-          check("P0-OUT-002", `${cell} matches the approved baseline`, previous.artifactHash === entry.artifactHash, previous.artifactHash ?? "");
+          check(
+            "P0-OUT-002",
+            `${cell} reference PNG matches live Artifact bytes`,
+            referenceMatches,
+            referenceDetail,
+          );
         }
       }
       for (const [file, pages] of Object.entries(live.pagination)) {
-        if (expected.pagination?.[file] === undefined) continue;
-        check("P0-OUT-003", `${file} matches the approved pagination`, expected.pagination[file] === pages, `${pages} pages`);
+        const expectedPages = expected.pagination?.[file];
+        check(
+          "P0-OUT-003",
+          `${file} matches the approved pagination`,
+          expectedPages === pages,
+          expectedPages === undefined
+            ? "approved pagination is missing"
+            : `${pages} pages`,
+        );
       }
     }
   }
+  const failures = results.filter((result) => result.pass !== true);
   if (JSON_MODE) {
     process.stdout.write(`${JSON.stringify({ schema: "azeforge.acceptance-report/v1", failures: failures.length, results }, null, 2)}\n`);
   } else {

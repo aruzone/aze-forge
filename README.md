@@ -48,6 +48,11 @@ Directive envelopes are recovered as `InvalidBlock` values until Plugins are reg
 
 The project requires Node.js 22 or newer.
 
+Supported releases run on Node.js 22 and 24 (Ubuntu, macOS, Windows);
+canonical HTML/SVG/PNG/PDF golden and visual evidence is built on pinned
+Ubuntu x64 with Node 24. `azeforge capabilities --json` reports the exact
+support matrix under `runtime`.
+
 ```bash
 npm install
 npm run build
@@ -295,8 +300,17 @@ Target one layer while working:
 npm run build
 npm run test:compiler
 npm run test:cli
+npm run test:matrix
+npm run test:browser-smoke
+npm run test:canonical-suite
+npm run test:canonical
 node --test test/equation.test.mjs
 ```
+
+`test:matrix` is the browser-independent unit, schema, and installed-CLI
+compatibility seam. `test:browser-smoke` invokes the packaged pinned engine.
+`test:canonical-suite` and `test:canonical` own Golden report and visual
+evidence and are authoritative only on Ubuntu 24.04 x64 with Node 24.
 
 `test/equation.test.mjs` is the equation seam: versioned Blocks, alias
 coverage, ranged diagnostics, raw-LaTeX policy, adapter failure modes,

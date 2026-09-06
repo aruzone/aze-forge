@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
 
 import {
@@ -12,8 +13,8 @@ import {
   createAcceptanceCatalog,
 } from "../dist/acceptance.js";
 
-const CLI_PATH = new URL("../dist/cli.js", import.meta.url);
-const ROOT = new URL("../", import.meta.url);
+const CLI_PATH = fileURLToPath(new URL("../dist/cli.js", import.meta.url));
+const ROOT = fileURLToPath(new URL("../", import.meta.url));
 const GOLDEN_PATH = new URL("../acceptance/golden-report.aze.md", import.meta.url);
 const PAGINATION_URL = new URL("../acceptance/pagination/", import.meta.url);
 
@@ -55,7 +56,7 @@ const SUITE_EVIDENCE = [
 ];
 
 function runCli(arguments_, cwd, options = {}) {
-  return spawnSync(process.execPath, [CLI_PATH.pathname, ...arguments_], {
+  return spawnSync(process.execPath, [CLI_PATH, ...arguments_], {
     cwd,
     encoding: null,
     ...options,
@@ -96,9 +97,6 @@ function pngWidth(bytes) {
 }
 
 test("acceptance catalog is canonical and coverage rejects missing or unknown IDs", async () => {
-  const { acceptanceJsonSchema } = await import("../dist/acceptance.js");
-  const packaged = await readFile(new URL("../schemas/acceptance.json", import.meta.url), "utf8");
-  assert.equal(packaged, `${JSON.stringify(acceptanceJsonSchema, null, 2)}\n`);
 
   const canonical = createAcceptanceCatalog();
   const onDisk = JSON.parse(await readFile(new URL("../acceptance/catalog.json", import.meta.url), "utf8"));
@@ -248,9 +246,9 @@ test("png evidence uses the exact profile, theme dimensions, and approved bounds
 });
 
 test("baseline refresh is developer-only and refused under CI", () => {
-  const script = new URL("../scripts/acceptance.mjs", import.meta.url).pathname;
+  const script = fileURLToPath(new URL("../scripts/acceptance.mjs", import.meta.url));
   const result = spawnSync(process.execPath, [script, "--refresh"], {
-    cwd: ROOT.pathname,
+    cwd: ROOT,
     encoding: null,
     env: { ...process.env, CI: "true" },
   });

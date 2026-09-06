@@ -1,3 +1,5 @@
+import { arch, platform } from "node:os";
+
 import { createDiagnostic } from "./diagnostics.js";
 import { sha256 } from "./hash.js";
 import {
@@ -909,6 +911,7 @@ export function mermaidDependencyClosure(): Record<string, JsonValue> {
   return {
     mermaid: MERMAID_VERSION,
     browser: `HeadlessChrome/${CHROME_HEADLESS_SHELL_VERSION}`,
+    platform: { os: platform(), architecture: arch() },
     securityLevel: "strict",
     deterministicIds: true,
     suppressErrorRendering: true,

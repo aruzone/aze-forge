@@ -4,6 +4,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { inflateSync } from "node:zlib";
 
@@ -14,7 +15,17 @@ import {
   normalizePng,
 } from "../dist/index.js";
 
-const CLI_PATH = new URL("../dist/cli.js", import.meta.url);
+const CLI_PATH = fileURLToPath(new URL("../dist/cli.js", import.meta.url));
+
+function ptyArguments(commandArguments) {
+  if (process.platform === "linux") {
+    const command = commandArguments
+      .map((part) => `'${part.replace(/'/g, `'\\''`)}'`)
+      .join(" ");
+    return ["-qec", command, "/dev/null"];
+  }
+  return ["-q", "/dev/null", ...commandArguments];
+}
 const SOURCE = `---
 azemark: 1
 title: PNG report
@@ -32,7 +43,7 @@ Ordered **semantic** content with a table.
 `;
 
 function runCli(arguments_, cwd, options = {}) {
-  return spawnSync(process.execPath, [CLI_PATH.pathname, ...arguments_], {
+  return spawnSync(process.execPath, [CLI_PATH, ...arguments_], {
     cwd,
     encoding: null,
     ...options,
@@ -263,17 +274,15 @@ test("binary stdout refuses an interactive terminal", async (context) => {
   try {
     result = spawnSync(
       "script",
-      [
-        "-q",
-        "/dev/null",
+      ptyArguments([
         process.execPath,
-        CLI_PATH.pathname,
+        CLI_PATH,
         "render",
         "report.aze.md",
         "--stdout",
         "--format",
         "png",
-      ],
+      ]),
       { cwd: directory, encoding: null, stdio: ["ignore", "pipe", "pipe"] },
     );
   } catch (error) {
@@ -301,17 +310,15 @@ test("binary stdout refuses an interactive terminal", async (context) => {
 
   const textResult = spawnSync(
     "script",
-    [
-      "-q",
-      "/dev/null",
+    ptyArguments([
       process.execPath,
-      CLI_PATH.pathname,
+      CLI_PATH,
       "render",
       "report.aze.md",
       "--stdout",
       "--format",
       "html",
-    ],
+    ]),
     { cwd: directory, encoding: null, stdio: ["ignore", "pipe", "pipe"] },
   );
   assert.equal(textResult.status, 0, textResult.stderr?.toString("utf8"));

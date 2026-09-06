@@ -17,12 +17,16 @@
     "schemas"
   ],
   "engines": {
-    "node": ">=22"
+    "node": ">=22 <23 || >=24 <25"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "npm run build --silent && node --test test/*.test.mjs",
+    "test:matrix": "node --test --test-reporter=tap test/capabilities.test.mjs test/cli.test.mjs test/compatibility.test.mjs test/compiler.test.mjs test/equation.test.mjs test/fail-closed.test.mjs test/format.test.mjs test/installed-cli.test.mjs test/schemas.test.mjs test/theme-assets.test.mjs test/watch-serve.test.mjs",
+    "test:browser-smoke": "node --test --test-reporter=tap test/browser-smoke.test.mjs",
+    "test:canonical": "node scripts/acceptance.mjs --json",
+    "test:canonical-suite": "node --test --test-reporter=tap test/acceptance.test.mjs test/mermaid.test.mjs test/pdf.test.mjs test/png.test.mjs test/svg.test.mjs",
     "test:compiler": "npm run build --silent && node --test test/compiler.test.mjs",
     "test:cli": "npm run build --silent && node --test test/cli.test.mjs",
     "test:acceptance": "npm run build --silent && node --test test/acceptance.test.mjs",
