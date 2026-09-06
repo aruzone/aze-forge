@@ -1,5 +1,5 @@
 {
-  "name": "azeforge",
+  "name": "@aruzone/aze-forge",
   "version": "0.1.0",
   "description": "Deterministic AzeMark compiler: readable source in, self-contained HTML, SVG, PNG, and PDF artifacts out.",
   "license": "MIT",

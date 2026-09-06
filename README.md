@@ -49,7 +49,7 @@ Directive envelopes are recovered as `InvalidBlock` values until Plugins are reg
 Consumers install the published package; no repo checkout is needed:
 
 ```bash
-npm install -g azeforge
+npm install -g @aruzone/aze-forge
 azeforge --help
 ```
 
@@ -91,7 +91,7 @@ is the installed one).
 Uninstall:
 
 ```bash
-npm uninstall -g azeforge
+npm uninstall -g @aruzone/aze-forge
 # optional: remove the downloaded browser engine
 rm -rf ~/.cache/puppeteer
 ```

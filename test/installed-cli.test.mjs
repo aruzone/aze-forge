@@ -26,7 +26,7 @@ test("packed installation exposes the supported CLI and ignores installation pat
   const secondDirectory = await installPackedCli("aze-b-", archive);
   const packageJson = JSON.parse(
     await readFile(
-      join(directory, "node_modules", "azeforge", "package.json"),
+      join(directory, "node_modules", "@aruzone", "aze-forge", "package.json"),
       "utf8",
     ),
   );
