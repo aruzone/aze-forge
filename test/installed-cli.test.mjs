@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { readFile, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
@@ -25,19 +26,23 @@ test("packed installation exposes the supported CLI and ignores installation pat
   const secondDirectory = await installPackedCli("aze-b-", archive);
   const packageJson = JSON.parse(
     await readFile(
-      join(directory, "node_modules", "@aruzone", "aze-forge", "package.json"),
+      join(directory, "node_modules", "azeforge", "package.json"),
       "utf8",
     ),
   );
-  assert.deepEqual(packageJson.bin, { azeforge: "./dist/cli.js" });
+  assert.equal(packageJson.private, undefined);
+  assert.deepEqual(packageJson.files, ["dist", "schemas"]);
   assert.equal(packageJson.engines.node, ">=22 <23 || >=24 <25");
+
+  const helpResult = runInstalledCli(directory, ["--help"]);
+  assert.equal(helpResult.status, 0, helpResult.stderr.toString("utf8"));
+  assert.match(helpResult.stderr.toString("utf8"), /azeforge/);
 
   const versionResult = runInstalledCli(directory, ["version", "--json"]);
   assert.equal(versionResult.status, 0, versionResult.stderr.toString("utf8"));
   const version = JSON.parse(versionResult.stdout.toString("utf8"));
-  assert.deepEqual(version.runtime.node.supported, [22, 24]);
-  assert.deepEqual(version.runtime.os.supported, ["ubuntu", "macos"]);
-
+  assert.equal(version.tool.name, "azeforge");
+  assert.equal(version.tool.version, packageJson.version);
   await Promise.all([
     writeFile(join(directory, "installed.aze.md"), SOURCE),
     writeFile(join(secondDirectory, "installed.aze.md"), SOURCE),
@@ -86,4 +91,31 @@ test("packed installation exposes the supported CLI and ignores installation pat
     secondReport.artifact.rendererFingerprint,
     report.artifact.rendererFingerprint,
   );
+  const emptyHome = await mkdtemp(join(tmpdir(), "azeforge no browser "));
+  const missingBrowser = runInstalledCli(
+    directory,
+    [
+      "render",
+      "installed.aze.md",
+      "--output",
+      "missing.svg",
+      "--format",
+      "svg",
+      "--diagnostics",
+      "json",
+    ],
+    { env: { ...process.env, HOME: emptyHome } },
+  );
+  assert.equal(missingBrowser.status, 1);
+  const missingReport = JSON.parse(missingBrowser.stdout.toString("utf8"));
+  assert.equal(missingReport.success, false);
+  assert.ok(
+    missingReport.diagnostics.some(
+      (diagnostic) =>
+        /browser-unavailable|adapter-missing/.test(diagnostic.code) &&
+        /Reinstall AzeForge browser dependencies/.test(diagnostic.suggestion ?? ""),
+    ),
+    JSON.stringify(missingReport.diagnostics.map((diagnostic) => diagnostic.code)),
+  );
+  assert.doesNotMatch(missingBrowser.stderr.toString("utf8"), /^\s+at\s/m);
 });

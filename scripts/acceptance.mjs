@@ -8,6 +8,10 @@
 //
 // Usage:
 //   node scripts/acceptance.mjs [--json] [--refresh]
+//   AZEFORGE_CLI=azeforge node scripts/acceptance.mjs [--json]
+//
+// AZEFORGE_CLI points the runner at a consumer install on PATH instead of
+// the checkout build, so the acceptance gate runs identically post-install.
 //
 // --refresh rewrites acceptance/expected.json with the current live evidence
 // and reports semantic/structural/visual diffs. It refuses under CI.
@@ -29,7 +33,8 @@ import { isDeepStrictEqual } from "node:util";
 import { inflateSync } from "node:zlib";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
-const CLI = join(ROOT, "dist", "cli.js");
+const CLI_OVERRIDE = process.env.AZEFORGE_CLI;
+const CLI = CLI_OVERRIDE ?? join(ROOT, "dist", "cli.js");
 const ACCEPTANCE_DIR = join(ROOT, "acceptance");
 const GOLDEN_SOURCE = join(ACCEPTANCE_DIR, "golden-report.aze.md");
 const PAGINATION_DIR = join(ACCEPTANCE_DIR, "pagination");
@@ -58,7 +63,9 @@ function fail(id, name, detail) {
 }
 
 function runCli(cliArgs, cwd, options = {}) {
-  return spawnSync(process.execPath, [CLI, ...cliArgs], {
+  const command = CLI_OVERRIDE === undefined ? process.execPath : CLI;
+  const prefix = CLI_OVERRIDE === undefined ? [CLI] : [];
+  return spawnSync(command, [...prefix, ...cliArgs], {
     cwd,
     encoding: null,
     ...options,

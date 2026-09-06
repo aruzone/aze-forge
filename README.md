@@ -44,6 +44,58 @@ syntax: latex
 
 Directive envelopes are recovered as `InvalidBlock` values until Plugins are registered. Raw HTML is denied and never rendered as text or markup. Lists, Mermaid, images, and other Markdown constructs are not implemented yet.
 
+## Install
+
+Consumers install the published package; no repo checkout is needed:
+
+```bash
+npm install -g azeforge
+azeforge --help
+```
+
+Prerequisites: Node.js 22 or 24, on Ubuntu or macOS.
+Windows support is parked until platform-specific verification lands (see issue #43).
+There is no standalone binary: the npm global install is the distribution
+path, so the Node prerequisite always applies. A single-file binary would
+have to bundle Node plus the pinned browser engine and fonts below, and is
+deferred; users re-install for new versions (no auto-update).
+
+The install downloads the pinned browser engine (Chrome Headless Shell
+`152.0.7977.75` into `~/.cache/puppeteer`) via the `puppeteer` postinstall
+script, so the installing machine needs network access once. Verify it with
+a browser-backed format:
+
+```bash
+azeforge capabilities --probe --json
+azeforge render /tmp/manual.aze.md --output /tmp/manual.svg
+```
+
+Offline or browser-missing installs stay structured: browser-backed formats
+(`svg`, `png`, `pdf`, Mermaid diagrams) fail with exit `1` and a
+`azeforge.renderer#browser-unavailable` (or `adapter-missing`) diagnostic
+suggesting `Reinstall AzeForge browser dependencies and retry`, never a
+stack trace. Plain-HTML rendering without diagrams keeps working. Remedy:
+re-install with network access, or fetch only the engine with
+`npx puppeteer browsers install chrome-headless-shell@152.0.7977.75`.
+
+The acceptance gate runs identically against the consumer install by
+pointing the runner at the `azeforge` on `PATH`:
+
+```bash
+AZEFORGE_CLI=azeforge node scripts/acceptance.mjs
+```
+
+(from a checkout; the runner itself ships in the repo, the CLI under test
+is the installed one).
+
+Uninstall:
+
+```bash
+npm uninstall -g azeforge
+# optional: remove the downloaded browser engine
+rm -rf ~/.cache/puppeteer
+```
+
 ## Build
 
 The project requires Node.js 22 or newer.
@@ -64,9 +116,6 @@ The examples below invoke the built CLI directly:
 ```bash
 node dist/cli.js
 ```
-
-To expose the `azeforge` command globally from this checkout, run `npm link`.
-
 ## Create a Source file
 
 ```bash

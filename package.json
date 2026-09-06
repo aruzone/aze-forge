@@ -1,7 +1,22 @@
 {
-  "name": "@aruzone/aze-forge",
+  "name": "azeforge",
   "version": "0.1.0",
-  "private": true,
+  "description": "Deterministic AzeMark compiler: readable source in, self-contained HTML, SVG, PNG, and PDF artifacts out.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/aruzone/aze-forge.git"
+  },
+  "keywords": [
+    "azemark",
+    "markdown",
+    "publishing",
+    "pdf",
+    "svg"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "type": "module",
   "bin": {
     "azeforge": "./dist/cli.js"
