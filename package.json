@@ -29,7 +29,8 @@
   },
   "files": [
     "dist",
-    "schemas"
+    "schemas",
+    "docs/assets/azeforge-logo-03-2.jpg"
   ],
   "engines": {
     "node": ">=22 <23 || >=24 <25"

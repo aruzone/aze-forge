@@ -31,7 +31,11 @@ test("packed installation exposes the supported CLI and ignores installation pat
     ),
   );
   assert.equal(packageJson.private, undefined);
-  assert.deepEqual(packageJson.files, ["dist", "schemas"]);
+  assert.deepEqual(packageJson.files, [
+    "dist",
+    "schemas",
+    "docs/assets/azeforge-logo-03-2.jpg",
+  ]);
   assert.equal(packageJson.engines.node, ">=22 <23 || >=24 <25");
 
   const helpResult = runInstalledCli(directory, ["--help"]);
