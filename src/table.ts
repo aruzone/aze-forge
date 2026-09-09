@@ -70,8 +70,12 @@ function renderCellValue(cell: unknown, unit: string | undefined): string {
   return escapeHtml(canonicalCellText(cell, unit));
 }
 
-function renderUnitHtml(unit: string): string {
-  return escapeHtml(unit).replace(/\^(\d+)/g, "<sup>$1</sup>");
+/**
+ * Escape HTML and render caret exponents as superscripts, matching the
+ * convention used everywhere else in the compiler (kg/m^3 -> kg/m<sup>3</sup>).
+ */
+function renderExponentHtml(text: string): string {
+  return escapeHtml(text).replace(/\^(\d+)/g, "<sup>$1</sup>");
 }
 
 function renderTypedTableFragment(block: TableBlock, data: TypedTableData): string {
@@ -96,7 +100,7 @@ function renderTypedTableFragment(block: TableBlock, data: TypedTableData): stri
         column.name === undefined || column.name === ""
           ? column.key
           : column.name;
-      return `<th scope="col">${escapeHtml(name)}</th>`;
+      return `<th scope="col">${renderExponentHtml(name)}</th>`;
     })
     .join("");
   headerRows += `<tr>${headerCells}</tr>`;
@@ -110,7 +114,7 @@ function renderTypedTableFragment(block: TableBlock, data: TypedTableData): stri
           const unit =
             column.unit === undefined || column.unit === ""
               ? ""
-              : ` <span class="aze-unit">${renderUnitHtml(column.unit)}</span>`;
+              : ` <span class="aze-unit">${renderExponentHtml(column.unit)}</span>`;
           return `<td>${renderCellValue(cell, column.unit)}${unit}</td>`;
         })
         .join("");

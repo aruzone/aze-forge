@@ -27,7 +27,7 @@ columns:
     name: Material
     type: text
   - key: density
-    name: Density
+    name: Density [kg/m^3]
     type: quantity
     unit: kg/m^3
 rows:
@@ -79,6 +79,7 @@ test("typed quantity table cells choose the shared exact-decimal style", async (
   });
   assert.deepEqual(result.diagnostics, []);
   const html = new TextDecoder().decode(result.artifact.bytes);
+  assert.match(html, /<th scope="col">Density \[kg\/m<sup>3<\/sup>\]<\/th>/);
   assert.match(html, /2700 <span class="aze-unit">kg\/m<sup>3<\/sup><\/span>/);
   assert.match(html, /7850 <span class="aze-unit">kg\/m<sup>3<\/sup><\/span>/);
   assert.doesNotMatch(html, /kg\/m\^3 kg\/m\^3/);
