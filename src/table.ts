@@ -1,5 +1,5 @@
 import { escapeHtml, renderInlineHtml } from "./html-fragment.js";
-import { formatQuantityCell } from "./quantity.js";
+import { canonicalExactDecimal } from "./quantity.js";
 import type {
   AzeBlockPlugin,
   JsonValue,
@@ -119,23 +119,26 @@ const blockRendererDescriptor = Object.freeze({
   rendererVersionRange: "1.0.0",
 });
 
+function canonicalCellText(cell: unknown, unit: string | undefined): string {
+  const text = String(cell);
+  if (unit === undefined || unit === "") return text;
+  try {
+    return canonicalExactDecimal(text);
+  } catch {
+    return text;
+  }
+}
+
 function renderCellValue(cell: unknown, unit: string | undefined): string {
   if (Array.isArray(cell)) {
     return renderInlineHtml(cell);
   }
   if (cell === null || cell === undefined) return "";
-  if (typeof cell === "number" || typeof cell === "boolean") {
-    const text = String(cell);
-    if (unit !== undefined && unit !== "") {
-      try {
-        return escapeHtml(formatQuantityCell(text, unit));
-      } catch {
-        return `${escapeHtml(text)} ${escapeHtml(unit)}`;
-      }
-    }
-    return escapeHtml(text);
-  }
-  return escapeHtml(String(cell));
+  return escapeHtml(canonicalCellText(cell, unit));
+}
+
+function renderUnitHtml(unit: string): string {
+  return escapeHtml(unit).replace(/\^(\d+)/g, "<sup>$1</sup>");
 }
 
 function renderTypedTableFragment(block: TableBlock, data: TypedTableData): string {
@@ -174,7 +177,7 @@ function renderTypedTableFragment(block: TableBlock, data: TypedTableData): stri
           const unit =
             column.unit === undefined || column.unit === ""
               ? ""
-              : ` <span class="aze-unit">${escapeHtml(column.unit)}</span>`;
+              : ` <span class="aze-unit">${renderUnitHtml(column.unit)}</span>`;
           return `<td>${renderCellValue(cell, column.unit)}${unit}</td>`;
         })
         .join("");
