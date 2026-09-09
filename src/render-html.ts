@@ -181,7 +181,7 @@ export function createHtmlLayout(
   return {
     title: escapeHtml(documentTitle(document)),
     description: "AzeForge whole-Document Artifact",
-    css: `${embeddedFontCss(fontFaces)}${themeCss(theme)}${getKatexCss()}.aze-equation{margin:1em 0;text-align:center}.aze-equation[data-align="left"]{text-align:left}.aze-equation[data-align="right"]{text-align:right}.aze-derivation{margin:1em 0}.aze-derivation ol{list-style:none;padding:0;margin:0}.aze-derivation li{display:block;text-align:center;margin:.35em 0}.aze-derivation[data-align="left"] li{text-align:left}.aze-derivation[data-align="right"] li{text-align:right}.aze-derivation .aze-derivation-annotation{display:block;font-style:italic;color:#666;font-size:.9em}.aze-mermaid{margin:1em 0}.aze-mermaid svg{display:block;max-width:100%;height:auto;margin:0 auto}`,
+    css: `${embeddedFontCss(fontFaces)}${themeCss(theme)}${getKatexCss()}.aze-equation{margin:1em 0;text-align:center}.aze-equation[data-align="left"]{text-align:left}.aze-equation[data-align="right"]{text-align:right}.aze-derivation{margin:1em 0}.aze-derivation ol{list-style:none;padding:0;margin:0}.aze-derivation li{display:block;text-align:center;margin:.35em 0}.aze-derivation[data-align="left"] li{text-align:left}.aze-derivation[data-align="right"] li{text-align:right}.aze-derivation .aze-derivation-annotation{display:block;font-style:italic;color:#666;font-size:.9em}.aze-mermaid{margin:1em 0}.aze-mermaid svg{display:block;max-width:100%;max-height:520px;width:auto;height:auto;margin:0 auto}`,
     body: `<main><article>${renderBlocks(document.blocks, context)}</article></main>`,
     fingerprintDependencies: {
       theme: theme as unknown as JsonValue,

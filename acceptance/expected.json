@@ -20,16 +20,16 @@
       "contentHash": "sha256:bcfa625beb182bf8e34d1c3e2857e2ea19037c4f66984918cdf0ce52592914b5",
       "assetManifestHash": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
       "rendererFingerprint": "sha256:b72166c2c7fe70a96f1a452c50059fb025e1d81f9ce585140976bf02049b01a3",
-      "artifactHash": "sha256:8b789286c9495fad43b4fe69f9a1f41b1c658e8f9b33589f26f052931fe47c04",
-      "byteLength": 779152,
+      "artifactHash": "sha256:ff170aeb07cdc196f7c64ef32cbb99936cf993862821883d5301a3f70868c24a",
+      "byteLength": 779180,
       "profile": "azeforge.html.self-contained/v1"
     },
     "svg/default": {
       "contentHash": "sha256:bcfa625beb182bf8e34d1c3e2857e2ea19037c4f66984918cdf0ce52592914b5",
       "assetManifestHash": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
       "rendererFingerprint": "sha256:7613e2ccf0885cb174baa789860aa741d46df3e77353c3cad954977bb6bc24eb",
-      "artifactHash": "sha256:9f01ecb95a1b198ac87819d5b8c6f298bb5a4c114a869487ec2615eeb7523d8f",
-      "byteLength": 780218,
+      "artifactHash": "sha256:52a7dcb126ac98e82c05076447e7999bd3483bde4374ccc2b0bfe3e8499709c9",
+      "byteLength": 780246,
       "profile": "azeforge.svg.foreign-object/v1"
     },
     "png/default": {
@@ -52,16 +52,16 @@
       "contentHash": "sha256:bcfa625beb182bf8e34d1c3e2857e2ea19037c4f66984918cdf0ce52592914b5",
       "assetManifestHash": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
       "rendererFingerprint": "sha256:9629780b71abaf474f20a9b609fb13d6cab686b1d8b27b1d0e189dcd0e067da4",
-      "artifactHash": "sha256:27ea46de02009c227976a0d227bc52aed0f5a6aed7598e86b46ef90ea2e8f2dd",
-      "byteLength": 779272,
+      "artifactHash": "sha256:7e00698d6880b4d07d520ced2190770a5fa88267102ebc27c299f882f12e65e2",
+      "byteLength": 779300,
       "profile": "azeforge.html.self-contained/v1"
     },
     "svg/academic": {
       "contentHash": "sha256:bcfa625beb182bf8e34d1c3e2857e2ea19037c4f66984918cdf0ce52592914b5",
       "assetManifestHash": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
       "rendererFingerprint": "sha256:2a51dedd77f90a8c6092ef7a704d7f85dc9e43926fda57d090000681e3868213",
-      "artifactHash": "sha256:b448cd8be3d2284ad3121a21fc2039081a5613fe4851f12ff00fdf954e527da9",
-      "byteLength": 780338,
+      "artifactHash": "sha256:8b9469ffd4e9f87a17e7dd1e9c89f5705a8c1f7c8148cee16aa73eafbc75abc8",
+      "byteLength": 780366,
       "profile": "azeforge.svg.foreign-object/v1"
     },
     "png/academic": {
@@ -84,16 +84,16 @@
       "contentHash": "sha256:bcfa625beb182bf8e34d1c3e2857e2ea19037c4f66984918cdf0ce52592914b5",
       "assetManifestHash": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
       "rendererFingerprint": "sha256:766e067dd27078735b99f12eb649c1409e37aaec3e871a231e2635f509bbdca7",
-      "artifactHash": "sha256:713eef635a240251b9e2ac32ec18a69af92f811bac96532c1c52e3cd65674fd1",
-      "byteLength": 779748,
+      "artifactHash": "sha256:568bb9a45b5e23f291bcd005a6f89af13dfaa0eadb84efa099dce29e0a66668b",
+      "byteLength": 779776,
       "profile": "azeforge.html.self-contained/v1"
     },
     "svg/dark-presentation": {
       "contentHash": "sha256:bcfa625beb182bf8e34d1c3e2857e2ea19037c4f66984918cdf0ce52592914b5",
       "assetManifestHash": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
       "rendererFingerprint": "sha256:853c62f22cde70c640c34c9a4c6b304da61d73b56152df5dca584253ff595181",
-      "artifactHash": "sha256:ed39b71a4ff6a09b15482e29b5fc9b0b6cd5087868ca643d1f9c055c873d1246",
-      "byteLength": 780817,
+      "artifactHash": "sha256:0a5e6565920aa1a796409dfd6b250ee77226c9a33d382ac9422b2c57c9428908",
+      "byteLength": 780845,
       "profile": "azeforge.svg.foreign-object/v1"
     },
     "png/dark-presentation": {
