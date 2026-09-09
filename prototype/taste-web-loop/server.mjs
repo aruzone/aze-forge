@@ -160,7 +160,11 @@ async function serveStatic(res, pathname) {
     const s = await stat(filePath);
     if (!s.isFile()) throw new Error("not a file");
     const body = await readFile(filePath);
-    send(res, 200, body, MIME_TYPES[ext] ?? "application/octet-stream");
+    res.writeHead(200, {
+      "Content-Type": MIME_TYPES[ext] ?? "application/octet-stream",
+      "Access-Control-Allow-Origin": "*",
+    });
+    res.end(body);
   } catch {
     send(res, 404, { code: "not-found", message: `No file at ${pathname}` });
   }
