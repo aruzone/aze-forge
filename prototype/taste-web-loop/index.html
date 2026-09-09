@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AzeForge Web Loop — throwaway prototype</title>
+<style>
+  :root { font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  * { box-sizing: border-box; }
+  body { margin: 0; height: 100vh; display: flex; flex-direction: column; }
+  header { background: #111; color: #eee; padding: 0.5rem 1rem; display: flex; gap: 1rem; align-items: center; }
+  header h1 { font-size: 1rem; margin: 0; }
+  .toolbar { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+  label { font-size: 0.85rem; color: #bbb; }
+  select, button { font: inherit; padding: 0.25rem 0.5rem; }
+  button[data-format] { min-width: 3.5rem; }
+  main { flex: 1; display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr; gap: 1px; background: #ddd; overflow: hidden; }
+  .panel { background: #fff; display: flex; flex-direction: column; min-height: 0; }
+  .panel h2 { font-size: 0.9rem; margin: 0; padding: 0.35rem 0.6rem; background: #f5f5f5; border-bottom: 1px solid #ddd; }
+  textarea { flex: 1; border: none; padding: 0.5rem; font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 0.85rem; line-height: 1.4; resize: none; outline: none; }
+  .side-stack { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+  #diagnostics { flex: 0 0 35%; overflow: auto; padding: 0.5rem; border-bottom: 1px solid #ddd; }
+  #diagnostics ul { list-style: none; margin: 0; padding: 0; }
+  #diagnostics li { padding: 0.25rem 0; font-size: 0.85rem; border-bottom: 1px solid #f0f0f0; }
+  #diagnostics li:last-child { border-bottom: none; }
+  .severity { display: inline-block; width: 3.5rem; text-transform: uppercase; font-size: 0.65rem; font-weight: 700; padding: 0.1rem 0.3rem; border-radius: 0.15rem; color: #fff; margin-right: 0.35rem; }
+  .severity.error { background: #c00; }
+  .severity.warning { background: #d70; }
+  .severity.info { background: #07b; }
+  .meta { color: #666; font-size: 0.75rem; }
+  #preview-host { flex: 1; background: #eee; position: relative; min-height: 0; }
+  iframe { border: none; width: 100%; height: 100%; }
+  .placeholder { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #666; font-size: 0.9rem; text-align: center; padding: 1rem; }
+  #download { padding: 0.4rem 0.6rem; background: #f5f5f5; border-top: 1px solid #ddd; display: none; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+  #download.visible { display: flex; }
+  footer { padding: 0.35rem 0.6rem; font-size: 0.75rem; color: #666; border-top: 1px solid #ddd; }
+  .error-banner { background: #fee; color: #900; padding: 0.4rem 0.6rem; font-size: 0.85rem; border-bottom: 1px solid #fcc; }
+</style>
+</head>
+<body>
+  <header>
+    <h1>AzeForge Web — rough prototype</h1>
+    <div class="toolbar">
+      <label for="example">Example</label>
+      <select id="example"></select>
+      <label for="theme">Theme</label>
+      <select id="theme"></select>
+      <button id="analyze">Analyze</button>
+      <button id="format">Format Source</button>
+      <span>Export:</span>
+      <button data-format="html">HTML</button>
+      <button data-format="svg">SVG</button>
+      <button data-format="png">PNG</button>
+      <button data-format="pdf">PDF</button>
+    </div>
+  </header>
+
+  <main>
+    <div class="panel">
+      <h2>Source editor</h2>
+      <textarea id="source" placeholder="Select an example or type AzeMark..." spellcheck="false"></textarea>
+      <div id="messages"></div>
+    </div>
+    <div class="panel side-stack">
+      <div id="diagnostics"><h2>Diagnostics</h2><p class="meta">Run Analyze or Export to see compiler output.</p></div>
+      <div id="preview-host">
+        <div class="placeholder" id="preview-placeholder">Preview appears here after a successful HTML export.</div>
+        <iframe id="preview" style="display:none;"></iframe>
+      </div>
+      <div id="download"><span class="meta">Artifact:</span><a id="download-link" href="#" download>download</a><span id="artifact-meta" class="meta"></span></div>
+    </div>
+  </main>
+
+  <footer>
+    Throwaway prototype for <a href="https://github.com/aruzone/aze-forge/issues/49">Taste the web edit-preview-export loop</a>. Compiles through the local Node compiler library; no persistence, accounts, or production styling.
+  </footer>
+
+<script>
+const exampleSelect = document.getElementById('example');
+const themeSelect = document.getElementById('theme');
+const sourceEditor = document.getElementById('source');
+const diagnosticsPanel = document.getElementById('diagnostics');
+const previewIframe = document.getElementById('preview');
+const previewPlaceholder = document.getElementById('preview-placeholder');
+const downloadRow = document.getElementById('download');
+const downloadLink = document.getElementById('download-link');
+const artifactMeta = document.getElementById('artifact-meta');
+const messages = document.getElementById('messages');
+
+let examples = [];
+let capabilities = null;
+let currentJobId = null;
+let currentArtifactMeta = null;
+
+const baseUrl = location.origin;
+
+async function request(method, path, body) {
+  const res = await fetch(`${baseUrl}${path}`, {
+    method,
+    headers: body ? { 'Content-Type': 'application/json' } : undefined,
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ message: res.statusText }));
+    throw new Error(err.message || `HTTP ${res.status}`);
+  }
+  return res.status === 204 ? null : res.json();
+}
+
+async function init() {
+  try {
+    capabilities = await request('GET', '/api/capabilities');
+    themesFromCapabilities();
+  } catch (e) {
+    showError('Could not load capabilities: ' + e.message);
+    themeSelect.innerHTML = '<option value="default">default</option><option value="academic">academic</option><option value="dark-presentation">dark-presentation</option>';
+  }
+
+  try {
+    examples = await request('GET', '/api/examples');
+    exampleSelect.innerHTML = examples.map(e => `<option value="${e.id}">${e.name}</option>`).join('');
+    loadExample(examples[0].id);
+  } catch (e) {
+    showError('Could not load examples: ' + e.message);
+  }
+}
+
+function themesFromCapabilities() {
+  const themes = (capabilities && Array.isArray(capabilities.themes)) ? capabilities.themes : [];
+  themeSelect.innerHTML = themes.map(t => `<option value="${t.id}">${t.id}</option>`).join('');
+  if (!themeSelect.value) { themeSelect.value = 'default'; }
+}
+
+function loadExample(id) {
+  const ex = examples.find(e => e.id === id);
+  if (ex) {
+    sourceEditor.value = ex.source;
+    hidePreview();
+    clearDiagnostics();
+    showMessage('Loaded example: ' + ex.name, 'info');
+  }
+}
+
+function clearDiagnostics() {
+  diagnosticsPanel.innerHTML = '<h2>Diagnostics</h2>';
+}
+
+function renderDiagnostics(diags) {
+  if (!diags || diags.length === 0) {
+    diagnosticsPanel.innerHTML = '<h2>Diagnostics</h2><p class="meta">No diagnostics.</p>';
+    return;
+  }
+  const items = diags.map(d => {
+    const loc = d.range ? `L${d.range.start.line}:${d.range.start.column}` : '—';
+    return `<li><span class="severity ${d.severity}">${d.severity}</span> <span class="meta">${loc}</span> ${escapeHtml(d.message)}${d.code ? ` <span class="meta">(${d.code})</span>` : ''}</li>`;
+  }).join('');
+  diagnosticsPanel.innerHTML = `<h2>Diagnostics</h2><ul>${items}</ul>`;
+}
+
+function hidePreview() {
+  previewIframe.style.display = 'none';
+  previewPlaceholder.style.display = 'flex';
+  downloadRow.classList.remove('visible');
+  previewIframe.src = '';
+}
+
+function showPreview(jobId, meta) {
+  currentArtifactMeta = meta;
+  previewPlaceholder.style.display = 'none';
+  previewIframe.style.display = 'block';
+  previewIframe.src = `${baseUrl}/api/jobs/${jobId}/artifact`;
+  downloadLink.href = `${baseUrl}/api/jobs/${jobId}/artifact`;
+  downloadLink.download = `artifact.${meta.format}`;
+  artifactMeta.textContent = `${meta.format.toUpperCase()}, ${meta.byteLength} bytes, ${meta.theme.id}`;
+  downloadRow.classList.add('visible');
+}
+
+function showArtifactDownload(jobId, meta) {
+  currentArtifactMeta = meta;
+  downloadLink.href = `${baseUrl}/api/jobs/${jobId}/artifact`;
+  downloadLink.download = `artifact.${meta.format}`;
+  downloadLink.click();
+  artifactMeta.textContent = `${meta.format.toUpperCase()}, ${meta.byteLength} bytes, ${meta.theme.id}`;
+  downloadRow.classList.add('visible');
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c]));
+}
+
+function showMessage(text, kind) {
+  messages.innerHTML = `<div class="error-banner" style="background:${kind==='error'?'#fee':'#f0f8ff'};color:${kind==='error'?'#900':'#004' };border-color:${kind==='error'?'#fcc':'#cce'}">${escapeHtml(text)}</div>`;
+  setTimeout(() => { messages.innerHTML = ''; }, 4000);
+}
+function showError(text) { showMessage(text, 'error'); }
+
+async function poll(jobId, onDone) {
+  for (let i = 0; i < 60; i++) {
+    const job = await request('GET', `/api/jobs/${jobId}`);
+    if (job.state === 'completed' || job.state === 'failed') {
+      return onDone(job);
+    }
+    await new Promise(r => setTimeout(r, 300));
+  }
+  throw new Error('Polling timed out');
+}
+
+function commonPayload() {
+  return {
+    source: { text: sourceEditor.value, name: 'preview.aze.md' },
+    theme: themeSelect.value,
+    requestId: 'prototype-' + Date.now(),
+    revision: 'prototype-' + Date.now(),
+  };
+}
+
+async function runOperation(operation, format) {
+  clearDiagnostics();
+  hidePreview();
+  const payload = { ...commonPayload(), operation };
+  if (format) payload.format = format;
+  let job;
+  try {
+    job = await request('POST', '/api/jobs', payload);
+    await poll(job.id, finishJob);
+  } catch (e) {
+    showError(e.message);
+  }
+}
+
+function finishJob(job) {
+  if (job.state === 'failed') {
+    showError('Service error: ' + (job.serviceError && job.serviceError.message));
+    return;
+  }
+  renderDiagnostics(job.diagnostics);
+  if (job.proposal !== undefined) {
+    sourceEditor.value = job.proposal;
+    showMessage('Source formatted', 'info');
+  }
+  if (!job.ok) {
+    return;
+  }
+  if (job.artifactMeta && job.operation === 'compile') {
+    if (job.artifactMeta.format === 'html') {
+      showPreview(job.id, job.artifactMeta);
+    } else {
+      showArtifactDownload(job.id, job.artifactMeta);
+      showMessage(`${job.artifactMeta.format.toUpperCase()} artifact ready for download.`, 'info');
+    }
+  }
+}
+
+document.getElementById('analyze').addEventListener('click', () => runOperation('analyze'));
+document.getElementById('format').addEventListener('click', () => runOperation('format'));
+exampleSelect.addEventListener('change', e => loadExample(e.target.value));
+
+document.querySelectorAll('button[data-format]').forEach(btn => {
+  btn.addEventListener('click', () => runOperation('compile', btn.dataset.format));
+});
+
+init();
+</script>
+</body>
+</html>

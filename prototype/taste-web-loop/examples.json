@@ -1,0 +1,32 @@
+[
+  {
+    "id": "hello",
+    "name": "Hello AzeMark",
+    "source": "---\nazemark: 1\ntitle: Hello AzeMark\nauthor:\n  - Prototype Author\ntheme: default\n---\n\n# Introduction\n\nThis is the simplest happy path.\n"
+  },
+  {
+    "id": "equation",
+    "name": "Readable equation",
+    "source": "---\nazemark: 1\ntitle: Readable equation\n---\n\n::::: equation\nid: euler\n\nexp(i theta) = cos(theta) + i sin(theta)\n:::::\n"
+  },
+  {
+    "id": "table-callout",
+    "name": "Table and callout",
+    "source": "---\nazemark: 1\ntitle: Table and callout\n---\n\n::::: callout\nvariant: note\ntitle: Determinism note\n\nArtifacts are self-contained and deterministic.\n:::::\n\n::::: table\ncaption: Thermal properties\nid: materials\n\n| material | density [kg/m^3] | conductivity [W/(m K)] |\n| :--- | :---: | ---: |\n| Aluminum | 2700 | 205 |\n| Steel | 7850 | 50 |\n:::::\n"
+  },
+  {
+    "id": "diagram",
+    "name": "Mermaid diagram",
+    "source": "---\nazemark: 1\ntitle: Diagram\n---\n\n:::::: mermaid\nid: flow\ntitle: Measurement flow\n\nflowchart LR\n  start[Start] --> inspect[Inspect setup]\n  inspect --> done[Done]\n::::::\n"
+  },
+  {
+    "id": "diagnostic-sample",
+    "name": "Diagnostic sample",
+    "source": "---\nazemark: 1\ntitle: Diagnostic sample\n---\n\n::::: equation\nid: duplicate\n\nF(omega) = integral x=0..infinity of x^2 dx\n::::: equation\nid: duplicate\n\nF(omega) = integral x=0..infinity of x^2 dx\n:::::\n"
+  },
+  {
+    "id": "alpha-azemark2-report",
+    "name": "Alpha report shape (AzeMark 2, not yet compilable)",
+    "source": "---\nazemark: 2\ntitle: Alpha report preview\ncitations:\n  - knuth-concrete\n---\n\nThe family contracts support ordered references such as @knuth-concrete[p. 23].\n\n:::: figure\nid: fig-sample\ncaption: A sample diagram for the alpha report.\n\n:::: diagram\nid: lifecycle\nmode: flowchart\n\n- kind: node\n  id: start\n  label: Start\n\n- kind: edge\n  from: start\n  to: done\n  label: Finish\n\n- kind: node\n  id: done\n  label: Done\n::::\n::::\n"
+  }
+]
