@@ -94,16 +94,23 @@ and offsets must still line up in the `--diagnostics json` report.
 ## Release
 
 `TOOL_VERSION` in `src/tool-version.ts` is the single source of truth for the
-CLI version and must match `package.json` in the same change. To release:
+CLI version and must match `package.json` in the same change. Breaking
+library changes during `0.x` require a minor-version increment; the
+`exports` map in `package.json` is the only public import surface
+(`@aruzone/aze-forge`, `/contracts`, `/adapters`) — implementation helpers
+must never be re-added to it. `schemas.test.mjs` checks every packaged
+schema is byte-identical to its public export, and the packed
+entry-point consumer test in `installed-cli.test.mjs` resolves all three
+package paths and denies deep imports. To release:
 
 ```bash
 npm version patch --no-git-tag-version  # or minor
 # sync src/tool-version.ts to the same version
 npm run typecheck && npm test
-git commit -am "chore: release 0.1.1"
-git tag v0.1.1
+git commit -am "chore: release 0.2.0"
+git tag v0.2.0
 npm publish --access public --otp=<code>  # 2FA or bypass-2FA token required
-git push origin main v0.1.1
+git push origin main v0.2.0
 ```
 
 `prepublishOnly` rebuilds gitignored `dist/` so no publish can ship a stale

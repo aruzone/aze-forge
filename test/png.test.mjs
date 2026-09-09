@@ -8,12 +8,9 @@ import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { inflateSync } from "node:zlib";
 
-import {
-  createCompiler,
-  defaultTheme,
-  getBuiltInRegistry,
-  normalizePng,
-} from "../dist/index.js";
+import { getBuiltInRegistry } from "../dist/adapters.js";
+import { createCompiler, defaultTheme } from "../dist/index.js";
+import { normalizePng } from "../dist/render-png.js";
 
 const CLI_PATH = fileURLToPath(new URL("../dist/cli.js", import.meta.url));
 

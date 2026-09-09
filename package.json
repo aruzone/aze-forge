@@ -1,6 +1,6 @@
 {
   "name": "@aruzone/aze-forge",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Deterministic AzeMark compiler: readable source in, self-contained HTML, SVG, PNG, and PDF artifacts out.",
   "license": "MIT",
   "repository": {
@@ -25,6 +25,14 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./contracts": {
+      "types": "./dist/contracts.d.ts",
+      "import": "./dist/contracts.js"
+    },
+    "./adapters": {
+      "types": "./dist/adapters.d.ts",
+      "import": "./dist/adapters.js"
     }
   },
   "files": [

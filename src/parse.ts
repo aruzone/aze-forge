@@ -1,23 +1,26 @@
 import { isAlias, isScalar, parseDocument, visit } from "yaml";
 
 import { createDiagnostic } from "./diagnostics.js";
-import { DERIVATION_PLUGIN_TYPE, derivationPlugin, parseDerivationHeader, validateDerivationBody } from "./derivation.js";
+import { derivationPlugin, parseDerivationHeader, validateDerivationBody } from "./derivation.js";
+import { DERIVATION_PLUGIN_TYPE } from "./derivation-schemas.js";
 import { validateUnitExpression, QuantityError } from "./quantity.js";
-import { CALLOUT_PLUGIN_TYPE, CALLOUT_PLUGIN_VERSION, CALLOUT_VARIANTS, calloutPlugin } from "./callout.js";
-import { TABLE_PLUGIN_TYPE, TABLE_PLUGIN_VERSION, tablePlugin } from "./table.js";
+import { calloutPlugin } from "./callout.js";
+import { CALLOUT_PLUGIN_TYPE, CALLOUT_PLUGIN_VERSION, CALLOUT_VARIANTS } from "./callout-schemas.js";
+import { tablePlugin } from "./table.js";
+import { TABLE_PLUGIN_TYPE, TABLE_PLUGIN_VERSION } from "./table-schemas.js";
 import {
-  EQUATION_PLUGIN_TYPE,
   equationPlugin,
   parseEquationHeader,
   validateEquationBody,
 } from "./equation.js";
+import { EQUATION_PLUGIN_TYPE } from "./equation-schemas.js";
 import { isGfmTableStart, parseInlineFragment, splitTableRow, tryParseGfmTable } from "./markdown.js";
 import {
-  MERMAID_PLUGIN_TYPE,
   mermaidPlugin,
   parseMermaidHeader,
   validateMermaidBody,
 } from "./mermaid.js";
+import { MERMAID_PLUGIN_TYPE } from "./mermaid-schemas.js";
 import type {
   ArtifactFormat,
   CalloutBlock,

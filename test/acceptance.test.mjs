@@ -241,7 +241,7 @@ test("png evidence uses the exact profile, theme dimensions, and approved bounds
   const second = await renderPng("second.png");
   assert.deepEqual(second.bytes, bytes);
 
-  const normalized = (await import("../dist/index.js")).normalizePng(bytes);
+  const normalized = (await import("../dist/render-png.js")).normalizePng(bytes);
   assert.deepEqual(Buffer.from(normalized), bytes);
 });
 

@@ -238,6 +238,29 @@ Exit statuses: `0` success (including warning-only validation), `1` the
 operation was accepted but the Source failed, `2` the invocation itself was
 malformed. Run `azeforge <command> --help` for full options.
 
+## Library
+
+The published package exposes exactly three supported entry points; only
+documented exports are supported, and implementation helpers are not
+reachable through the package (deep imports resolve to nothing):
+
+| Entry point | Responsibility |
+| --- | --- |
+| `@aruzone/aze-forge` | `createCompiler` and high-level compiler operations |
+| `@aruzone/aze-forge/contracts` | Public types, JSON schemas and schema identifiers, without Node-only imports or engine initialization |
+| `@aruzone/aze-forge/adapters` | Trusted registry/adapter contracts and the root-confined filesystem asset adapter |
+
+```js
+import { createCompiler } from "@aruzone/aze-forge";
+import { createVersionReport } from "@aruzone/aze-forge/contracts";
+import { getBuiltInRegistry } from "@aruzone/aze-forge/adapters";
+```
+
+The runtime compiler is Node-oriented; a browser-safe `contracts` entry
+does not promise browser compilation. Breaking library changes during
+`0.x` require a minor-version increment; AzeForge Web pins the exact
+published version.
+
 ## Uninstall
 
 ```bash

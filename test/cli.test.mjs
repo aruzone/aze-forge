@@ -53,7 +53,7 @@ test("validate JSON mode emits one finite diagnostics report on success", async 
   assert.deepEqual(JSON.parse(result.stdout.toString("utf8")), {
     schema: "azeforge.diagnostics/v1",
     schemaVersion: 1,
-    tool: { name: "azeforge", version: "0.1.1" },
+    tool: { name: "azeforge", version: "0.2.0" },
     command: "validate",
     success: true,
     diagnostics: [],

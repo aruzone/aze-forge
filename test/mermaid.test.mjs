@@ -9,19 +9,19 @@ import test from "node:test";
 import {
   assertRegistryDescriptorsImmutable,
   CHROME_HEADLESS_SHELL_VERSION,
-  createCompiler,
-  defaultTheme,
-  deriveMermaidSeed,
   getBuiltInRegistry,
-  MERMAID_PLUGIN_VERSION,
-  MERMAID_VERSION,
   MermaidBrowserUnavailableError,
   MermaidCapabilityError,
   mermaidHtmlBlockRenderer,
   mermaidPlugin,
-  renderMermaidInBrowser,
+} from "../dist/adapters.js";
+import { createCompiler, defaultTheme } from "../dist/index.js";
+import { MERMAID_PLUGIN_VERSION, MERMAID_VERSION } from "../dist/contracts.js";
+import {
+  deriveMermaidSeed,
   sanitizeMermaidSvg,
-} from "../dist/index.js";
+} from "../dist/mermaid.js";
+import { renderMermaidInBrowser } from "../dist/mermaid-browser.js";
 
 const CLI_PATH = fileURLToPath(new URL("../dist/cli.js", import.meta.url));
 

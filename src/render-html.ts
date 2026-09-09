@@ -1,7 +1,8 @@
 import { assetManifestHash } from "./assets.js";
 import { renderCalloutFragment } from "./callout.js";
-import { KATEX_VERSION, getKatexCss } from "./equation.js";
-import { MERMAID_VERSION } from "./mermaid.js";
+import { getKatexCss } from "./equation.js";
+import { KATEX_VERSION } from "./equation-schemas.js";
+import { MERMAID_VERSION } from "./mermaid-schemas.js";
 import type { EmbeddedFontFace } from "./font.js";
 import { artifactBytesHash, canonicalJson, sha256 } from "./hash.js";
 import { escapeHtml, renderInlineHtml } from "./html-fragment.js";

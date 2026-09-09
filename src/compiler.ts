@@ -54,13 +54,13 @@ import {
   MermaidBrowserUnavailableError,
 } from "./mermaid-browser.js";
 import {
-  MERMAID_PLUGIN_TYPE,
   MermaidSanitizerError,
   mermaidDependencyClosure,
   sanitizeMermaidFragment,
 } from "./mermaid.js";
+import { MERMAID_PLUGIN_TYPE } from "./mermaid-schemas.js";
 import { isTypedTableData } from "./table.js";
-import { DERIVATION_PLUGIN_TYPE } from "./derivation.js";
+import { DERIVATION_PLUGIN_TYPE } from "./derivation-schemas.js";
 import { FragmentSecurityError } from "./html-fragment.js";
 import {
   freezeRegistryForCompiler,

@@ -5,14 +5,13 @@ import { DEFAULT_DIAGNOSTIC_LIMITS } from "./diagnostics.js";
 import {
   MAX_EQUATION_SOURCE_LENGTH,
   MAX_EQUATION_TEX_LENGTH,
-  KATEX_VERSION,
-  EQUATION_LATEX_LANGUAGE_VERSION,
 } from "./equation.js";
+import { EQUATION_LATEX_LANGUAGE_VERSION, KATEX_VERSION } from "./equation-schemas.js";
 import {
   MAX_MERMAID_SOURCE_LENGTH,
   MAX_MERMAID_TEXT_LENGTH,
-  MERMAID_VERSION,
 } from "./mermaid.js";
+import { MERMAID_VERSION } from "./mermaid-schemas.js";
 import {
   CHROME_HEADLESS_SHELL_VERSION,
   resolvePinnedBrowserExecutable,

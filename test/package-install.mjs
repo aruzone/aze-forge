@@ -32,7 +32,11 @@ function run(command, arguments_, options) {
   return result;
 }
 export async function packCli() {
-  const directory = await mkdtemp(join(tmpdir(), "azeforge package "));
+  return packPackage("azeforge package ");
+}
+
+export async function packPackage(prefix = "azeforge package ") {
+  const directory = await mkdtemp(join(tmpdir(), prefix));
   const pack = run(
     NPM,
     ["pack", "--json", "--pack-destination", directory],

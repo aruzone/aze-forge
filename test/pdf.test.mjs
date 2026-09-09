@@ -9,12 +9,12 @@ import test from "node:test";
 import { inflateSync } from "node:zlib";
 
 import {
-  canonicalizePdf,
-  defaultTheme,
   getBuiltInRegistry,
   PDF_MAX_PAGES,
   PdfArtifactLimitError,
-} from "../dist/index.js";
+} from "../dist/adapters.js";
+import { defaultTheme } from "../dist/index.js";
+import { canonicalizePdf } from "../dist/render-pdf.js";
 
 const CLI_PATH = fileURLToPath(new URL("../dist/cli.js", import.meta.url));
 

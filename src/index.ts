@@ -1,299 +1,67 @@
+/**
+ * Compiler entry point: `createCompiler` and high-level compiler operations.
+ *
+ * Supported public entry points (see the package README):
+ *   `@aruzone/aze-forge`        this module — the compiler
+ *   `@aruzone/aze-forge/contracts` — public types, JSON schemas and schema identifiers
+ *   `@aruzone/aze-forge/adapters`   — registry/adapter contracts and the filesystem asset adapter
+ *
+ * Only documented exports are supported. Implementation helpers live in
+ * non-public modules; do not reach into `dist` deep paths.
+ */
+
 export { createCompiler } from "./compiler.js";
-export {
-  DERIVATION_BODY_SYNTAX_ID,
-  DERIVATION_BODY_SYNTAX_VERSION,
-  DERIVATION_HTML_BLOCK_RENDERER_ID,
-  DERIVATION_HTML_BLOCK_RENDERER_VERSION,
-  DERIVATION_PLUGIN_TYPE,
-  DERIVATION_PLUGIN_VERSION,
-  derivationDataSchema,
-  derivationHtmlBlockRenderer,
-  derivationPlugin,
-  derivationSourceSchema,
-  parseDerivationHeader,
-  renderDerivationFragment,
-  validateDerivationBody,
-} from "./derivation.js";
-export {
-  ACCEPTANCE_CATALOG_ID,
-  ACCEPTANCE_CATALOG_VERSION,
-  ACCEPTANCE_ENTRIES,
-  ACCEPTANCE_SCHEMA_ID,
-  ACCEPTANCE_SCHEMA_VERSION,
-  AUTOMATED_P0_IDS,
-  REQUIRED_P0_IDS,
-  acceptanceJsonSchema,
-  checkAcceptanceCoverage,
-  createAcceptanceCatalog,
-} from "./acceptance.js";
-export type { AcceptanceCatalogDocument, AcceptanceEntry } from "./acceptance.js";
-export type { AcceptanceEvidence, AcceptanceGate } from "./acceptance.js";
-export { DEFAULT_RENDER_TIMEOUT_MS } from "./compiler.js";
-export { CompilerConfigurationError } from "./configuration-error.js";
-export { DIAGNOSTICS_SCHEMA_ID, diagnosticsJsonSchema } from "./diagnostics-json.js";
-export type { DiagnosticsReport } from "./diagnostics-json.js";
-export {
-  CALLOUT_BODY_SYNTAX_ID,
-  CALLOUT_BODY_SYNTAX_VERSION,
-  CALLOUT_HTML_BLOCK_RENDERER_ID,
-  CALLOUT_HTML_BLOCK_RENDERER_VERSION,
-  CALLOUT_PLUGIN_TYPE,
-  CALLOUT_PLUGIN_VERSION,
-  CALLOUT_VARIANTS,
-  calloutDataSchema,
-  calloutHtmlBlockRenderer,
-  calloutPlugin,
-  calloutSourceSchema,
-  renderCalloutFragment,
-} from "./callout.js";
-export {
-  EQUATION_BODY_SYNTAX_ID,
-  EQUATION_BODY_SYNTAX_VERSION,
-  EQUATION_HTML_BLOCK_RENDERER_ID,
-  EQUATION_HTML_BLOCK_RENDERER_VERSION,
-  EQUATION_LATEX_LANGUAGE_VERSION,
-  EQUATION_PLUGIN_TYPE,
-  EQUATION_PLUGIN_VERSION,
-  HTML_RENDERER_ID,
-  HTML_RENDERER_VERSION,
-  KATEX_VERSION,
-  KatexCssError,
-  EquationSanitizerError,
-  equationDataSchema,
-  equationHtmlBlockRenderer,
-  equationPlugin,
-  equationSourceSchema,
-  getKatexCss,
-  htmlRendererDescriptor,
-  renderEquationToHtml,
-  sanitizeKatexHtml,
-  translateReadableToTex,
-} from "./equation.js";
-export {
-  CHROME_HEADLESS_SHELL_VERSION,
-  MERMAID_BODY_SYNTAX_ID,
-  MERMAID_BODY_SYNTAX_VERSION,
-  MERMAID_HTML_BLOCK_RENDERER_ID,
-  MERMAID_HTML_BLOCK_RENDERER_VERSION,
-  MERMAID_PLUGIN_TYPE,
-  MERMAID_PLUGIN_VERSION,
-  MERMAID_VERSION,
-  MermaidBrowserParseError,
-  MermaidBrowserUnavailableError,
-  MermaidSanitizerError,
-  deriveMermaidSeed,
-  mermaidDataSchema,
-  mermaidDependencyClosure,
-  mermaidHtmlBlockRenderer,
-  mermaidPlugin,
-  mermaidSourceSchema,
-  parseMermaidHeader,
-  renderMermaidSvg,
-  sanitizeMermaidFragment,
-  sanitizeMermaidSvg,
-  validateMermaidBody,
-} from "./mermaid.js";
-export {
-  BrowserCapabilityError,
-  MermaidCapabilityError,
-  renderMermaidInBrowser,
-} from "./mermaid-browser.js";
-export {
-  REGISTRY_CONFORMANCE_SEAM_VERSION,
-  assertRegistryDescriptorsImmutable,
-  freezeRegistryForCompiler,
-  getBuiltInRegistry,
-  isWellFormedVersionRange,
-  resolveRegistry,
-  satisfiesSemverRange,
-  validateRegistry,
-} from "./registry.js";
-export {
-  PDF_MAX_BYTES,
-  PDF_MAX_PAGES,
-  PDF_MAX_TEMP_BYTES,
-  PDF_RENDERER_ID,
-  PDF_RENDERER_VERSION,
-  PDF_REQUIRED_CAPABILITIES,
-  PdfArtifactLimitError,
-  canonicalizePdf,
-  pdfBlockRenderers,
-  pdfPageGeometryForTheme,
-  pdfPagedCss,
-  pinnedPdfBrowserCapability,
-  pdfRendererDescriptor,
-  renderPdf,
-} from "./render-pdf.js";
-export {
-  PNG_DEVICE_SCALE_FACTOR,
-  PNG_RENDERER_ID,
-  PNG_RENDERER_VERSION,
-  PNG_REQUIRED_CAPABILITIES,
-  normalizePng,
-  pinnedPngBrowserCapability,
-  pngBlockRenderers,
-  pngRendererDescriptor,
-  renderPng,
-} from "./render-png.js";
-export {
-  SVG_RENDERER_ID,
-  SVG_RENDERER_VERSION,
-  sanitizeWholeDocumentSvg,
-  svgBlockRenderers,
-  svgRendererDescriptor,
-} from "./render-svg.js";
-export { academicTheme, builtInThemes, darkPresentationTheme, defaultTheme } from "./theme.js";
 export type {
-  AnyBlockRenderer,
+  Compiler,
+  CompilerOptions,
+  CompilerPolicy,
+  CompileOptions,
+  CompileResult,
+  ParseOptions,
+  ParseResult,
+  ParsedDocument,
+  ValidationResult,
+  FormatOptions,
+  FormatResult,
+  Diagnostic,
+  DiagnosticFix,
+  DiagnosticFixEdit,
+  DiagnosticLimitOptions,
+  DiagnosticLocation,
+  DiagnosticSeverity,
+  RelatedLocation,
+  SourcePosition,
+  SourceRange,
+  Theme,
   Artifact,
   ArtifactHash,
   ArtifactFormat,
   ArtifactMetadata,
-  AssetManifestEntry,
-  AzeBlock,
-  AzeBlockPlugin,
-  AzeBlockRenderer,
-  AzeDocument,
-  BlockRendererContext,
-  BlockRendererDescriptor,
-  BlockquoteBlock,
-  BreakInline,
-  CalloutBlock,
-  CodeBlock,
-  CodeInline,
-  CompilerPolicy,
-  ContentHash,
-  CompileOptions,
-  CompileResult,
-  Compiler,
-  CompilerOptions,
-  DiagnosticLimitOptions,
-  Diagnostic,
-  DiagnosticFix,
-  DiagnosticFixEdit,
-  DiagnosticLocation,
-  DiagnosticSeverity,
-  DerivationBlock,
-  DerivationStep,
-  DocumentMetadata,
-  EmphasisInline,
-  EquationBlock,
-  EquationBlockRenderer,
-  BlockRenderer,
-  HeadingBlock,
   HtmlArtifactMetadata,
-  MermaidBlock,
-  MermaidBlockRenderer,
-  ImageInline,
-  Inline,
-  InvalidBlock,
-  JsonPrimitive,
-  JsonValue,
-  LinkInline,
-  ListBlock,
-  ListItem,
-  ParsedBlock,
-  ParagraphBlock,
-  ParseOptions,
-  ParseResult,
-  FormatOptions,
-  FormatResult,
-  ParsedDocument,
-  PluginDescriptor,
-  PdfArtifactMetadata,
-  PngArtifactMetadata,
-  RelatedLocation,
-  RendererDescriptor,
-  SourcePosition,
-  Sha256Hash,
-  SourceRange,
-  StrongInline,
-  TableAlignment,
-  TableBlock,
-  TableColumn,
-  TableData,
-  TableGroup,
-  TextInline,
-  ThematicBreakBlock,
-  Theme,
-  TypedTableData,
-  TypedTableCell,
   SvgArtifactMetadata,
-  ValidationResult,
+  PngArtifactMetadata,
+  PdfArtifactMetadata,
+  AzeDocument,
+  AzeBlock,
+  ParsedBlock,
+  ContentHash,
+  Sha256Hash,
+  AssetManifestEntry,
 } from "./model.js";
+export { DEFAULT_RENDER_TIMEOUT_MS } from "./compiler.js";
+export { CompilerConfigurationError } from "./configuration-error.js";
+export { DEFAULT_DIAGNOSTIC_LIMITS } from "./diagnostics.js";
+export { MAX_NESTING_DEPTH } from "./parse.js";
+export { builtInThemes, academicTheme, darkPresentationTheme, defaultTheme } from "./theme.js";
 export {
-  TABLE_BODY_SYNTAX_ID,
-  TABLE_BODY_SYNTAX_VERSION,
-  TABLE_HTML_BLOCK_RENDERER_ID,
-  TABLE_HTML_BLOCK_RENDERER_VERSION,
-  TABLE_PLUGIN_TYPE,
-  TABLE_PLUGIN_VERSION,
-  isTypedTableData,
-  renderTableFragment,
-  tableDataSchema,
-  tableHtmlBlockRenderer,
-  tablePlugin,
-  tableSourceSchema,
-} from "./table.js";
-export { isSafeLinkTarget, parseInlineFragment } from "./markdown.js";
-export {
-  QuantityError,
-  canonicalExactDecimal,
-  formatQuantityCell,
-  parseQuantitySpelling,
-  validateUnitExpression,
-} from "./quantity.js";
-export type { ParsedQuantity } from "./quantity.js";
-export { FragmentSecurityError, renderInlineHtml } from "./html-fragment.js";
-export {
-  CAPABILITY_COMMANDS,
-  CAPABILITY_FORMATS,
   buildCapabilities,
   probeBrowserAvailability,
   probeExecutableAvailability,
   serializeCapabilities,
+  CAPABILITY_COMMANDS,
+  CAPABILITY_FORMATS,
 } from "./capabilities.js";
 export type { CapabilitiesReport, EngineAvailability } from "./capabilities.js";
-export {
-  CANONICAL_ARCH,
-  CANONICAL_NODE_VERSION,
-  CANONICAL_OPERATING_SYSTEM,
-  RUNTIME_SUPPORT,
-  SUPPORTED_NODE_VERSIONS,
-  SUPPORTED_OPERATING_SYSTEMS,
-  runtimeSupportJsonSchema,
-} from "./runtime-support.js";
-export type { RuntimeSupport } from "./runtime-support.js";
-export {
-  CAPABILITIES_SCHEMA_ID,
-  CAPABILITIES_SCHEMA_VERSION,
-  capabilitiesJsonSchema,
-} from "./capabilities-json.js";
-export { TOOL_VERSION } from "./tool-version.js";
-export {
-  VERSION_SCHEMA_ID,
-  VERSION_SCHEMA_VERSION,
-  createVersionReport,
-  publicSchemaVersions,
-  versionJsonSchema,
-} from "./version.js";
-export type { VersionReport, VersionedSchema } from "./version.js";
-export {
-  HELP_COMMANDS,
-  commandHelp,
-  globalHelp,
-  humanCapabilitiesReport,
-  humanVersionReport,
-  versionLine,
-} from "./help.js";
-export type { HelpCommand } from "./help.js";
-export { DEFAULT_DIAGNOSTIC_LIMITS } from "./diagnostics.js";
-export { MAX_NESTING_DEPTH } from "./parse.js";
-export {
-  MAX_IMAGE_BYTES,
-  MAX_IMAGE_DIMENSION_PX,
-  MAX_IMAGE_PIXELS,
-} from "./assets.js";
 export {
   HTML_MAX_BYTES,
   HTML_MIME_TYPE,
@@ -324,4 +92,21 @@ export {
   PDF_PROFILE,
   PDF_SERIALIZER,
 } from "./render-pdf.js";
-export { resolvePinnedBrowserExecutable } from "./mermaid-browser.js";
+export { TOOL_VERSION } from "./tool-version.js";
+export {
+  VERSION_SCHEMA_ID,
+  VERSION_SCHEMA_VERSION,
+  createVersionReport,
+  versionJsonSchema,
+} from "./version.js";
+export type { VersionReport, VersionedSchema } from "./version.js";
+export {
+  CAPABILITIES_SCHEMA_ID,
+  CAPABILITIES_SCHEMA_VERSION,
+  capabilitiesJsonSchema,
+} from "./capabilities-json.js";
+export {
+  DIAGNOSTICS_SCHEMA_ID,
+  diagnosticsJsonSchema,
+} from "./diagnostics-json.js";
+export type { DiagnosticsReport } from "./diagnostics-json.js";

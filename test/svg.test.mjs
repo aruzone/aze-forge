@@ -8,12 +8,9 @@ import { fileURLToPath } from "node:url";
 import test from "node:test";
 
 import { SaxesParser } from "saxes";
-import {
-  createCompiler,
-  defaultTheme,
-  getBuiltInRegistry,
-  sanitizeWholeDocumentSvg,
-} from "../dist/index.js";
+import { getBuiltInRegistry } from "../dist/adapters.js";
+import { createCompiler, defaultTheme } from "../dist/index.js";
+import { sanitizeWholeDocumentSvg } from "../dist/render-svg.js";
 
 const CLI_PATH = fileURLToPath(new URL("../dist/cli.js", import.meta.url));
 const SOURCE = `---

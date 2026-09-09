@@ -8,15 +8,14 @@ import test from "node:test";
 
 import {
   assertRegistryDescriptorsImmutable,
-  createCompiler,
-  EQUATION_PLUGIN_VERSION,
   equationHtmlBlockRenderer,
   equationPlugin,
   getBuiltInRegistry,
   htmlRendererDescriptor,
-  KATEX_VERSION,
   satisfiesSemverRange,
-} from "../dist/index.js";
+} from "../dist/adapters.js";
+import { createCompiler } from "../dist/index.js";
+import { EQUATION_PLUGIN_VERSION, KATEX_VERSION } from "../dist/contracts.js";
 
 const CLI_PATH = fileURLToPath(new URL("../dist/cli.js", import.meta.url));
 

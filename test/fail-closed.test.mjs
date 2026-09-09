@@ -4,12 +4,11 @@ import test from "node:test";
 import {
   BrowserCapabilityError,
   calloutHtmlBlockRenderer,
-  createCompiler,
   equationHtmlBlockRenderer,
-  renderEquationToHtml,
-  renderInlineHtml,
-  sanitizeKatexHtml,
-} from "../dist/index.js";
+} from "../dist/adapters.js";
+import { createCompiler } from "../dist/index.js";
+import { renderEquationToHtml, sanitizeKatexHtml } from "../dist/equation.js";
+import { renderInlineHtml } from "../dist/html-fragment.js";
 
 const EQUATION_SOURCE = `---
 azemark: 2

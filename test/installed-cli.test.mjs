@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -7,6 +8,7 @@ import test from "node:test";
 import {
   installPackedCli,
   packCli,
+  packPackage,
   runInstalledCli,
 } from "./package-install.mjs";
 
@@ -122,4 +124,88 @@ test("packed installation exposes the supported CLI and ignores installation pat
     JSON.stringify(missingReport.diagnostics.map((diagnostic) => diagnostic.code)),
   );
   assert.doesNotMatch(missingBrowser.stderr.toString("utf8"), /^\s+at\s/m);
+});
+
+test("packed installation resolves the supported entry points by their package paths", async () => {
+  const archive = await packPackage("azeforge entry points ");
+  const directory = await installPackedCli("azeforge entry consumer ", archive);
+  const writeConsumer = async (name, source) => {
+    const path = join(directory, name);
+    await writeFile(path, source);
+    return path;
+  };
+
+  const compilerConsumer = await writeConsumer(
+    "compiler-consumer.mjs",
+    `import { createCompiler } from "@aruzone/aze-forge";
+import { createVersionReport } from "@aruzone/aze-forge/contracts";
+const report = createCompiler().parse("---\\nazemark: 2\\n---\\n\\n# Consumer\\n");
+const version = createVersionReport();
+process.stdout.write(JSON.stringify({
+  parsed: report.diagnostics.length,
+  version: version.tool.version,
+}));
+`,
+  );
+  const contractsConsumer = await writeConsumer(
+    "contracts-consumer.mjs",
+    `import { createVersionReport, equationSourceSchema } from "@aruzone/aze-forge/contracts";
+import { CAPABILITIES_SCHEMA_ID } from "@aruzone/aze-forge/contracts";
+process.stdout.write(JSON.stringify({
+  schemas: createVersionReport().schemas.length,
+  equationId: equationSourceSchema.\\u0024id,
+  capabilities: CAPABILITIES_SCHEMA_ID,
+}));
+`,
+  );
+  const adaptersConsumer = await writeConsumer(
+    "adapters-consumer.mjs",
+    `import { getBuiltInRegistry, assertRegistryDescriptorsImmutable } from "@aruzone/aze-forge/adapters";
+const registry = getBuiltInRegistry();
+assertRegistryDescriptorsImmutable(registry);
+process.stdout.write(JSON.stringify({ plugins: registry.plugins.length }));
+`,
+  );
+
+  const run = async (file) => {
+    const result = spawnSync(process.execPath, [file], { cwd: directory, encoding: null });
+    assert.equal(result.status, 0, `${file}: ${result.stderr.toString("utf8")}`);
+    return JSON.parse(result.stdout.toString("utf8"));
+  };
+
+  const compilerResult = await run(compilerConsumer);
+  assert.equal(compilerResult.parsed, 0);
+  assert.match(compilerResult.version, /^0\.\d+\.\d+$/);
+
+  const contractsResult = await run(contractsConsumer);
+  assert.ok(contractsResult.schemas > 0);
+  assert.equal(contractsResult.equationId, "azeforge.equation/source/v1");
+  assert.equal(contractsResult.capabilities, "azeforge.capabilities/v1");
+
+  const adaptersResult = await run(adaptersConsumer);
+  assert.ok(adaptersResult.plugins > 0);
+
+  // Deep subpaths are not exported by the map: a bare package subpath must
+  // resolve to ERR_PACKAGE_PATH_NOT_EXPORTED, never to an implementation module.
+  const deepConsumer = await writeConsumer(
+    "deep-import-consumer.mjs",
+    `try {
+  await import("@aruzone/aze-forge/dist/equation.js");
+  process.stdout.write("loaded");
+} catch (error) {
+  process.stdout.write(error.code ?? error.constructor.name);
+}
+`,
+  );
+  const deepResult = spawnSync(process.execPath, [deepConsumer], {
+    cwd: directory,
+    encoding: null,
+  });
+  assert.equal(deepResult.status, 0, deepResult.stderr.toString("utf8"));
+  assert.ok(
+    /ERR_PACKAGE_PATH_NOT_EXPORTED|ERR_MODULE_NOT_FOUND/.test(
+      deepResult.stdout.toString("utf8"),
+    ),
+    deepResult.stdout.toString("utf8"),
+  );
 });

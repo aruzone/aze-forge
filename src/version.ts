@@ -6,29 +6,29 @@ import {
   CALLOUT_PLUGIN_VERSION,
   calloutDataSchema,
   calloutSourceSchema,
-} from "./callout.js";
+} from "./callout-schemas.js";
 import { DIAGNOSTICS_SCHEMA_ID } from "./diagnostics-json.js";
 import {
   DERIVATION_PLUGIN_VERSION,
   derivationDataSchema,
   derivationSourceSchema,
-} from "./derivation.js";
+} from "./derivation-schemas.js";
 import {
   EQUATION_PLUGIN_VERSION,
   equationDataSchema,
   equationSourceSchema,
-} from "./equation.js";
+} from "./equation-schemas.js";
 import {
   MERMAID_PLUGIN_VERSION,
   mermaidDataSchema,
   mermaidSourceSchema,
-} from "./mermaid.js";
+} from "./mermaid-schemas.js";
 import type { JsonValue } from "./model.js";
 import {
   TABLE_PLUGIN_VERSION,
   tableDataSchema,
   tableSourceSchema,
-} from "./table.js";
+} from "./table-schemas.js";
 import { TOOL_VERSION } from "./tool-version.js";
 import { WATCH_EVENT_SCHEMA_ID } from "./watch-events.js";
 import { CAPABILITIES_SCHEMA_ID } from "./capabilities-json.js";
