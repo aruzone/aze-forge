@@ -42,16 +42,16 @@
     <h1>AzeForge Web — rough prototype</h1>
     <div class="toolbar">
       <label for="example">Example</label>
-      <select id="example"></select>
+      <select id="example" onchange="loadExample(this.value)"></select>
       <label for="theme">Theme</label>
       <select id="theme"></select>
-      <button id="analyze">Analyze</button>
-      <button id="format">Format Source</button>
+      <button id="analyze" onclick="runOperation('analyze')">Analyze</button>
+      <button id="format" onclick="runOperation('format')">Format Source</button>
       <span>Export:</span>
-      <button data-format="html">HTML</button>
-      <button data-format="svg">SVG</button>
-      <button data-format="png">PNG</button>
-      <button data-format="pdf">PDF</button>
+      <button data-format="html" onclick="runOperation('compile','html')">HTML</button>
+      <button data-format="svg" onclick="runOperation('compile','svg')">SVG</button>
+      <button data-format="png" onclick="runOperation('compile','png')">PNG</button>
+      <button data-format="pdf" onclick="runOperation('compile','pdf')">PDF</button>
     </div>
   </header>
 
@@ -250,14 +250,6 @@ function finishJob(job) {
     }
   }
 }
-
-document.getElementById('analyze').addEventListener('click', () => runOperation('analyze'));
-document.getElementById('format').addEventListener('click', () => runOperation('format'));
-exampleSelect.addEventListener('change', e => loadExample(e.target.value));
-
-document.querySelectorAll('button[data-format]').forEach(btn => {
-  btn.addEventListener('click', () => runOperation('compile', btn.dataset.format));
-});
 
 init();
 </script>
