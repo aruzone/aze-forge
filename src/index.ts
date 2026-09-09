@@ -1,5 +1,20 @@
 export { createCompiler } from "./compiler.js";
 export {
+  DERIVATION_BODY_SYNTAX_ID,
+  DERIVATION_BODY_SYNTAX_VERSION,
+  DERIVATION_HTML_BLOCK_RENDERER_ID,
+  DERIVATION_HTML_BLOCK_RENDERER_VERSION,
+  DERIVATION_PLUGIN_TYPE,
+  DERIVATION_PLUGIN_VERSION,
+  derivationDataSchema,
+  derivationHtmlBlockRenderer,
+  derivationPlugin,
+  derivationSourceSchema,
+  parseDerivationHeader,
+  renderDerivationFragment,
+  validateDerivationBody,
+} from "./derivation.js";
+export {
   ACCEPTANCE_CATALOG_ID,
   ACCEPTANCE_CATALOG_VERSION,
   ACCEPTANCE_ENTRIES,
@@ -158,6 +173,8 @@ export type {
   DiagnosticFixEdit,
   DiagnosticLocation,
   DiagnosticSeverity,
+  DerivationBlock,
+  DerivationStep,
   DocumentMetadata,
   EmphasisInline,
   EquationBlock,
@@ -193,10 +210,14 @@ export type {
   StrongInline,
   TableAlignment,
   TableBlock,
+  TableColumn,
   TableData,
+  TableGroup,
   TextInline,
   ThematicBreakBlock,
   Theme,
+  TypedTableData,
+  TypedTableCell,
   SvgArtifactMetadata,
   ValidationResult,
 } from "./model.js";
@@ -207,6 +228,7 @@ export {
   TABLE_HTML_BLOCK_RENDERER_VERSION,
   TABLE_PLUGIN_TYPE,
   TABLE_PLUGIN_VERSION,
+  isTypedTableData,
   renderTableFragment,
   tableDataSchema,
   tableHtmlBlockRenderer,
@@ -214,12 +236,21 @@ export {
   tableSourceSchema,
 } from "./table.js";
 export { isSafeLinkTarget, parseInlineFragment } from "./markdown.js";
+export {
+  QuantityError,
+  canonicalExactDecimal,
+  formatQuantityCell,
+  parseQuantitySpelling,
+  validateUnitExpression,
+} from "./quantity.js";
+export type { ParsedQuantity } from "./quantity.js";
 export { FragmentSecurityError, renderInlineHtml } from "./html-fragment.js";
 export {
   CAPABILITY_COMMANDS,
   CAPABILITY_FORMATS,
   buildCapabilities,
   probeBrowserAvailability,
+  probeExecutableAvailability,
   serializeCapabilities,
 } from "./capabilities.js";
 export type { CapabilitiesReport, EngineAvailability } from "./capabilities.js";

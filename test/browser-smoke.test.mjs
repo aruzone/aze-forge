@@ -7,7 +7,7 @@ import test from "node:test";
 import { installPackedCli, runInstalledCli } from "./package-install.mjs";
 
 const MINIMAL_SOURCE = `---
-azemark: 1
+azemark: 2
 title: Browser smoke
 ---
 

@@ -12,25 +12,26 @@ import {
 } from "../dist/index.js";
 
 const EQUATION_SOURCE = `---
-azemark: 1
+azemark: 2
 ---
 
 :::: equation
 id: newton
+----
 F = m * a
-:::::
+::::
 `;
 
 const CALLOUT_SOURCE = `---
-azemark: 1
+azemark: 2
 ---
 
-::::: callout
+:::: callout
 variant: note
 title: Plain note
-
+----
 A short note.
-:::::
+::::
 `;
 
 test("clean KaTeX output passes the final sanitizer unchanged", () => {

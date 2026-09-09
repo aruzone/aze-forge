@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 
+import { isTypedTableData } from "./table.js";
 import type {
   ArtifactHash,
   AzeBlock,
@@ -9,6 +10,8 @@ import type {
   JsonValue,
   ParsedBlock,
   Sha256Hash,
+  TableData,
+  TypedTableData,
 } from "./model.js";
 
 export function canonicalJson(value: JsonValue): string {
@@ -39,6 +42,92 @@ export function artifactBytesHash(bytes: Uint8Array): ArtifactHash {
   return sha256(bytes) as ArtifactHash;
 }
 
+function projectInlineNode(node: Inline): JsonValue {
+  switch (node.kind) {
+    case "text":
+    case "code":
+      return { kind: node.kind, value: node.value };
+    case "emphasis":
+    case "strong":
+      return { kind: node.kind, children: node.children.map(projectInlineNode) };
+    case "break":
+      return { kind: node.kind };
+    case "link": {
+      const projected: Record<string, JsonValue> = {
+        kind: node.kind,
+        href: node.href,
+        children: node.children.map(projectInlineNode),
+      };
+      if (node.title !== undefined) projected.title = node.title;
+      return projected;
+    }
+    case "image": {
+      const projected: Record<string, JsonValue> = {
+        kind: node.kind,
+        src: node.src,
+        alt: node.alt,
+      };
+      if (node.title !== undefined) projected.title = node.title;
+      return projected;
+    }
+  }
+}
+
+function isInline(node: unknown): node is Inline {
+  return (
+    typeof node === "object" &&
+    node !== null &&
+    "kind" in node &&
+    typeof node.kind === "string"
+  );
+}
+
+function projectCellValue(cell: unknown): JsonValue {
+  if (Array.isArray(cell)) {
+    return cell.map((node) => {
+      if (isInline(node)) return projectInlineNode(node);
+      return String(node);
+    });
+  }
+  if (cell === null || cell === undefined) return null;
+  if (typeof cell === "number") return Number.isFinite(cell) ? cell : String(cell);
+  if (typeof cell === "boolean") return cell;
+  return String(cell);
+}
+
+function projectTableData(data: TableData | TypedTableData): JsonValue {
+  if (isTypedTableData(data)) {
+    return {
+      kind: "typed",
+      columns: data.columns.map((column) => ({
+        key: column.key,
+        ...(column.name === undefined ? {} : { name: column.name }),
+        ...(column.type === undefined ? {} : { type: column.type }),
+        ...(column.unit === undefined ? {} : { unit: column.unit }),
+      })),
+      ...(data.groups === undefined || data.groups.length === 0
+        ? {}
+        : {
+            groups: data.groups.map((group) => ({
+              name: group.name,
+              columns: [...group.columns],
+            })),
+          }),
+      rows: data.rows.map((row) =>
+        Object.fromEntries(
+          data.columns.map((column) => [column.key, projectCellValue(row[column.key])]),
+        ),
+      ),
+    };
+  }
+  return {
+    kind: "gfm",
+    align: [...data.align],
+    header: data.header.map((cell) => cell.map(projectInlineNode)),
+    rows: data.rows.map((row) => row.map((cell) => cell.map(projectInlineNode))),
+  };
+}
+
 export function documentContentHash(document: AzeDocument): ContentHash {
   const metadata: Record<string, JsonValue> = {
     authors: document.metadata.authors,
@@ -47,37 +136,6 @@ export function documentContentHash(document: AzeDocument): ContentHash {
   if (document.metadata.title !== undefined) metadata.title = document.metadata.title;
   if (document.metadata.theme !== undefined) metadata.theme = document.metadata.theme;
   if (document.metadata.outputs !== undefined) metadata.outputs = document.metadata.outputs;
-
-  function projectInline(node: Inline): JsonValue {
-    switch (node.kind) {
-      case "text":
-      case "code":
-        return { kind: node.kind, value: node.value };
-      case "emphasis":
-      case "strong":
-        return { kind: node.kind, children: node.children.map(projectInline) };
-      case "break":
-        return { kind: node.kind };
-      case "link": {
-        const projected: Record<string, JsonValue> = {
-          kind: node.kind,
-          href: node.href,
-          children: node.children.map(projectInline),
-        };
-        if (node.title !== undefined) projected.title = node.title;
-        return projected;
-      }
-      case "image": {
-        const projected: Record<string, JsonValue> = {
-          kind: node.kind,
-          src: node.src,
-          alt: node.alt,
-        };
-        if (node.title !== undefined) projected.title = node.title;
-        return projected;
-      }
-    }
-  }
 
   function projectBlock(block: ParsedBlock | AzeBlock): JsonValue {
     if (block.kind === "equation") {
@@ -103,6 +161,22 @@ export function documentContentHash(document: AzeDocument): ContentHash {
       if (block.id !== undefined) projected.id = block.id;
       if (block.title !== undefined) projected.title = block.title;
       if (block.description !== undefined) projected.description = block.description;
+      return projected;
+    }
+    if (block.kind === "derivation") {
+      const projected: Record<string, JsonValue> = {
+        kind: block.kind,
+        pluginVersion: block.pluginVersion,
+        steps: block.steps.map((step) => ({
+          expression: step.expression,
+          ...(step.annotation === undefined
+            ? {}
+            : { annotation: step.annotation.map(projectInlineNode) }),
+        })),
+      };
+      if (block.id !== undefined) projected.id = block.id;
+      if (block.number !== undefined) projected.number = block.number;
+      if (block.align !== undefined) projected.align = block.align;
       return projected;
     }
     if (block.kind === "thematicBreak") {
@@ -140,12 +214,10 @@ export function documentContentHash(document: AzeDocument): ContentHash {
     if (block.kind === "table") {
       const projected: Record<string, JsonValue> = {
         kind: block.kind,
-        align: [...block.data.align],
-        header: block.data.header.map((cell) => cell.map(projectInline)),
-        rows: block.data.rows.map((row) => row.map((cell) => cell.map(projectInline))),
+        data: projectTableData(block.data),
       };
       if (block.id !== undefined) projected.id = block.id;
-      if (block.caption !== undefined) projected.caption = block.caption.map(projectInline);
+      if (block.caption !== undefined) projected.caption = block.caption.map(projectInlineNode);
       if (block.pluginVersion !== undefined) projected.pluginVersion = block.pluginVersion;
       return projected;
     }
@@ -157,15 +229,18 @@ export function documentContentHash(document: AzeDocument): ContentHash {
         pluginVersion: block.pluginVersion,
       };
       if (block.id !== undefined) projected.id = block.id;
-      if (block.title !== undefined) projected.title = block.title.map(projectInline);
+      if (block.title !== undefined) projected.title = block.title.map(projectInlineNode);
       return projected;
     }
     if (block.kind === "invalid") {
       return { kind: block.kind, raw: block.raw };
     }
+    // Future plugin-owned block kinds extend this projection so authored
+    // records remain part of semantic identity; Renderer-owned Fragments
+    // never appear in ParsedBlock/AzeBlock, so they cannot leak in.
     const projected: Record<string, JsonValue> = {
       kind: block.kind,
-      children: block.children.map(projectInline),
+      children: block.children.map(projectInlineNode),
     };
     if (block.id !== undefined) projected.id = block.id;
     if (block.kind === "heading") projected.level = block.level;

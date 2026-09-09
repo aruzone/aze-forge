@@ -9,7 +9,7 @@ import test from "node:test";
 const CLI_PATH = fileURLToPath(new URL("../dist/cli.js", import.meta.url));
 
 const MINIMAL_SOURCE = `---
-azemark: 1
+azemark: 2
 title: Compatibility probe
 ---
 
@@ -107,7 +107,7 @@ test("system-font absence cannot change eligibility or substitute glyphs", async
   await context.test("uncovered glyphs fail closed instead of substituting", async () => {
     const directory = await mkdtemp(join(tmpdir(), "compat-coverage-"));
     const source = "emoji.aze.md";
-    await writeFile(join(directory, source), `---\nazemark: 1\ntitle: Emoji\n---\n\n# Hi \u{1F600}\n`);
+    await writeFile(join(directory, source), `---\nazemark: 2\ntitle: Emoji\n---\n\n# Hi \u{1F600}\n`);
     await writeFile(join(directory, "out.html"), "last successful Artifact");
     const result = runCli(["render", source, "--output", "out.html", "--diagnostics", "json"], directory);
     assert.equal(result.status, 1);

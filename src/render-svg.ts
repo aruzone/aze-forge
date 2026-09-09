@@ -3,6 +3,7 @@ import { arch, platform } from "node:os";
 import { SaxesParser } from "saxes";
 import type { Browser, HTTPRequest } from "puppeteer-core";
 import { calloutHtmlBlockRenderer } from "./callout.js";
+import { derivationHtmlBlockRenderer } from "./derivation.js";
 import { equationHtmlBlockRenderer } from "./equation.js";
 
 import { assetManifestHash } from "./assets.js";
@@ -54,6 +55,7 @@ function svgBlockRenderer(renderer: AnyBlockRenderer): AnyBlockRenderer {
 
 export const svgBlockRenderers: readonly AnyBlockRenderer[] = Object.freeze([
   svgBlockRenderer(equationHtmlBlockRenderer),
+  svgBlockRenderer(derivationHtmlBlockRenderer),
   svgBlockRenderer(calloutHtmlBlockRenderer),
   svgBlockRenderer(mermaidHtmlBlockRenderer),
   svgBlockRenderer(tableHtmlBlockRenderer),

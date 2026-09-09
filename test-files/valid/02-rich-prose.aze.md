@@ -1,5 +1,5 @@
 ---
-azemark: 1
+azemark: 2
 title: Rich prose sampler
 author:
   - Test Author
@@ -59,7 +59,7 @@ def greet(name):
 :::: callout
 variant: note
 title: Plain note
-
+----
 Callout bodies parse ordinary Markdown including *inlines*.
 
 - a list inside the callout
@@ -72,14 +72,14 @@ Callout bodies parse ordinary Markdown including *inlines*.
 variant: warning
 id: careful
 title: Nested directive content
-
+----
 This callout contains a nested equation directive:
 
-:::: equation
+:: equation
 id: pythagoras
-
+----
 a^2 + b^2 = c^2
-::::
+::
 
 And it keeps rendering prose after it.
 ::::
@@ -89,10 +89,27 @@ And it keeps rendering prose after it.
 :::: table
 caption: Material *properties* with alignment
 id: materials
-
-| material | density [kg/m^3] | conductivity [W/(m K)] |
-| :--- | :---: | ---: |
-| Aluminum | 2700 | 205 |
-| Steel | 7850 | 50 |
-| Glass | 2500 | 1.0 |
+----
+columns:
+  - key: material
+    name: Material
+    type: text
+  - key: density
+    name: Density
+    type: quantity
+    unit: kg/m^3
+  - key: conductivity
+    name: Conductivity
+    type: quantity
+    unit: W/(m K)
+rows:
+  - material: Aluminum
+    density: 2700
+    conductivity: 205
+  - material: Steel
+    density: 7850
+    conductivity: 50
+  - material: Glass
+    density: 2500
+    conductivity: 1
 ::::

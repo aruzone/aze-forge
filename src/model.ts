@@ -133,9 +133,30 @@ export interface TableData {
   readonly rows: readonly (readonly (readonly Inline[])[])[];
 }
 
+/** Typed table v2 shared record shape (catalog typed-table family). */
+export interface TableColumn {
+  readonly key: string;
+  readonly name?: string;
+  readonly type?: string;
+  readonly unit?: string;
+}
+
+export interface TableGroup {
+  readonly name: string;
+  readonly columns: readonly string[];
+}
+
+export type TypedTableCell = readonly Inline[] | string | number | boolean | null;
+
+export interface TypedTableData {
+  readonly columns: readonly TableColumn[];
+  readonly groups?: readonly TableGroup[];
+  readonly rows: readonly (Readonly<Record<string, TypedTableCell>>)[];
+}
+
 export interface TableBlock {
   readonly kind: "table";
-  readonly data: TableData;
+  readonly data: TableData | TypedTableData;
   readonly range: SourceRange;
   readonly id?: string;
   readonly caption?: readonly Inline[];
@@ -182,6 +203,21 @@ export interface MermaidBlock {
   readonly description?: string;
 }
 
+export interface DerivationStep {
+  readonly expression: string;
+  readonly annotation?: readonly Inline[];
+}
+
+export interface DerivationBlock {
+  readonly kind: "derivation";
+  readonly range: SourceRange;
+  readonly id?: string;
+  readonly pluginVersion: string;
+  readonly steps: readonly DerivationStep[];
+  readonly number?: boolean;
+  readonly align?: "left" | "center" | "right";
+}
+
 export type ParsedBlock =
   | HeadingBlock
   | ParagraphBlock
@@ -193,6 +229,7 @@ export type ParsedBlock =
   | CalloutBlock
   | EquationBlock
   | MermaidBlock
+  | DerivationBlock
   | InvalidBlock;
 export type AzeBlock =
   | HeadingBlock
@@ -204,7 +241,8 @@ export type AzeBlock =
   | TableBlock
   | CalloutBlock
   | EquationBlock
-  | MermaidBlock;
+  | MermaidBlock
+  | DerivationBlock;
 export type ArtifactFormat = "html" | "svg" | "png" | "pdf";
 
 export interface DocumentMetadata {
@@ -216,15 +254,15 @@ export interface DocumentMetadata {
 }
 
 export interface ParsedDocument {
-  readonly azemarkVersion: 1;
-  readonly schemaVersion: 1;
+  readonly azemarkVersion: 2;
+  readonly schemaVersion: 2;
   readonly metadata: DocumentMetadata;
   readonly blocks: readonly ParsedBlock[];
 }
 
 export interface AzeDocument {
-  readonly azemarkVersion: 1;
-  readonly schemaVersion: 1;
+  readonly azemarkVersion: 2;
+  readonly schemaVersion: 2;
   readonly metadata: DocumentMetadata;
   readonly blocks: readonly AzeBlock[];
 }
@@ -468,6 +506,7 @@ export interface AzeBlockRenderer<TBlock extends object = AzeBlock> {
 export type AnyBlockRenderer =
   | AzeBlockRenderer<AzeBlock>
   | AzeBlockRenderer<EquationBlock>
+  | AzeBlockRenderer<DerivationBlock>
   | AzeBlockRenderer<CalloutBlock>
   | AzeBlockRenderer<TableBlock>
   | MermaidBlockRenderer;

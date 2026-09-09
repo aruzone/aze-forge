@@ -7,9 +7,10 @@ const EQUATION_TYPE = "equation" as const;
 
 const BLANK = /^[ \t]*$/;
 const FENCE = /^ {0,3}(?:`{3,}|~{3,})/;
-const DIRECTIVE_FENCE = /^ {0,3}:{4,}/;
-const DIRECTIVE_CLOSE = /^ {0,3}:{4,}[ \t]*$/;
-const DIRECTIVE_OPEN = /^ {0,3}:{4,}[ \t]*([^ \t:]*)[ \t]*$/;
+const DIRECTIVE_FENCE = /^ {0,3}::::/;
+const DIRECTIVE_CLOSE = /^ {0,3}::::[ \t]*$/;
+const DIRECTIVE_OPEN = /^ {0,3}::::[ \t]*([^ \t:]*)[ \t]*$/;
+const HEADER_SEPARATOR = /^ {0,3}-{4}[ \t]*$/;
 const HEADER_ENTRY = /^[ \t]*([A-Za-z][A-Za-z0-9-]*)[ \t]*:(.*)$/;
 const ATX_HEADING = /^ {0,3}(#{1,6})(?:[ \t]+(.*)|[ \t]*)$/;
 const SETEXT_UNDERLINE = /^ {0,3}(=+|-+)[ \t]*$/;
@@ -122,18 +123,25 @@ function formatEquationEnvelope(
   openIndex: number,
   closingIndex: number,
 ): OutLine[] {
-  const emitted: OutLine[] = [`${":".repeat(4)} ${EQUATION_TYPE}`];
+  const emitted: OutLine[] = [":::: equation"];
   let cursor = openIndex + 1;
   const entries: OutLine[] = [];
   let deniedRawLatex = false;
+  let separatorFound = false;
   while (cursor < closingIndex) {
     const header = lines[cursor];
     if (header === undefined) break;
-    if (BLANK.test(header.text)) {
+    const text = header.text;
+    if (BLANK.test(text)) {
       cursor += 1;
       continue;
     }
-    const match = HEADER_ENTRY.exec(header.text);
+    if (HEADER_SEPARATOR.test(text)) {
+      separatorFound = true;
+      cursor += 1;
+      break;
+    }
+    const match = HEADER_ENTRY.exec(text);
     if (match === null) break;
     const key = match[1] ?? "";
     const value = (match[2] ?? "").trim();
@@ -142,10 +150,14 @@ function formatEquationEnvelope(
     cursor += 1;
   }
   emitted.push(...entries);
-  while (cursor < closingIndex) {
-    const blank = lines[cursor];
-    if (blank !== undefined && !BLANK.test(blank.text)) break;
-    cursor += 1;
+  if (!separatorFound) {
+    // Missing/malformed separator: preserve the encoded region verbatim.
+    const endIndex = cursor;
+    const tail = lines.slice(endIndex, closingIndex).map((line) => line.text);
+    emitted.push("----");
+    emitted.push(...tail);
+    emitted.push("::::");
+    return emitted;
   }
   const body = lines.slice(cursor, closingIndex);
   let bodyStart = 0;
@@ -160,12 +172,12 @@ function formatEquationEnvelope(
     if (candidate !== undefined && !BLANK.test(candidate.text)) break;
     bodyEnd -= 1;
   }
+  emitted.push("----");
   const bodyLines = body
     .slice(bodyStart, bodyEnd)
     .map((line) => deniedRawLatex ? line.text : trimLineEnd(line.text));
-  if (entries.length > 0 && bodyLines.length > 0) emitted.push("");
   emitted.push(...bodyLines);
-  emitted.push(":".repeat(4));
+  emitted.push("::::");
   return emitted;
 }
 

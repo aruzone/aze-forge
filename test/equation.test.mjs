@@ -21,7 +21,7 @@ import {
 const CLI_PATH = fileURLToPath(new URL("../dist/cli.js", import.meta.url));
 
 function sourceWith(body, header = "") {
-  return `---\nazemark: 1\n---\n\n:::: equation\n${header}${body}\n::::\n`;
+  return `---\nazemark: 2\n---\n\n:::: equation\n${header}----\n${body}::::\n`;
 }
 
 function runCli(arguments_, cwd) {
@@ -62,17 +62,18 @@ test("a valid readable equation becomes a versioned Block with KaTeX HTML+MathML
 
 test("equation headers tolerate blank lines between entries", async () => {
   const compiler = createCompiler();
-  const parsed = compiler.parse(
-    "---\nazemark: 1\n---\n\n:::: equation\nid: spaced\n\nsyntax: latex\n\n\\frac{a}{b}\n::::\n",
-    { sourceName: "spaced.aze.md", allowRawLatex: true },
-  );
+  const spaced = "---\nazemark: 2\n---\n\n:::: equation\nid: spaced\n\nsyntax: latex\n\n----\n\\frac{a}{b}\n::::\n";
+  const parsed = compiler.parse(spaced, {
+    sourceName: "spaced.aze.md",
+    allowRawLatex: true,
+  });
   assert.deepEqual(parsed.diagnostics.map(({ code }) => code), []);
   assert.equal(parsed.document.blocks[0]?.kind, "equation");
   assert.equal(parsed.document.blocks[0]?.id, "spaced");
-  const compiled = await compiler.compile(
-    "---\nazemark: 1\n---\n\n:::: equation\nid: spaced\n\nsyntax: latex\n\n\\frac{a}{b}\n::::\n",
-    { format: "html", allowRawLatex: true },
-  );
+  const compiled = await compiler.compile(spaced, {
+    format: "html",
+    allowRawLatex: true,
+  });
   assert.deepEqual(compiled.diagnostics.map(({ code }) => code), []);
   assert.match(
     Buffer.from(compiled.artifact.bytes).toString("utf8"),
@@ -120,7 +121,7 @@ test("every readable alias maps to pinned KaTeX offline", async () => {
 test("invalid equations produce stable ranged diagnostics", () => {
   const compiler = createCompiler();
   const missing = compiler.parse(
-    "---\nazemark: 1\n---\n\n# T\n\n:::: equation\nintegral x=0..1 of x^2\n::::\n",
+    "---\nazemark: 2\n---\n\n# T\n\n:::: equation\n----\nintegral x=0..1 of x^2\n::::\n",
     { sourceName: "missing.aze.md" },
   );
   assert.deepEqual(
@@ -129,7 +130,7 @@ test("invalid equations produce stable ranged diagnostics", () => {
   );
   assert.equal(
     missing.diagnostics[0]?.location?.range?.start?.line,
-    8,
+    9,
   );
 
   const garbage = compiler.parse(sourceWith("a } b\n"));
@@ -143,8 +144,8 @@ test("invalid equations produce stable ranged diagnostics", () => {
 
 test("raw LaTeX fails by default and renders with explicit approval", async () => {
   const compiler = createCompiler();
-  const body = ":::: equation\nsyntax: latex\n\n\\frac{a}{b}\n::::\n";
-  const raw = `---\nazemark: 1\n---\n\n${body}`;
+  const body = ":::: equation\nsyntax: latex\n----\n\\frac{a}{b}\n::::\n";
+  const raw = `---\nazemark: 2\n---\n\n${body}`;
   const denied = compiler.parse(raw, { sourceName: "raw.aze.md" });
   assert.deepEqual(
     denied.diagnostics.map(({ code }) => code),
@@ -309,7 +310,7 @@ test("equations validate and render through real CLI calls", async (context) => 
   await writeFile(join(directory, "eq.aze.md"), sourceWith("E = sqrt(m)\n"));
   await writeFile(
     join(directory, "raw.aze.md"),
-    `---\nazemark: 1\n---\n\n:::: equation\nsyntax: latex\n\n\\frac{a}{b}\n::::\n`,
+    `---\nazemark: 2\n---\n\n:::: equation\nsyntax: latex\n----\n\\frac{a}{b}\n::::\n`,
   );
 
   assert.equal(runCli(["validate", "eq.aze.md"], directory).status, 0);

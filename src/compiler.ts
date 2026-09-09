@@ -44,6 +44,7 @@ import {
   sanitizeKatexHtml,
 } from "./equation.js";
 import type {
+  DerivationBlock,
   EquationBlock,
   MermaidBlock,
   MermaidBlockRenderer,
@@ -58,6 +59,8 @@ import {
   mermaidDependencyClosure,
   sanitizeMermaidFragment,
 } from "./mermaid.js";
+import { isTypedTableData } from "./table.js";
+import { DERIVATION_PLUGIN_TYPE } from "./derivation.js";
 import { FragmentSecurityError } from "./html-fragment.js";
 import {
   freezeRegistryForCompiler,
@@ -344,6 +347,17 @@ function equationTargets(document: AzeDocument): readonly EquationTarget[] {
   });
   return targets;
 }
+interface DerivationTarget {
+  readonly block: DerivationBlock;
+}
+
+function derivationTargets(document: AzeDocument): readonly DerivationTarget[] {
+  const targets: DerivationTarget[] = [];
+  walkBlocks(document.blocks, (block) => {
+    if (block.kind === "derivation") targets.push({ block });
+  });
+  return targets;
+}
 interface MermaidTarget {
   readonly block: MermaidBlock;
   readonly ordinal: number;
@@ -399,6 +413,12 @@ function collectRenderText(blocks: readonly AzeBlock[], out: string[]): void {
       case "equation":
         out.push(block.source);
         break;
+      case "derivation":
+        for (const step of block.steps) {
+          out.push(step.expression);
+          if (step.annotation !== undefined) out.push(inlineTextValue(step.annotation));
+        }
+        break;
       case "mermaid":
         out.push(block.source);
         if (block.title !== undefined) out.push(block.title);
@@ -430,12 +450,24 @@ function collectRenderText(blocks: readonly AzeBlock[], out: string[]): void {
         if (block.caption !== undefined) {
           out.push(inlineTextValue(block.caption));
         }
-        for (const cell of block.data.header) {
-          out.push(inlineTextValue(cell));
-        }
-        for (const row of block.data.rows) {
-          for (const cell of row) {
+        if (isTypedTableData(block.data)) {
+          for (const column of block.data.columns) {
+            if (column.name !== undefined) out.push(column.name);
+          }
+          for (const row of block.data.rows) {
+            for (const cell of Object.values(row)) {
+              if (Array.isArray(cell)) out.push(inlineTextValue(cell));
+              else if (cell !== null && cell !== undefined) out.push(String(cell));
+            }
+          }
+        } else {
+          for (const cell of block.data.header) {
             out.push(inlineTextValue(cell));
+          }
+          for (const row of block.data.rows) {
+            for (const cell of row) {
+              out.push(inlineTextValue(cell));
+            }
           }
         }
         break;
@@ -704,6 +736,195 @@ async function renderEquationFragments(
                 adapterId: chosen.descriptor.id,
                 blockType: "equation",
               },
+            },
+          ),
+        );
+      }
+    }
+  }
+  return { fragments, diagnostics };
+}
+async function renderDerivationFragments(
+  document: AzeDocument,
+  rendererId: string,
+  registry: ResolvedRegistry,
+  policy: CompilerPolicy,
+  sourceName: string | undefined,
+  timeoutMs: number,
+): Promise<{
+  readonly fragments: ReadonlyMap<DerivationBlock, string>;
+  readonly diagnostics: readonly Diagnostic[];
+}> {
+  const targets = derivationTargets(document);
+  const rendererName = rendererId.toUpperCase();
+  if (targets.length === 0) {
+    return { fragments: new Map(), diagnostics: [] };
+  }
+  const candidates = registry.blockRenderers.filter(
+    (entry) =>
+      entry.descriptor.blockType === DERIVATION_PLUGIN_TYPE &&
+      entry.descriptor.rendererId === rendererId,
+  );
+  if (candidates.length === 0) {
+    return {
+      fragments: new Map(),
+      diagnostics: [
+        groupedAdapterDiagnostic(
+          "azeforge.renderer#adapter-missing",
+          `No Block renderer is registered for derivation Blocks.`,
+          targets,
+          sourceName,
+          { blockType: DERIVATION_PLUGIN_TYPE, rendererId },
+          `Register the built-in derivation ${rendererName} Block renderer.`,
+          "derivation",
+        ),
+      ],
+    };
+  }
+  const compatible = candidates.filter(
+    (entry) =>
+      targets.every((target) =>
+        satisfiesSemverRange(
+          target.block.pluginVersion,
+          entry.descriptor.pluginVersionRange,
+        ),
+      ) &&
+      satisfiesSemverRange(
+        registry.renderers.find(({ id }) => id === rendererId)?.version ?? "0.0.0",
+        entry.descriptor.rendererVersionRange,
+      ),
+  );
+  if (compatible.length === 0) {
+    return {
+      fragments: new Map(),
+      diagnostics: [
+        groupedAdapterDiagnostic(
+          "azeforge.renderer#adapter-incompatible",
+          "The registered derivation Block renderer is incompatible with this Document.",
+          targets,
+          sourceName,
+          { blockType: DERIVATION_PLUGIN_TYPE, rendererId },
+          `Register a Block renderer compatible with derivation v1 and ${rendererName} v1.`,
+          "derivation",
+        ),
+      ],
+    };
+  }
+  if (compatible.length > 1) {
+    return {
+      fragments: new Map(),
+      diagnostics: [
+        groupedAdapterDiagnostic(
+          "azeforge.renderer#adapter-ambiguous",
+          "More than one Block renderer matches derivation Blocks.",
+          targets,
+          sourceName,
+          {
+            blockType: DERIVATION_PLUGIN_TYPE,
+            adapterIds: compatible.map((entry) => entry.descriptor.id),
+          },
+          "Register exactly one matching Block renderer.",
+          "derivation",
+        ),
+      ],
+    };
+  }
+  const chosen = compatible[0];
+  if (chosen === undefined) {
+    return { fragments: new Map(), diagnostics: [] };
+  }
+  if (policy.disabledBlockRendererIds?.includes(chosen.descriptor.id) === true) {
+    return {
+      fragments: new Map(),
+      diagnostics: [
+        groupedAdapterDiagnostic(
+          "azeforge.renderer#adapter-disabled",
+          `Block renderer "${chosen.descriptor.id}" is disabled by host policy.`,
+          targets,
+          sourceName,
+          { adapterId: chosen.descriptor.id },
+          "Enable the Block renderer in Compiler policy.",
+          "derivation",
+        ),
+      ],
+    };
+  }
+  const render = chosen.render as (
+    block: DerivationBlock,
+    context: Readonly<{ sourceName?: string }>,
+  ) => string | Promise<string>;
+  const fragments = new Map<DerivationBlock, string>();
+  const diagnostics: Diagnostic[] = [];
+  for (const target of targets) {
+    const location = {
+      ...(sourceName === undefined ? {} : { source: sourceName }),
+      range: target.block.range,
+    };
+    try {
+      const fragment = await withRenderTimeout(
+        Promise.resolve(
+          render(target.block, {
+            ...(sourceName === undefined ? {} : { sourceName }),
+          }),
+        ),
+        timeoutMs,
+      );
+      fragments.set(target.block, sanitizeKatexHtml(fragment));
+    } catch (error) {
+      if (error instanceof RenderTimeoutError) {
+        diagnostics.push(
+          createDiagnostic(
+            "azeforge.renderer#timeout",
+            "error",
+            `Block renderer "${chosen.descriptor.id}" timed out.`,
+            {
+              location,
+              data: { adapterId: chosen.descriptor.id, timeoutMs },
+              suggestion: "Retry the operation or adjust the host render timeout.",
+            },
+          ),
+        );
+      } else if (
+        error instanceof EquationSanitizerError ||
+        error instanceof FragmentSecurityError
+      ) {
+        diagnostics.push(
+          createDiagnostic(
+            "azeforge.security#sanitizer-rewrite",
+            "error",
+            "A Fragment failed final sanitization; refusing to publish.",
+            {
+              location,
+              data: {
+                adapterId: chosen.descriptor.id,
+                blockType: DERIVATION_PLUGIN_TYPE,
+              },
+              suggestion:
+                "Remove the unsafe construct or report this Source as a sanitizer failure.",
+            },
+          ),
+        );
+      } else if (isCapabilityDenial(error)) {
+        diagnostics.push(
+          createDiagnostic(
+            "azeforge.security#capability-denied",
+            "error",
+            `Block renderer "${chosen.descriptor.id}" was denied a capability.`,
+            {
+              location,
+              data: { adapterId: chosen.descriptor.id },
+            },
+          ),
+        );
+      } else {
+        diagnostics.push(
+          createDiagnostic(
+            "azeforge.renderer#unexpected-failure",
+            "error",
+            "The derivation Block renderer failed unexpectedly.",
+            {
+              location,
+              data: { adapterId: chosen.descriptor.id, blockType: DERIVATION_PLUGIN_TYPE },
             },
           ),
         );
@@ -1013,7 +1234,7 @@ function checkPluginAdapters(
     | undefined;
   for (const entry of [
     { blockType: "callout", pluginVersion: "1.0.0" },
-    { blockType: "table", pluginVersion: "1.0.0" },
+    { blockType: "table", pluginVersion: "2.0.0" },
   ] as const) {
     const blocks = pluginBlocks(document, entry.blockType);
     if (blocks.length === 0) continue;
@@ -1454,6 +1675,14 @@ export function createCompiler(options: CompilerOptions = {}): Compiler {
           compileOptions.sourceName,
           renderTimeoutMs,
         );
+        const derivationPreflight = await renderDerivationFragments(
+          validation.document,
+          selectedRenderer.id,
+          registry,
+          policy,
+          compileOptions.sourceName,
+          renderTimeoutMs,
+        );
         const mermaidPreflight = await renderMermaidFragments(
           validation.document,
           selectedRenderer.id,
@@ -1472,6 +1701,7 @@ export function createCompiler(options: CompilerOptions = {}): Compiler {
         );
         const preflightDiagnostics = [
           ...equationPreflight.diagnostics,
+          ...derivationPreflight.diagnostics,
           ...mermaidPreflight.diagnostics,
           ...pluginPreflight.diagnostics,
         ];
@@ -1536,6 +1766,7 @@ export function createCompiler(options: CompilerOptions = {}): Compiler {
           fontFaces,
           equationPreflight.fragments,
           katexDependencyClosure(),
+          derivationPreflight.fragments,
           mermaidPreflight.fragments,
           mermaidDependencyClosure(),
           pluginRenderers,
@@ -1549,6 +1780,7 @@ export function createCompiler(options: CompilerOptions = {}): Compiler {
           renderArguments[6],
           renderArguments[7],
           renderArguments[8],
+          renderArguments[9],
         );
         const artifact =
           compileOptions.format === "html"

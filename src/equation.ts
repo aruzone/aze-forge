@@ -430,6 +430,15 @@ export function renderEquationToHtml(tex: string): string {
   return sanitizeKatexHtml(katex.renderToString(tex, { ...KATEX_RENDER_OPTIONS }));
 }
 
+/**
+ * Shared math backend for derivation steps: translates readable source to
+ * TeX and renders through pinned KaTeX with the same sanitization that
+ * equation Fragments receive.
+ */
+export function renderReadableMathSource(source: string): string {
+  return renderEquationToHtml(translateReadableToTex(source));
+}
+
 export type EquationSanitizerFinding = "executable-markup" | "unsafe-url";
 
 export class EquationSanitizerError extends Error {

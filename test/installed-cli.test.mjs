@@ -11,7 +11,7 @@ import {
 } from "./package-install.mjs";
 
 const SOURCE = `---
-azemark: 1
+azemark: 2
 title: Installed CLI
 ---
 

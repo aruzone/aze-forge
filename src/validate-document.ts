@@ -169,6 +169,51 @@ function isParsedBlock(value: unknown): value is ParsedBlock {
     );
   }
   if (value.kind === "table") {
+    if (value.pluginVersion === "2.0.0") {
+      return (
+        hasValidCommonBlockFields(value, ["kind", "data", "range", "id", "caption", "pluginVersion"]) &&
+        isObjectRecord(value.data) &&
+        hasOnlyKeys(value.data, ["columns", "groups", "rows"]) &&
+        Array.isArray(value.data.columns) &&
+        (value.data.columns as unknown[]).length > 0 &&
+        (value.data.columns as unknown[]).every(
+          (column) =>
+            isObjectRecord(column) &&
+            hasOnlyKeys(column, ["key", "name", "type", "unit"]) &&
+            typeof column.key === "string" &&
+            (column.name === undefined || typeof column.name === "string") &&
+            (column.type === undefined ||
+              typeof column.type === "string") &&
+            (column.unit === undefined || typeof column.unit === "string"),
+        ) &&
+        Array.isArray(value.data.rows) &&
+        (value.data.rows as unknown[]).every(
+          (row) =>
+            isObjectRecord(row) &&
+            Object.values(row).every(
+              (cell) =>
+                cell === null ||
+                typeof cell === "string" ||
+                typeof cell === "number" ||
+                typeof cell === "boolean" ||
+                (Array.isArray(cell) && (cell as unknown[]).every((node) => isInlineNode(node))),
+            ),
+        ) &&
+        (value.data.groups === undefined ||
+          (Array.isArray(value.data.groups) &&
+            (value.data.groups as unknown[]).every(
+              (group) =>
+                isObjectRecord(group) &&
+                hasOnlyKeys(group, ["name", "columns"]) &&
+                typeof group.name === "string" &&
+                Array.isArray(group.columns) &&
+                (group.columns as unknown[]).every((key) => typeof key === "string"),
+            ))) &&
+        (value.caption === undefined ||
+          (Array.isArray(value.caption) &&
+            (value.caption as unknown[]).every((node) => isInlineNode(node))))
+      );
+    }
     return (
       hasValidCommonBlockFields(value, ["kind", "data", "range", "id", "caption", "pluginVersion"]) &&
       isObjectRecord(value.data) &&
@@ -261,6 +306,37 @@ function isParsedBlock(value: unknown): value is ParsedBlock {
       (value.description === undefined || typeof value.description === "string")
     );
   }
+  if (value.kind === "derivation") {
+    return (
+      hasOnlyKeys(value, [
+        "kind",
+        "range",
+        "id",
+        "pluginVersion",
+        "steps",
+        "number",
+        "align",
+      ]) &&
+      isSourceRange(value.range) &&
+      (value.id === undefined || typeof value.id === "string") &&
+      value.pluginVersion === "1.0.0" &&
+      Array.isArray(value.steps) &&
+      value.steps.length > 0 &&
+      value.steps.every((step) =>
+        isObjectRecord(step) &&
+        hasOnlyKeys(step, ["expression", "annotation"]) &&
+        typeof step.expression === "string" &&
+        (step.annotation === undefined ||
+          (Array.isArray(step.annotation) &&
+            (step.annotation as unknown[]).every((node) => isInlineNode(node)))),
+      ) &&
+      (value.number === undefined || typeof value.number === "boolean") &&
+      (value.align === undefined ||
+        value.align === "left" ||
+        value.align === "center" ||
+        value.align === "right")
+    );
+  }
   if (value.kind === "invalid") {
     return (
       hasOnlyKeys(value, [
@@ -312,8 +388,8 @@ export function validateDocumentSchema(document: unknown): readonly Diagnostic[]
   const valid =
     isObjectRecord(document) &&
     hasOnlyKeys(document, ["azemarkVersion", "schemaVersion", "metadata", "blocks"]) &&
-    document.azemarkVersion === 1 &&
-    document.schemaVersion === 1 &&
+    document.azemarkVersion === 2 &&
+    document.schemaVersion === 2 &&
     isMetadata(document.metadata) &&
     Array.isArray(document.blocks) &&
     document.blocks.every((block) => isParsedBlock(block));
@@ -322,7 +398,7 @@ export function validateDocumentSchema(document: unknown): readonly Diagnostic[]
     createDiagnostic(
       "azeforge.document#schema-invalid",
       "error",
-      "ParsedDocument does not conform to AzeMark Document schema v1.",
+      "ParsedDocument does not conform to AzeMark Document schema v2.",
     ),
   ];
 }

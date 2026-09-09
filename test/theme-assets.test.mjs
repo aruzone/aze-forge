@@ -89,7 +89,7 @@ async function makeProject(files) {
 }
 
 const PROSE = `---
-azemark: 1
+azemark: 2
 title: Project report
 ---
 
@@ -136,7 +136,7 @@ test("every theme renders deterministic canonical CSS with bundled fonts", async
 
 test("theme selection follows CLI option, metadata, then default", async () => {
   const compiler = createCompiler();
-  const withMetadata = `---\nazemark: 1\ntheme: academic\n---\n\n# T\n\nBody.\n`;
+  const withMetadata = `---\nazemark: 2\ntheme: academic\n---\n\n# T\n\nBody.\n`;
   const metadataOnly = await compiler.compile(withMetadata, { format: "html" });
   assert.equal(metadataOnly.artifact?.metadata.theme.id, "academic");
   const override = await compiler.compile(withMetadata, {
@@ -226,7 +226,7 @@ test("project images embed as data and hash only used assets", async (context) =
 test("images inside callout titles embed as data", async (context) => {
   const directory = await makeProject({
     "report.aze.md":
-      `${PROSE}\n::::: callout\nvariant: note\ntitle: ![badge](figures/plot.png)\n\nBody.\n:::::\n`,
+      `${PROSE}\n:::: callout\nvariant: note\ntitle: ![badge](figures/plot.png)\n----\nBody.\n::::\n`,
     "figures/plot.png": makePng(4, 3),
   });
   context.after(() => rm(directory, { recursive: true, force: true }));
@@ -339,7 +339,7 @@ test("decompression bombs fail before artifact publication", async (context) => 
 test("titles resolve from metadata, first heading, then fallback", async () => {
   const compiler = createCompiler();
   const metadata = await compiler.compile(
-    `---\nazemark: 1\ntitle: Chosen\n---\n\n# Heading\n\nBody.\n`,
+    `---\nazemark: 2\ntitle: Chosen\n---\n\n# Heading\n\nBody.\n`,
     { format: "html" },
   );
   assert.match(

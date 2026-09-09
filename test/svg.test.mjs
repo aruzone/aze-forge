@@ -17,7 +17,7 @@ import {
 
 const CLI_PATH = fileURLToPath(new URL("../dist/cli.js", import.meta.url));
 const SOURCE = `---
-azemark: 1
+azemark: 2
 title: SVG report
 ---
 
@@ -28,7 +28,7 @@ Ordered **semantic** content with [details](#azeforge-svg-title) and \`button on
 :::: callout
 id: azeforge-svg-title
 variant: note
-
+----
 Renderer and author identifiers remain separate.
 ::::
 
@@ -143,7 +143,7 @@ test("SVG preserves equations, images, and strictly sanitized Mermaid graphics",
   await writeFile(
     join(directory, "technical.aze.md"),
     `---
-azemark: 1
+azemark: 2
 title: Technical SVG
 ---
 
@@ -153,11 +153,13 @@ title: Technical SVG
 
 :::: equation
 id: force
+----
 F = m * a
 ::::
 
 :::: mermaid
 id: process
+----
 flowchart LR
   input[Input] --> result[Result]
 ::::

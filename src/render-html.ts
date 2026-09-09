@@ -14,6 +14,7 @@ import type {
   BlockRendererContext,
   CalloutBlock,
   ContentHash,
+  DerivationBlock,
   EquationBlock,
   JsonValue,
   TableBlock,
@@ -51,6 +52,7 @@ export interface HtmlPluginRenderers {
 interface RenderContext {
   readonly sourceName?: string;
   readonly equationFragments: ReadonlyMap<EquationBlock, string>;
+  readonly derivationFragments: ReadonlyMap<DerivationBlock, string>;
   readonly mermaidFragments: ReadonlyMap<MermaidBlock, string>;
   readonly renderCallout: (
     block: CalloutBlock,
@@ -81,6 +83,11 @@ function renderBlock(block: AzeBlock, context: RenderContext): string {
     case "equation":
       return (
         context.equationFragments.get(block) ?? '<figure class="aze-equation"></figure>'
+      );
+    case "derivation":
+      return (
+        context.derivationFragments.get(block) ??
+        '<figure class="aze-derivation"></figure>'
       );
     case "mermaid":
       return (
@@ -155,6 +162,7 @@ export function createHtmlLayout(
   fontFaces: readonly EmbeddedFontFace[],
   equationFragments: ReadonlyMap<EquationBlock, string> = new Map(),
   equationDependencyClosure: JsonValue = { katex: KATEX_VERSION },
+  derivationFragments: ReadonlyMap<DerivationBlock, string> = new Map(),
   mermaidFragments: ReadonlyMap<MermaidBlock, string> = new Map(),
   mermaidDependencyClosure: JsonValue = { mermaid: MERMAID_VERSION },
   pluginRenderers: HtmlPluginRenderers = {},
@@ -165,6 +173,7 @@ export function createHtmlLayout(
     pluginRenderers.renderTable ?? ((block: TableBlock): string => renderTableFragment(block));
   const context: RenderContext = {
     equationFragments,
+    derivationFragments,
     mermaidFragments,
     renderCallout,
     renderTable,
@@ -172,7 +181,7 @@ export function createHtmlLayout(
   return {
     title: escapeHtml(documentTitle(document)),
     description: "AzeForge whole-Document Artifact",
-    css: `${embeddedFontCss(fontFaces)}${themeCss(theme)}${getKatexCss()}.aze-equation{margin:1em 0;text-align:center}.aze-equation[data-align="left"]{text-align:left}.aze-equation[data-align="right"]{text-align:right}.aze-mermaid{margin:1em 0}.aze-mermaid svg{display:block;max-width:100%;height:auto;margin:0 auto}`,
+    css: `${embeddedFontCss(fontFaces)}${themeCss(theme)}${getKatexCss()}.aze-equation{margin:1em 0;text-align:center}.aze-equation[data-align="left"]{text-align:left}.aze-equation[data-align="right"]{text-align:right}.aze-derivation{margin:1em 0}.aze-derivation ol{list-style:none;padding:0;margin:0}.aze-derivation li{display:block;text-align:center;margin:.35em 0}.aze-derivation[data-align="left"] li{text-align:left}.aze-derivation[data-align="right"] li{text-align:right}.aze-derivation .aze-derivation-annotation{display:block;font-style:italic;color:#666;font-size:.9em}.aze-mermaid{margin:1em 0}.aze-mermaid svg{display:block;max-width:100%;height:auto;margin:0 auto}`,
     body: `<main><article>${renderBlocks(document.blocks, context)}</article></main>`,
     fingerprintDependencies: {
       theme: theme as unknown as JsonValue,
@@ -182,6 +191,7 @@ export function createHtmlLayout(
         sourceHash,
       })),
       equations: equationDependencyClosure,
+      derivation: equationDependencyClosure,
       diagrams: mermaidDependencyClosure,
       prose: {
         serializer: "azeforge-prose/v1",
@@ -199,6 +209,7 @@ export async function renderHtml(
   fontFaces: readonly EmbeddedFontFace[],
   equationFragments: ReadonlyMap<EquationBlock, string> = new Map(),
   equationDependencyClosure: JsonValue = { katex: KATEX_VERSION },
+  derivationFragments: ReadonlyMap<DerivationBlock, string> = new Map(),
   mermaidFragments: ReadonlyMap<MermaidBlock, string> = new Map(),
   mermaidDependencyClosure: JsonValue = { mermaid: MERMAID_VERSION },
   pluginRenderers: HtmlPluginRenderers = {},
@@ -210,6 +221,7 @@ export async function renderHtml(
     fontFaces,
     equationFragments,
     equationDependencyClosure,
+    derivationFragments,
     mermaidFragments,
     mermaidDependencyClosure,
     pluginRenderers,

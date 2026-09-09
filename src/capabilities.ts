@@ -133,12 +133,12 @@ export interface CapabilitiesReport {
   readonly runtime: RuntimeSupport;
   readonly commands: readonly CommandEntry[];
   readonly source: Readonly<{
-    azemarkVersions: readonly [1];
+    azemarkVersions: readonly [2];
     extension: ".aze.md";
     mimeType: "text/x-azemark";
   }>;
   readonly document: Readonly<{
-    schemaVersions: readonly [1];
+    schemaVersions: readonly [2];
     mimeType: "application/vnd.azeforge.document+json";
   }>;
   readonly plugins: readonly {
@@ -196,6 +196,31 @@ const BROWSER_UNAVAILABLE_REMEDY =
   "Reinstall AzeForge browser dependencies to enable svg, png, pdf, and mermaid rendering; html rendering without diagrams remains available." as const;
 
 /**
+ * Optional-dependency probe pattern, adopted by the browser engine today.
+ *
+ * Every new optional engine repeats this shape: inspect the pinned
+ * executable path only (no network, no package discovery, no process
+ * launch, no workstation facts). Callers attach the stable
+ * reason/remedy when the reported availability is "unavailable".
+ */
+export async function probeExecutableAvailability(options: {
+  readonly resolveExecutable: () => string;
+}): Promise<EngineAvailability> {
+  let executable: string;
+  try {
+    executable = options.resolveExecutable();
+  } catch {
+    return "unavailable";
+  }
+  try {
+    await access(executable, fsConstants.X_OK);
+  } catch {
+    return "unavailable";
+  }
+  return "available";
+}
+
+/**
  * Local-only availability check. Inspects only the pinned browser
  * executable path: no network access, no package discovery, no process
  * launch, and no workstation facts in the returned status.
@@ -205,28 +230,16 @@ export async function probeBrowserAvailability(): Promise<BrowserEngineStatus> {
     name: "chrome-headless-shell",
     pinnedVersion: CHROME_HEADLESS_SHELL_VERSION,
   } as const;
-  let executable: string;
-  try {
-    executable = resolvePinnedBrowserExecutable();
-  } catch {
-    return {
-      ...base,
-      availability: "unavailable",
-      reason: BROWSER_UNAVAILABLE_REASON,
-      remedy: BROWSER_UNAVAILABLE_REMEDY,
-    };
-  }
-  try {
-    await access(executable, fsConstants.X_OK);
-  } catch {
-    return {
-      ...base,
-      availability: "unavailable",
-      reason: BROWSER_UNAVAILABLE_REASON,
-      remedy: BROWSER_UNAVAILABLE_REMEDY,
-    };
-  }
-  return { ...base, availability: "available" };
+  const availability = await probeExecutableAvailability({
+    resolveExecutable: resolvePinnedBrowserExecutable,
+  });
+  if (availability === "available") return { ...base, availability };
+  return {
+    ...base,
+    availability,
+    reason: BROWSER_UNAVAILABLE_REASON,
+    remedy: BROWSER_UNAVAILABLE_REMEDY,
+  };
 }
 
 /**
@@ -258,12 +271,12 @@ export async function buildCapabilities(
     runtime: RUNTIME_SUPPORT,
     commands: CAPABILITY_COMMANDS,
     source: {
-      azemarkVersions: [1],
+      azemarkVersions: [2],
       extension: ".aze.md",
       mimeType: "text/x-azemark",
     },
     document: {
-      schemaVersions: [1],
+      schemaVersions: [2],
       mimeType: "application/vnd.azeforge.document+json",
     },
     plugins: [...registry.plugins]
@@ -352,6 +365,10 @@ export async function buildCapabilities(
       },
       blocks: {
         equation: {
+          maxSourceChars: MAX_EQUATION_SOURCE_LENGTH,
+          maxTexChars: MAX_EQUATION_TEX_LENGTH,
+        },
+        derivation: {
           maxSourceChars: MAX_EQUATION_SOURCE_LENGTH,
           maxTexChars: MAX_EQUATION_TEX_LENGTH,
         },

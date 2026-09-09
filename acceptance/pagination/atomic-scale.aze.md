@@ -1,5 +1,5 @@
 ---
-azemark: 1
+azemark: 2
 title: Atomic objects
 ---
 
@@ -7,20 +7,20 @@ title: Atomic objects
 
 :::: equation
 id: kept-identity
-
+----
 a^2 + b^2 = c^2
 ::::
 
-::::: mermaid
+:::: mermaid
 id: kept-flow
-
+----
 flowchart LR
   input[Input] --> result[Result]
-:::::
+::::
 
 :::: callout
 variant: note
 title: Short note
-
+----
 Kept together on one page.
 ::::

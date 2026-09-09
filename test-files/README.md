@@ -28,7 +28,7 @@ diagnostics on stderr. Files with raw LaTeX need `--allow-raw-latex`.
 | File | Covers |
 |---|---|
 | `valid/01-prose.aze.md` | Front matter, ATX + Setext headings, paragraphs, deterministic HTML. |
-| `valid/02-rich-prose.aze.md` | P0-04 scoped Inline nodes (emphasis, strong, inline code, safe https/mailto/fragment/autolinks, two-space and backslash hard breaks), blockquotes with nested lists and quotes, ordered/unordered lists, thematic break, fenced code with language, plain GFM table, callouts (note + warning with `id`, nested equation directive), captioned aligned `table` directive. |
+| `valid/02-rich-prose.aze.md` | P0-04 scoped Inline nodes (emphasis, strong, inline code, safe https/mailto/fragment/autolinks, two-space and backslash hard breaks), blockquotes with nested lists and quotes, ordered/unordered lists, thematic break, fenced code with language, plain GFM table, callouts (note + warning with `id`, nested equation directive), captioned typed `table` directive (columns/rows with quantity units). |
 | `equations/01-readable.aze.md` | Versioned equation Blocks with `id`/`number`/`align`; Greek, integral, sums, limits, matrices, sets through pinned KaTeX (visual HTML + MathML). |
 | `equations/02-latex.aze.md` | Raw-LaTeX variant (`syntax: latex`); valid only with `--allow-raw-latex`, bounded KaTeX, `trust: false`, sanitized output. |
 | `mermaid/01-flowchart.aze.md` | Flowchart Blocks (TD and LR) with `id`/`title`/`description` headers and without; decision diamonds, edge labels, loops; deterministic seed, namespaced IDs, accessible `<title>`/`<desc>`. |
@@ -47,7 +47,7 @@ diagnostics on stderr. Files with raw LaTeX need `--allow-raw-latex`.
 | `invalid/06-version.aze.md` | `azeforge.source#version-unsupported`; previous Artifact preserved. |
 | `invalid/07-links.aze.md` | P0-04: `azeforge.link#unsafe-protocol` (`javascript:`; range spans the whole paragraph), `azeforge.security#raw-html-disabled` (markup outside code fences). The fenced ```` ``` ```` block containing `<div>` stays valid text. |
 | `invalid/07-mermaid.aze.md` | `azeforge.mermaid#unsupported-diagram`, `azeforge.mermaid#active-content`, `azeforge.mermaid#external-resource` (parse-time; validation stops the pipeline, so no Artifact). Deep syntax errors surface at compile time instead: a lone `flowchart TD` block with `a - broken ???` renders exactly one `azeforge.mermaid#invalid-syntax` diagnostic and no Artifact. |
-| `invalid/08-callouts-tables.aze.md` | P0-04: `azeforge.callout#unknown-variant` (range underlines `bogus`, help lists the five variants), `azeforge.table#body-must-be-table` (non-GFM body), `azeforge.link#unsafe-protocol` (`ftp:` inside a callout), `azeforge.table#unknown-header` (`width:`, suggests `caption`/`id`). Valid Blocks before/after survive. |
+| `invalid/08-callouts-tables.aze.md` | P0-04: `azeforge.callout#unknown-variant` (range underlines `bogus`, help lists the five variants), `azeforge.table#body-must-be-records` (scalar body in a typed `table` Block), `azeforge.link#unsafe-protocol` (`ftp:` inside a callout), `azeforge.table#unknown-header` (`width:`, suggests `caption`/`id`). Valid Blocks before/after survive. |
 | `invalid/09-nesting.aze.md` | P0-04: `azeforge.link#unsafe-protocol` (bad link inside a nested blockquote inside a callout — nested ranges still resolve), `azeforge.source#unclosed-directive` (trailing callout with no closing `::::`). |
 | `invalid/10-unclosed-code.aze.md` | P0-04: `azeforge.source#unclosed-fence`; the range points to the opening fence and no Artifact is produced. |
 
@@ -75,7 +75,7 @@ cmp /tmp/flow.html /tmp/flow2.html && echo "byte-identical"
 node dist/cli.js render test-files/invalid/07-mermaid.aze.md \
   --output /tmp/flow.html --diagnostics json 2>/dev/null | \
   grep -o '"code":"azeforge.mermaid#[a-z-]*"' | sort | uniq -c
-printf -- '---\nazemark: 1\n---\n\n:::: mermaid\nflowchart TD\n  a - broken ???\n::::\n' > /tmp/broken-mermaid.aze.md
+printf -- '---\nazemark: 2\n---\n\n:::: mermaid\n----\nflowchart TD\n  a - broken ???\n::::\n' > /tmp/broken-mermaid.aze.md
 node dist/cli.js render /tmp/broken-mermaid.aze.md \
   --output /tmp/broken.html --diagnostics json 2>/dev/null | \
   grep -o '"code":"azeforge.mermaid#[a-z-]*"' | sort | uniq -c
@@ -115,12 +115,11 @@ checks = {
   'ordered list': '<ol>' in html,
   'thematic break': '<hr>' in html,
   'fenced code + language': 'class="language-python"' in html,
-  'table alignment left': 'style="text-align:left">material<' in html,
-  'table alignment center': 'style="text-align:center">density<' in html,
-  'table alignment right': 'style="text-align:right">conductivity<' in html,
   'plain GFM table is bare': html.count('<table>') == 1,
   'captioned table is a figure': '<figure class="aze-table"><table id="materials"' in html,
   'table caption inlines': '<caption>Material <em>properties</em> with alignment</caption>' in html,
+  'typed table column names': '<th scope="col">Density</th>' in html,
+  'typed table quantity units': '<span class="aze-unit">kg/m^3</span>' in html,
   'callout variant data': 'data-variant="warning"' in html,
   'callout id anchor': 'id="careful"' in html,
   'callout title': '<p class="aze-callout-title">Nested directive content</p>' in html,
@@ -146,10 +145,10 @@ Check this Source order in the page:
 3. Blockquote containing a list and a deeper blockquote.
 4. Separate unordered and ordered lists.
 5. Horizontal thematic break and Python code block.
-6. Plain table with left, center, and right aligned columns.
+6. Plain GFM table followed by the typed Material properties table.
 7. Note callout containing prose, a list, and a blockquote.
 8. Warning callout containing the rendered Pythagorean equation and trailing prose.
-9. Captioned Material properties table with the same three alignments.
+9. Captioned typed Material properties table with column names, numbers, and quantity units.
 
 Do not click the external links when testing offline behavior. The structural
 check above confirms that the destinations survive compilation; rendering
@@ -235,10 +234,10 @@ Abuse cases fail before Artifact publication (exit `1`, previous
 Artifact preserved, one `azeforge.asset#` code each):
 
 ```bash
-printf -- '---\nazemark: 1\n---\n\n# T\n\nBody.\n\n![x](https://example.com/x.png)\n' > /tmp/relocated/remote.aze.md
+printf -- '---\nazemark: 2\n---\n\n# T\n\nBody.\n\n![x](https://example.com/x.png)\n' > /tmp/relocated/remote.aze.md
 node dist/cli.js render /tmp/relocated/remote.aze.md --output /tmp/no.html --diagnostics json | \
   grep -o '"code":"azeforge.asset#[a-z-]*"'
-printf -- '---\nazemark: 1\n---\n\n# T\n\nBody.\n\n![x](../outside.png)\n' > /tmp/relocated/escape.aze.md
+printf -- '---\nazemark: 2\n---\n\n# T\n\nBody.\n\n![x](../outside.png)\n' > /tmp/relocated/escape.aze.md
 node dist/cli.js render /tmp/relocated/escape.aze.md --output /tmp/no.html --diagnostics json | \
   grep -o '"code":"azeforge.asset#[a-z-]*"'
 ```

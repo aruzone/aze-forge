@@ -5,7 +5,7 @@ import test from "node:test";
 import { createCompiler } from "../dist/index.js";
 
 const VALID_SOURCE = `---
-azemark: 1
+azemark: 2
 title: Stable systems
 author:
   - Ada Lovelace
@@ -27,8 +27,8 @@ test("parse returns a serializable versioned Document with ordered Blocks and So
     extensions: {},
     title: "Stable systems",
   });
-  assert.equal(result.document.azemarkVersion, 1);
-  assert.equal(result.document.schemaVersion, 1);
+  assert.equal(result.document.azemarkVersion, 2);
+  assert.equal(result.document.schemaVersion, 2);
   assert.deepEqual(
     result.document.blocks.map(({ kind }) => kind),
     ["heading", "paragraph"],
@@ -181,7 +181,7 @@ test("Renderer preflight failures produce diagnostics without partial results", 
 test("validation errors expose no validated Document, identity, or Artifact", async () => {
   const compiler = createCompiler();
   const invalidSource = `---
-azemark: 2
+azemark: 3
 ---
 
 Text
@@ -196,6 +196,11 @@ Text
   });
 
   assert.equal(validation.document, undefined);
+  assert.ok(
+    validation.diagnostics.some(
+      ({ code }) => code === "azeforge.source#version-unsupported",
+    ),
+  );
   assert.ok(validation.diagnostics.some(({ severity }) => severity === "error"));
   assert.equal(compilation.document, undefined);
   assert.equal(compilation.contentHash, undefined);
@@ -228,12 +233,13 @@ test("parser handles BOM, ATX variants, Setext headings, and Unicode whitespace"
 
 test("unknown directives expose stable alternatives through an InvalidBlock", async () => {
   const source = `---
-azemark: 1
+azemark: 2
 ---
 
 Before
 
 :::: mystery
+----
 x = 1
 ::::
 
@@ -249,12 +255,12 @@ After
     "paragraph",
   ]);
   assert.equal(invalid?.kind, "invalid");
-  assert.equal(invalid?.raw, ":::: mystery\nx = 1\n::::");
+  assert.equal(invalid?.raw, ":::: mystery\n----\nx = 1\n::::");
   assert.equal(invalid?.originalType, "mystery");
   assert.deepEqual(invalid?.diagnosticIndexes, [0]);
   assert.deepEqual(parsed.diagnostics[0]?.data, {
     type: "mystery",
-    availableTypes: ["callout", "equation", "mermaid", "table"],
+    availableTypes: ["callout", "derivation", "equation", "mermaid", "table"],
   });
   assert.equal(
     parsed.diagnostics[0]?.code,
@@ -269,24 +275,24 @@ After
 
 test("directive envelope IDs report invalid and duplicate references", () => {
   const source = `---
-azemark: 1
+azemark: 2
 ---
 
 :::: one
 id: Bad
-
+----
 body
 ::::
 
 :::: two
 id: shared
-
+----
 body
 ::::
 
 :::: three
 id: shared
-
+----
 body
 ::::
 `;
@@ -308,7 +314,7 @@ body
 });
 
 test("an unclosed directive recovers at the next independent region", () => {
-  const source = "Before\n\n:::: mystery\nbroken\n\n# After\n\nStill valid\n";
+  const source = "Before\n\n:::: mystery\n----\nbroken\n\n# After\n\nStill valid\n";
   const parsed = createCompiler().parse(source, {
     sourceName: "recover.aze.md",
   });
@@ -326,7 +332,7 @@ test("an unclosed directive recovers at the next independent region", () => {
   );
   assert.deepEqual(parsed.document.blocks[1]?.diagnosticIndexes, [1]);
   assert.deepEqual(parsed.diagnostics[0]?.fix, {
-    title: "Declare AzeMark version 1.",
+    title: "Declare AzeMark version 2.",
     applicability: "safe",
     edits: [
       {
@@ -335,7 +341,7 @@ test("an unclosed directive recovers at the next independent region", () => {
           end: { line: 1, column: 1, offset: 0 },
         },
         expectedText: "",
-        replacementText: "---\nazemark: 1\n---\n\n",
+        replacementText: "---\nazemark: 2\n---\n\n",
       },
     ],
   });
@@ -343,7 +349,7 @@ test("an unclosed directive recovers at the next independent region", () => {
 
 test("nested azemark metadata does not declare the Source version", () => {
   const parsed = createCompiler().parse(
-    "---\nx-settings:\n  azemark: 1\n---\n\n:::: mystery\n::::\n",
+    "---\nx-settings:\n  azemark: 1\n---\n\n:::: mystery\n----\n::::\n",
   );
 
   assert.equal(
@@ -355,7 +361,7 @@ test("nested azemark metadata does not declare the Source version", () => {
 });
 
 test("BOM bytes remain part of first-line directive ranges", () => {
-  const parsed = createCompiler().parse("\uFEFF:::: mystery\n::::\n", {
+  const parsed = createCompiler().parse("\uFEFF:::: mystery\n----\n::::\n", {
     sourceName: "bom.aze.md",
   });
   const unknown = parsed.diagnostics.find(
@@ -373,7 +379,7 @@ test("BOM bytes remain part of first-line directive ranges", () => {
 });
 
 test("an unclosed directive at EOF has a guarded safe fix", () => {
-  const source = "---\nazemark: 1\n---\n\n:::: mystery\nbody\n";
+  const source = "---\nazemark: 2\n---\n\n:::: mystery\n----\nbody\n";
   const parsed = createCompiler().parse(source);
   const unclosed = parsed.diagnostics.find(
     ({ code }) => code === "azeforge.source#unclosed-directive",
@@ -385,8 +391,8 @@ test("an unclosed directive at EOF has a guarded safe fix", () => {
     edits: [
       {
         range: {
-          start: { line: 7, column: 1, offset: 38 },
-          end: { line: 7, column: 1, offset: 38 },
+          start: { line: 8, column: 1, offset: 43 },
+          end: { line: 8, column: 1, offset: 43 },
         },
         expectedText: "",
         replacementText: "::::\n",
@@ -397,19 +403,23 @@ test("an unclosed directive at EOF has a guarded safe fix", () => {
 
 test("diagnostic limits retain Source order and reserve truncation", () => {
   const source = `---
-azemark: 1
+azemark: 2
 ---
 
 :::: one
+----
 ::::
 
 :::: two
+----
 ::::
 
 :::: three
+----
 ::::
 
 :::: four
+----
 ::::
 `;
   const parsed = createCompiler({
@@ -423,14 +433,14 @@ azemark: 1
         code: "azeforge.source#unknown-directive",
         data: {
           type: "one",
-          availableTypes: ["callout", "equation", "mermaid", "table"],
+          availableTypes: ["callout", "derivation", "equation", "mermaid", "table"],
         },
       },
       {
         code: "azeforge.source#unknown-directive",
         data: {
           type: "two",
-          availableTypes: ["callout", "equation", "mermaid", "table"],
+          availableTypes: ["callout", "derivation", "equation", "mermaid", "table"],
         },
       },
       {
@@ -447,12 +457,12 @@ azemark: 1
 });
 test("per-Block limits group diagnostics across collection phases", () => {
   const source = `---
-azemark: 1
+azemark: 2
 ---
 
 :::: mystery
 id: Bad
-
+----
 body
 ::::
 `;
@@ -478,7 +488,7 @@ test("Renderer preflight diagnostics honor the Document limit", async () => {
     diagnosticLimits: { perDocument: 1 },
   });
   const result = await compiler.compile(
-    "---\nazemark: 1\ntitel: typo\n---\n\nBody\n",
+    "---\nazemark: 2\ntitel: typo\n---\n\nBody\n",
     { format: "html", theme: "missing" },
   );
 
@@ -509,8 +519,8 @@ test("validation deduplicates and deterministically orders parse diagnostics", (
   const duplicate = makeDiagnostic("azeforge.source#a-error", "error");
   const validation = createCompiler().validate({
     document: {
-      azemarkVersion: 1,
-      schemaVersion: 1,
+      azemarkVersion: 2,
+      schemaVersion: 2,
       metadata: { authors: [], extensions: {} },
       blocks: [],
     },
@@ -536,12 +546,12 @@ test("front matter rejects structural merge keys but permits quoted text keys", 
   const compiler = createCompiler();
   const merged = compiler.validate(
     compiler.parse(
-      "---\nazemark: 1\nx-settings:\n  nested:\n    <<: { title: merged }\n---\n\nBody\n",
+      "---\nazemark: 2\nx-settings:\n  nested:\n    <<: { title: merged }\n---\n\nBody\n",
     ),
   );
   const quoted = compiler.validate(
     compiler.parse(
-      '---\nazemark: 1\nx-settings:\n  nested:\n    "<<": literal\n---\n\nBody\n',
+      '---\nazemark: 2\nx-settings:\n  nested:\n    "<<": literal\n---\n\nBody\n',
     ),
   );
 
@@ -562,7 +572,7 @@ test("front matter rejects structural merge keys but permits quoted text keys", 
 
 test("malformed front matter preserves body Blocks without parser internals", () => {
   const parsed = createCompiler().parse(
-    "---\nazemark: 1\ntitle: [broken\n---\n\n# Survives\n",
+    "---\nazemark: 2\ntitle: [broken\n---\n\n# Survives\n",
     { sourceName: "front-matter.aze.md" },
   );
 
@@ -582,8 +592,8 @@ test("validation rejects malformed serialized ParsedDocuments", () => {
   const compiler = createCompiler();
   const malformed = {
     document: {
-      azemarkVersion: 1,
-      schemaVersion: 1,
+      azemarkVersion: 2,
+      schemaVersion: 2,
       metadata: { authors: [], extensions: {} },
       blocks: [
         {
@@ -620,8 +630,8 @@ test("duplicate Block IDs point back to the first definition", () => {
   };
   const parsed = {
     document: {
-      azemarkVersion: 1,
-      schemaVersion: 1,
+      azemarkVersion: 2,
+      schemaVersion: 2,
       metadata: { authors: [], extensions: {} },
       blocks: [
         {
@@ -668,8 +678,8 @@ test("invalid Block IDs receive a reference diagnostic", () => {
   };
   const validation = createCompiler().validate({
     document: {
-      azemarkVersion: 1,
-      schemaVersion: 1,
+      azemarkVersion: 2,
+      schemaVersion: 2,
       metadata: { authors: [], extensions: {} },
       blocks: [
         {
@@ -699,7 +709,7 @@ test("invalid Block IDs receive a reference diagnostic", () => {
 });
 test("independent unknown front-matter keys are not deduplicated", () => {
   const parsed = createCompiler().parse(
-    "---\nazemark: 1\nfirst-key: one\nsecond-key: two\n---\n\nBody\n",
+    "---\nazemark: 2\nfirst-key: one\nsecond-key: two\n---\n\nBody\n",
   );
   const unknownKeys = parsed.diagnostics.filter(
     ({ code }) => code === "azeforge.metadata#unknown-key",
@@ -713,7 +723,7 @@ test("independent unknown front-matter keys are not deduplicated", () => {
 
 test("unknown metadata warnings include a typo suggestion", () => {
   const parsed = createCompiler().parse(
-    "---\nazemark: 1\ntitel: Typo\n---\n\nBody\n",
+    "---\nazemark: 2\ntitel: Typo\n---\n\nBody\n",
   );
   const warning = parsed.diagnostics.find(
     ({ code }) => code === "azeforge.metadata#unknown-key",

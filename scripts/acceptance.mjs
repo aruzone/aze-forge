@@ -503,7 +503,7 @@ async function stepIdentities() {
     const movedReport = parseReport(movedResult, "path move");
     check("P0-OUT-004", "path moves preserve content identity", movedReport.contentHash === base.report.contentHash, "");
     check("P0-OUT-004", "path moves preserve artifact identity", movedReport.artifact.artifactHash === base.report.artifact.artifactHash, "");
-    const semantic = golden.replace("| Aluminum | 2700 | 205 |", "| Aluminum | 2710 | 205 |");
+    const semantic = golden.replace("density: 2700", "density: 2710");
     const semanticResult = await renderSourceText(directory, semantic, "semantic.aze.md", "html", "default");
     check("P0-OUT-004", "semantic edits change content identity", semanticResult.report.contentHash !== base.report.contentHash, "");
     check("P0-OUT-004", "semantic edits change artifact identity", semanticResult.report.artifact.artifactHash !== base.report.artifact.artifactHash, "");
@@ -513,7 +513,7 @@ async function stepIdentities() {
     // Used-asset probe: identical prose, one byte changed in the used image.
     const logoA = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><rect width="16" height="16" fill="#ffffff"/></svg>`;
     const logoB = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><rect width="16" height="16" fill="#000000"/></svg>`;
-    const probe = `---\nazemark: 1\ntitle: Asset probe\n---\n\n# Probe\n\n![logo](logo.svg)\n`;
+    const probe = `---\nazemark: 2\ntitle: Asset probe\n---\n\n# Probe\n\n![logo](logo.svg)\n`;
     await writeFile(join(directory, "probe.aze.md"), probe);
     await writeFile(join(directory, "logo.svg"), logoA);
     const probeA = runCli(["render", "probe.aze.md", "--output", "a.html", "--format", "html", "--diagnostics", "json"], directory);
@@ -603,7 +603,7 @@ async function stepAuthorLoop(live) {
 
     const edited = golden
       .replace("sum i=1..n of i = n (n + 1) / 2", "sum i=1..n of i^2 = n (n + 1) (2 n + 1) / 6")
-      .replace("| Aluminum | 2700 | 205 |", "| Aluminum | 2710 | 205 |");
+      .replace("density: 2700", "density: 2710");
     await writeFile(join(directory, "report.aze.md"), edited);
     const editedRender = render("report.aze.md", "edited.html");
     const editedReport = parseReport(editedRender, "edited render");

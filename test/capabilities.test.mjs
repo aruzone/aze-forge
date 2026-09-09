@@ -40,12 +40,14 @@ test("version --json emits the packaged version document on stdout only", async 
   assert.equal(payload.schemaVersion, 1);
   assert.deepEqual(payload.tool, { name: "azeforge", version: "0.1.1" });
   assert.deepEqual(payload.runtime, EXPECTED_RUNTIME);
-  assert.deepEqual(payload.source, { azemarkVersions: [1] });
-  assert.deepEqual(payload.document, { schemaVersions: [1] });
+  assert.deepEqual(payload.source, { azemarkVersions: [2] });
+  assert.deepEqual(payload.document, { schemaVersions: [2] });
   const ids = payload.schemas.map(({ id }) => id);
   assert.ok(ids.includes("azeforge.diagnostics/v1"));
   assert.ok(ids.includes("azeforge.capabilities/v1"));
   assert.ok(ids.includes("azeforge.version/v1"));
+  assert.ok(ids.includes("azeforge.derivation/source/v1"));
+  assert.ok(ids.includes("azeforge.derivation/data/v1"));
   // Static support facts are release metadata, never facts about this workstation.
   assert.match(result.stdout.toString("utf8"), /"version":"0\.1\.1"/);
   assert.doesNotMatch(result.stdout.toString("utf8"), /Users|home|darwin|linux|win32|arm64/i);
@@ -71,20 +73,24 @@ test("capabilities --json enumerates the P0 contract in canonical order", async 
   );
   assert.deepEqual(
     payload.plugins.map(({ type }) => type),
-    ["callout", "equation", "mermaid", "table"],
+    ["callout", "derivation", "equation", "mermaid", "table"],
+  );
+  assert.deepEqual(
+    payload.plugins.map(({ version }) => version),
+    ["1.0.0", "1.0.0", "1.0.0", "1.0.0", "2.0.0"],
   );
   assert.deepEqual(
     payload.renderers.map(({ id }) => id),
     ["html", "pdf", "png", "svg"],
   );
-  assert.equal(payload.blockRenderers.length, 16);
+  assert.equal(payload.blockRenderers.length, 20);
   assert.deepEqual(
     payload.themes.map(({ id }) => id),
     ["academic", "dark-presentation", "default"],
   );
   assert.deepEqual(payload.formats, ["html", "svg", "png", "pdf"]);
-  assert.deepEqual(payload.source.azemarkVersions, [1]);
-  assert.deepEqual(payload.document.schemaVersions, [1]);
+  assert.deepEqual(payload.source.azemarkVersions, [2]);
+  assert.deepEqual(payload.document.schemaVersions, [2]);
   assert.deepEqual(payload.runtime, EXPECTED_RUNTIME);
 
   // Static output is deterministic and reports availability as unknown.
@@ -169,12 +175,12 @@ test("human reports derive names and versions from the canonical model", () => {
   const capabilities = runCli(["capabilities"]);
   assert.equal(capabilities.status, 0);
   const human = capabilities.stderr.toString("utf8");
-  for (const name of ["render", "validate", "watch", "serve", "format", "capabilities", "version", "callout", "equation", "mermaid", "table", "html", "svg", "png", "pdf", "default", "academic", "dark-presentation"]) {
+  for (const name of ["render", "validate", "watch", "serve", "format", "capabilities", "version", "callout", "derivation", "equation", "mermaid", "table", "html", "svg", "png", "pdf", "default", "academic", "dark-presentation"]) {
     assert.ok(human.includes(name), `human capabilities missing ${name}`);
   }
   const version = runCli(["version"]);
   assert.equal(version.status, 0);
-  assert.match(version.stderr.toString("utf8"), /azeforge 0\.1\.1\nazemark versions: 1\ndocument schema versions: 1/);
+  assert.match(version.stderr.toString("utf8"), /azeforge 0\.1\.1\nazemark versions: 2\ndocument schema versions: 2/);
 });
 
 test("capability and version option conflicts exit 2 as invalid operations", () => {

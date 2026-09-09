@@ -2,6 +2,7 @@ import { realpath } from "node:fs/promises";
 import { extname, resolve } from "node:path";
 
 import { isAbsoluteSource, isContained, isRemoteSource } from "./assets.js";
+import { isTypedTableData } from "./table.js";
 import type { AzeDocument, Inline, ParsedBlock } from "./model.js";
 
 
@@ -37,11 +38,24 @@ function collectBlockSources(blocks: readonly ParsedBlock[], out: string[]): voi
         if (block.title !== undefined) collectInlineSources(block.title, out);
         break;
       case "table":
-        for (const row of block.data.header) collectInlineSources(row, out);
-        for (const row of block.data.rows) {
-          for (const cell of row) collectInlineSources(cell, out);
+        if (isTypedTableData(block.data)) {
+          for (const row of block.data.rows) {
+            for (const cell of Object.values(row)) {
+              if (Array.isArray(cell)) collectInlineSources(cell, out);
+            }
+          }
+        } else {
+          for (const row of block.data.header) collectInlineSources(row, out);
+          for (const row of block.data.rows) {
+            for (const cell of row) collectInlineSources(cell, out);
+          }
         }
         if (block.caption !== undefined) collectInlineSources(block.caption, out);
+        break;
+      case "derivation":
+        for (const step of block.steps) {
+          if (step.annotation !== undefined) collectInlineSources(step.annotation, out);
+        }
         break;
       default:
         break;

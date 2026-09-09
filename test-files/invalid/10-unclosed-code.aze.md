@@ -1,5 +1,5 @@
 ---
-azemark: 1
+azemark: 2
 title: Unclosed fenced code
 ---
 

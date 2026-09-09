@@ -35,7 +35,7 @@ const FLOWCHART = `flowchart TD
 `;
 
 function sourceWith(body, header = "") {
-  return `---\nazemark: 1\n---\n\n:::: mermaid\n${header}${body}::::\n`;
+  return `---\nazemark: 2\n---\n\n:::: mermaid\n${header}----\n${body}::::\n`;
 }
 
 function runCli(arguments_, cwd) {
@@ -357,7 +357,7 @@ test("sequence diagrams and repeated blocks render deterministically", async () 
   assert.match(firstHtml, /Ack/);
   assert.deepEqual(first.artifact.bytes, second.artifact.bytes);
 
-  const two = `---\nazemark: 1\n---\n\n:::: mermaid\n${FLOWCHART}::::\n\n:::: mermaid\n${sequence}::::\n`;
+  const two = `---\nazemark: 2\n---\n\n:::: mermaid\n----\n${FLOWCHART}::::\n\n:::: mermaid\n----\n${sequence}::::\n`;
   const both = await compiler.compile(two, { format: "html" });
   assert.deepEqual(both.diagnostics, []);
   const bothHtml = Buffer.from(both.artifact.bytes).toString("utf8");

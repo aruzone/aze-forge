@@ -27,7 +27,7 @@ function ptyArguments(commandArguments) {
   return ["-q", "/dev/null", ...commandArguments];
 }
 const SOURCE = `---
-azemark: 1
+azemark: 2
 title: PNG report
 ---
 

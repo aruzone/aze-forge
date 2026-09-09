@@ -1,5 +1,5 @@
 ---
-azemark: 1
+azemark: 2
 title: Long callout split
 ---
 
@@ -8,7 +8,7 @@ title: Long callout split
 :::: callout
 variant: note
 title: A long note
-
+----
 Child paragraph 0 inside the long callout carries two sentences of prose so the note grows past one page. Second sentence for child 0 adds weight.
 
 Child paragraph 1 inside the long callout carries two sentences of prose so the note grows past one page. Second sentence for child 1 adds weight.

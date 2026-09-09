@@ -1,6 +1,10 @@
 import { calloutHtmlBlockRenderer, calloutPlugin } from "./callout.js";
 import { CompilerConfigurationError } from "./configuration-error.js";
 import {
+  derivationHtmlBlockRenderer,
+  derivationPlugin,
+} from "./derivation.js";
+import {
   equationHtmlBlockRenderer,
   equationPlugin,
   htmlRendererDescriptor,
@@ -28,7 +32,7 @@ import type {
   RendererDescriptor,
 } from "./model.js";
 
-export const REGISTRY_CONFORMANCE_SEAM_VERSION = "1.0.0" as const;
+export const REGISTRY_CONFORMANCE_SEAM_VERSION = "2.0.0" as const;
 const SEMVER = /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$/;
 const PLUGIN_TYPE = /^(?:@[a-z0-9-]+(?:\/[a-z][a-z0-9-]*)?|[a-z][a-z0-9]*(?:-[a-z0-9]+)*)$/;
 const ADAPTER_ID =
@@ -50,12 +54,14 @@ export function getBuiltInRegistry(): ResolvedRegistry {
   return Object.freeze({
     plugins: Object.freeze([
       equationPlugin,
+      derivationPlugin,
       calloutPlugin,
       mermaidPlugin,
       tablePlugin,
     ]),
     blockRenderers: Object.freeze([
       equationHtmlBlockRenderer,
+      derivationHtmlBlockRenderer,
       calloutHtmlBlockRenderer,
       mermaidHtmlBlockRenderer,
       tableHtmlBlockRenderer,

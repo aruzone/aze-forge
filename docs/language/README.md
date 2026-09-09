@@ -6,12 +6,10 @@ implementation consumes; they were approved during the wayfinder taste
 review for [issue #50](https://github.com/aruzone/aze-forge/issues/50) and
 port the canonical assets from the `prototype/taste-authoring-forms` branch.
 
-These forms are **not** compiler test fixtures. The compiler currently
-validates AzeMark 1 (`azemark: 1`) exclusively, so these AzeMark 2 examples
-do not yet pass `validate`; they document the target grammar for the AzeMark 2
-cutover rather than exercising the shipped build. As family, language, and
-numbering contracts are implemented, the approved forms become the source for
-live `test-files/valid/` fixtures.
+These forms are the frozen reference consumed by the AzeMark 2 cutover; the
+compiler validates `azemark: 2` (fixed `::::`/`::` envelope, mandatory `----`
+separator, shared records). Family plugins land behind this envelope as the
+alpha catalog is sequenced.
 
 ## Files
 

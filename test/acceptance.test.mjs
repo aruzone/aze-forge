@@ -159,7 +159,7 @@ test("two fresh builds share every identity and trivia or moves preserve it", as
   assert.equal(trivia.contentHash, renderA.contentHash);
   assert.equal(trivia.artifact.artifactHash, renderA.artifact.artifactHash);
 
-  const semantic = golden.replace("| Aluminum | 2700 | 205 |", "| Aluminum | 2710 | 205 |");
+  const semantic = golden.replace("density: 2700", "density: 2710");
   await writeFile(join(first, "semantic.aze.md"), semantic);
   const changed = parseReport(runCli(["render", "semantic.aze.md", "--output", "s.html", "--diagnostics", "json"], first), "semantic build");
   assert.notEqual(changed.contentHash, renderA.contentHash);
@@ -198,7 +198,7 @@ test("modify, diagnose, and repair loop changes, fails line-specifically, and re
 
   const edited = golden
     .replace("sum i=1..n of i = n (n + 1) / 2", "sum i=1..n of i^2 = n (n + 1) (2 n + 1) / 6")
-    .replace("| Aluminum | 2700 | 205 |", "| Aluminum | 2710 | 205 |");
+    .replace("density: 2700", "density: 2710");
   await writeFile(join(directory, "report.aze.md"), edited);
   const after = parseReport(runCli(["render", "report.aze.md", "--output", "edited.html", "--diagnostics", "json"], directory), "edited");
   assert.notEqual(after.contentHash, before.contentHash);

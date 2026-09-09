@@ -2,6 +2,7 @@ import { arch, platform } from "node:os";
 
 import type { Browser, HTTPRequest } from "puppeteer-core";
 import { calloutHtmlBlockRenderer } from "./callout.js";
+import { derivationHtmlBlockRenderer } from "./derivation.js";
 import { equationHtmlBlockRenderer } from "./equation.js";
 
 import { assetManifestHash } from "./assets.js";
@@ -68,6 +69,7 @@ function pdfBlockRenderer(renderer: AnyBlockRenderer): AnyBlockRenderer {
 
 export const pdfBlockRenderers: readonly AnyBlockRenderer[] = Object.freeze([
   pdfBlockRenderer(equationHtmlBlockRenderer),
+  pdfBlockRenderer(derivationHtmlBlockRenderer),
   pdfBlockRenderer(calloutHtmlBlockRenderer),
   pdfBlockRenderer(mermaidHtmlBlockRenderer),
   pdfBlockRenderer(tableHtmlBlockRenderer),
@@ -376,32 +378,63 @@ export function canonicalizePdf(
     chunks.push(chunk);
     position += chunk.length;
   };
-  // Blink numbers structure-tree element IDs per browser session. Map each
-  // session-local node token to its defining object number so both
-  // definitions (`/ID (node…)`) and references (`/Headers [(node…)]`)
-  // rewrite to the same deterministic ID.
+  // Blink numbers structure-tree element IDs per browser session, and
+  // references them not only inside StructElem definitions but also in the
+  // external structure tree (/ParentTree /Nums, /Names, /Limits). Map each
+  // session-local node token to its defining object number so every
+  // occurrence — definitions and references alike — rewrites to the same
+  // deterministic ID.
   const structIdByNode = new Map<string, number>();
   for (const object of objects) {
     for (const match of object.raw.matchAll(/\/ID \(node(\d+)\)/g)) {
       structIdByNode.set(match[1] as string, object.num);
     }
   }
+  const rewriteNodeTokens = (raw: string): string => {
+    if (!raw.includes("(node")) return raw;
+    return raw.replace(/\(node(\d+)\)/g, (_, digits: string) => {
+      const defining = structIdByNode.get(digits);
+      return `(azeforge-struct-${defining ?? digits})`;
+    });
+  };
+  // Blink emits the structure NameTree /Names and /Limits entries in
+  // run-dependent map order. Sort both arrays by the rewritten deterministic
+  // token so identical renders hash identically.
+  const sortStructNameTree = (raw: string): string => {
+    if (!raw.includes("azeforge-struct-")) return raw;
+    let next = raw;
+    const names = /\/Names\s*\[([^\]]*)\]/.exec(next);
+    if (names?.[1] !== undefined) {
+      const pairs = [...names[1].matchAll(/\((azeforge-struct-\d+)\)\s+(\d+) (\d+) R/g)]
+        .map((match) => ({
+          id: Number.parseInt(match[1]?.slice("azeforge-struct-".length) ?? "", 10),
+          text: match[0] ?? "",
+        }))
+        .sort((a, b) => a.id - b.id);
+      next = next.replace(names[0], `/Names [${pairs.map((entry) => entry.text).join(" ")}]`);
+      if (pairs.length > 0) {
+        const first = pairs[0]?.id ?? 0;
+        const last = pairs[pairs.length - 1]?.id ?? first;
+        const limits = /\/Limits\s*\[[^\]]*\]/.exec(next);
+        if (limits !== null) {
+          next = next.replace(
+            limits[0],
+            `/Limits [(azeforge-struct-${first}) (azeforge-struct-${last})]`,
+          );
+        }
+      }
+      return next;
+    }
+    return next;
+  };
   for (const object of objects) {
     if (object.num === droppedMetadata) continue;
     if (object.num === infoNum) {
       emit(object.num, infoRaw);
     } else if (object.num === rootNum) {
       emit(object.num, catalog);
-    } else if (object.raw.includes("/Type /StructElem") && object.raw.includes("(node")) {
-      emit(
-        object.num,
-        object.raw.replace(/\(node(\d+)\)/g, (_, digits: string) => {
-          const defining = structIdByNode.get(digits);
-          return defining === undefined ? `(node${digits})` : `(azeforge-struct-${defining})`;
-        }),
-      );
     } else {
-      emit(object.num, object.raw);
+      emit(object.num, sortStructNameTree(rewriteNodeTokens(object.raw)));
     }
   }
   const xrefAt = position;

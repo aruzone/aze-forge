@@ -9,6 +9,11 @@ import {
 } from "./callout.js";
 import { DIAGNOSTICS_SCHEMA_ID } from "./diagnostics-json.js";
 import {
+  DERIVATION_PLUGIN_VERSION,
+  derivationDataSchema,
+  derivationSourceSchema,
+} from "./derivation.js";
+import {
   EQUATION_PLUGIN_VERSION,
   equationDataSchema,
   equationSourceSchema,
@@ -59,6 +64,8 @@ export function publicSchemaVersions(): readonly VersionedSchema[] {
     { id: WATCH_EVENT_SCHEMA_ID, version: 1 },
     { id: schemaId(equationSourceSchema), version: EQUATION_PLUGIN_VERSION },
     { id: schemaId(equationDataSchema), version: EQUATION_PLUGIN_VERSION },
+    { id: schemaId(derivationSourceSchema), version: DERIVATION_PLUGIN_VERSION },
+    { id: schemaId(derivationDataSchema), version: DERIVATION_PLUGIN_VERSION },
     { id: schemaId(mermaidSourceSchema), version: MERMAID_PLUGIN_VERSION },
     { id: schemaId(mermaidDataSchema), version: MERMAID_PLUGIN_VERSION },
     { id: schemaId(tableSourceSchema), version: TABLE_PLUGIN_VERSION },
@@ -73,8 +80,8 @@ export interface VersionReport {
   readonly schemaVersion: typeof VERSION_SCHEMA_VERSION;
   readonly tool: Readonly<{ name: "azeforge"; version: typeof TOOL_VERSION }>;
   readonly runtime: RuntimeSupport;
-  readonly source: Readonly<{ azemarkVersions: readonly [1] }>;
-  readonly document: Readonly<{ schemaVersions: readonly [1] }>;
+  readonly source: Readonly<{ azemarkVersions: readonly [2] }>;
+  readonly document: Readonly<{ schemaVersions: readonly [2] }>;
   readonly schemas: readonly VersionedSchema[];
 }
 
@@ -88,8 +95,8 @@ export function createVersionReport(): VersionReport {
     schemaVersion: VERSION_SCHEMA_VERSION,
     tool: { name: "azeforge", version: TOOL_VERSION },
     runtime: RUNTIME_SUPPORT,
-    source: { azemarkVersions: [1] },
-    document: { schemaVersions: [1] },
+    source: { azemarkVersions: [2] },
+    document: { schemaVersions: [2] },
     schemas: publicSchemaVersions(),
   };
 }

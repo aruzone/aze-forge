@@ -1,5 +1,5 @@
 ---
-azemark: 1
+azemark: 2
 title: Sensor calibration exchange
 ---
 
@@ -7,10 +7,10 @@ title: Sensor calibration exchange
 
 A sequence diagram rendered offline with deterministic IDs:
 
-::::: mermaid
+:::: mermaid
 id: calibration-exchange
 title: Reference comparison
-
+----
 sequenceDiagram
   participant Sensor
   participant Reference
@@ -18,4 +18,4 @@ sequenceDiagram
   Reference-->>Sensor: Zero point
   Sensor->>Reference: Apply next load
   Reference-->>Sensor: Measured value
-:::::
+::::

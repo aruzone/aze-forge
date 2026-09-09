@@ -3,6 +3,7 @@ import { extname, isAbsolute, relative, resolve, sep } from "node:path";
 
 import { createDiagnostic } from "./diagnostics.js";
 import { canonicalJson, sha256 } from "./hash.js";
+import { isTypedTableData } from "./table.js";
 import type {
   AssetManifestEntry,
   AzeBlock,
@@ -12,6 +13,7 @@ import type {
   Inline,
   Sha256Hash,
   SourceRange,
+  TypedTableCell,
 } from "./model.js";
 
 export const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
@@ -81,12 +83,22 @@ function collectBlockImages(blocks: readonly AzeBlock[], out: ImageTarget[]): vo
         if (block.caption !== undefined) {
           collectInlineImages(block.caption, block.range, out);
         }
-        for (const cell of block.data.header) {
-          collectInlineImages(cell, block.range, out);
-        }
-        for (const row of block.data.rows) {
-          for (const cell of row) {
+        if (isTypedTableData(block.data)) {
+          for (const row of block.data.rows) {
+            for (const cell of Object.values(row)) {
+              if (Array.isArray(cell)) {
+                collectInlineImages(cell, block.range, out);
+              }
+            }
+          }
+        } else {
+          for (const cell of block.data.header) {
             collectInlineImages(cell, block.range, out);
+          }
+          for (const row of block.data.rows) {
+            for (const cell of row) {
+              collectInlineImages(cell, block.range, out);
+            }
           }
         }
         break;
@@ -94,6 +106,13 @@ function collectBlockImages(blocks: readonly AzeBlock[], out: ImageTarget[]): vo
       case "mermaid":
       case "code":
       case "thematicBreak":
+        break;
+      case "derivation":
+        for (const step of block.steps) {
+          if (step.annotation !== undefined) {
+            collectInlineImages(step.annotation, block.range, out);
+          }
+        }
         break;
     }
   }
@@ -356,18 +375,48 @@ function embedBlockImages(
           ),
         });
       case "table":
+        {
+          const nextData = isTypedTableData(block.data)
+            ? Object.freeze({
+                ...block.data,
+                rows: block.data.rows.map((row) => {
+                  const next: Record<string, TypedTableCell> = {};
+                  for (const [key, cell] of Object.entries(row)) {
+                    next[key] = Array.isArray(cell)
+                      ? embedInlineImages(cell, embedded)
+                      : cell;
+                  }
+                  return Object.freeze(next);
+                }),
+              })
+            : Object.freeze({
+                ...block.data,
+                header: block.data.header.map((cell) => embedInlineImages(cell, embedded)),
+                rows: block.data.rows.map((row) =>
+                  Object.freeze(
+                    row.map((cell) => embedInlineImages(cell, embedded)),
+                  ),
+                ),
+              });
+          return Object.freeze({
+            ...block,
+            ...(block.caption === undefined
+              ? {}
+              : { caption: embedInlineImages(block.caption, embedded) }),
+            data: nextData,
+          });
+        }
+      case "derivation":
         return Object.freeze({
           ...block,
-          ...(block.caption === undefined
-            ? {}
-            : { caption: embedInlineImages(block.caption, embedded) }),
-          data: Object.freeze({
-            ...block.data,
-            header: block.data.header.map((cell) => embedInlineImages(cell, embedded)),
-            rows: block.data.rows.map((row) =>
-              row.map((cell) => embedInlineImages(cell, embedded)),
-            ),
-          }),
+          steps: block.steps.map((step) =>
+            Object.freeze({
+              ...step,
+              ...(step.annotation === undefined
+                ? {}
+                : { annotation: embedInlineImages(step.annotation, embedded) }),
+            }),
+          ),
         });
       default:
         return block;

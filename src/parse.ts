@@ -1,6 +1,8 @@
 import { isAlias, isScalar, parseDocument, visit } from "yaml";
 
 import { createDiagnostic } from "./diagnostics.js";
+import { DERIVATION_PLUGIN_TYPE, derivationPlugin, parseDerivationHeader, validateDerivationBody } from "./derivation.js";
+import { validateUnitExpression, QuantityError } from "./quantity.js";
 import { CALLOUT_PLUGIN_TYPE, CALLOUT_PLUGIN_VERSION, CALLOUT_VARIANTS, calloutPlugin } from "./callout.js";
 import { TABLE_PLUGIN_TYPE, TABLE_PLUGIN_VERSION, tablePlugin } from "./table.js";
 import {
@@ -32,7 +34,11 @@ import type {
   RelatedLocation,
   SourceRange,
   TableBlock,
+  TableColumn,
   TableData,
+  TableGroup,
+  TypedTableCell,
+  TypedTableData,
 } from "./model.js";
 import {
   rangeFromLineSlice,
@@ -58,6 +64,16 @@ const KNOWN_METADATA_KEYS: Readonly<Record<string, true>> = {
   theme: true,
   outputs: true,
 };
+const BLANK = /^[ \t]*$/;
+const STRUCTURAL_COMMENT = /^[ \t]*\/[\/](?:[ \t].*)?$/;
+/** Fixed AzeMark 2 outer directive: exactly four colons, optional type. */
+const OUTER_DIRECTIVE_OPEN = /^ {0,3}::::[ \t]*([^ \t:].*)?$/;
+const OUTER_DIRECTIVE_CLOSE = /^ {0,3}::::[ \t]*$/;
+/** Fixed AzeMark 2 nested directive: exactly two colons, optional type. */
+const NESTED_DIRECTIVE_OPEN = /^ {0,3}::[ \t]*([^ \t:].*)?$/;
+const NESTED_DIRECTIVE_CLOSE = /^ {0,3}::[ \t]*$/;
+const HEADER_SEPARATOR = /^ {0,3}-{4}[ \t]*$/;
+const HEADER_ENTRY = /^[ \t]*([A-Za-z][A-Za-z0-9-]*)[ \t]*:(.*)$/;
 const EXTENSION_KEY = /^x-[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 function metadataKeyDistance(left: string, right: string): number {
@@ -376,11 +392,11 @@ function parseFrontMatter(
   } = { authors: [], extensions: {} };
   const metadataLine = lines[1] ?? firstLine;
 
-  if (record.azemark !== undefined && record.azemark !== 1) {
+if (record.azemark !== undefined && record.azemark !== 2) {
     diagnostics.push(
       diagnostic(
         "azeforge.source#version-unsupported",
-        'Front matter "azemark" must be the integer 1.',
+        'Front matter "azemark" must be the integer 2.',
         options,
         metadataLine,
       ),
@@ -645,6 +661,58 @@ function unknownDirectiveCandidates(
     .map(({ candidate }) => candidate);
 }
 
+function missingSeparatorDiagnostic(
+  lines: readonly SourceLine[],
+  openIndex: number,
+  closingIndex: number,
+  first: SourceLine,
+  options: ParseOptions,
+  diagnostics: Diagnostic[],
+): void {
+  let insertionIndex = openIndex + 1;
+  while (insertionIndex < closingIndex) {
+    const candidate = lines[insertionIndex];
+    if (candidate === undefined) break;
+    const text = lineText(candidate);
+    if (BLANK.test(text) || STRUCTURAL_COMMENT.test(text)) {
+      insertionIndex += 1;
+      continue;
+    }
+    if (HEADER_ENTRY.test(text)) {
+      insertionIndex += 1;
+      continue;
+    }
+    break;
+  }
+  const insertionLine = lines[insertionIndex] ?? first;
+  const insertionRange = rangeFromLineSlice(insertionLine, 0, 0);
+  diagnostics.push(
+    diagnostic(
+      "azeforge.source#missing-separator",
+      "A directive Block must separate its header from its body with a `----` line.",
+      options,
+      first,
+      "error",
+      rangeFromLines(first, first),
+      {
+        suggestion:
+          "Insert a line containing exactly `----` between the header properties and the body.",
+        fix: {
+          title: "Insert the `----` header/body separator.",
+          applicability: "safe" as const,
+          edits: [
+            {
+              range: insertionRange,
+              expectedText: "",
+              replacementText: "----\n",
+            },
+          ],
+        },
+      },
+    ),
+  );
+}
+
 function parseEquationEnvelope(
   source: string,
   lines: readonly SourceLine[],
@@ -669,42 +737,16 @@ function parseEquationEnvelope(
     ),
     originalType: EQUATION_PLUGIN_TYPE,
   });
-  const entries: {
-    readonly key: string;
-    readonly value: string;
-    readonly range: SourceRange;
-  }[] = [];
-  let cursor = openIndex + 1;
-  while (cursor < closingIndex) {
-    const header = lines[cursor];
-    if (header === undefined) break;
-    if (/^[ \t]*$/.test(lineText(header))) {
-      cursor += 1;
-      continue;
-    }
-    const match = /^[ \t]*([A-Za-z][A-Za-z0-9-]*)[ \t]*:(.*)$/.exec(
-      lineText(header),
-    );
-    if (match === null) break;
-    const key = match[1] ?? "";
-    const rawValue = match[2] ?? "";
-    const value = rawValue.trim();
-    const colonIndex = header.text.indexOf(":");
-    const valueStart =
-      colonIndex + 1 + (rawValue.length - rawValue.trimStart().length);
-    entries.push({
-      key,
-      value,
-      range: rangeFromLineSlice(header, valueStart, valueStart + value.length),
-    });
-    cursor += 1;
+  const { entries, bodyStart, separatorFound } = splitHeaderEntries(
+    lines,
+    openIndex,
+    closingIndex,
+  );
+  if (!separatorFound) {
+    missingSeparatorDiagnostic(lines, openIndex, closingIndex, first, options, diagnostics);
+    return finishInvalid();
   }
-  while (cursor < closingIndex) {
-    const blank = lines[cursor];
-    if (blank !== undefined && !/^[ \t]*$/.test(lineText(blank))) break;
-    cursor += 1;
-  }
-  const bodyLines = lines.slice(cursor, closingIndex);
+  const bodyLines = lines.slice(bodyStart, closingIndex);
   const body = bodyLines.map((entry) => lineText(entry)).join("\n");
   const bodyRanges = bodyLines.map((entry) => rangeFromLines(entry, entry));
   const syntaxRange = entries.find((entry) => entry.key === "syntax")?.range;
@@ -1156,21 +1198,36 @@ function tryGfmTableAt(
   return { data: parsed.data, consumed: parsed.consumed };
 }
 
+interface SplitDirectiveHeader {
+  readonly entries: { key: string; value: string; range: SourceRange }[];
+  readonly bodyStart: number;
+  /** True when a mandatory `----` header/body separator was found. */
+  readonly separatorFound: boolean;
+}
+
 function splitHeaderEntries(
   lines: readonly SourceLine[],
   openIndex: number,
   closingIndex: number,
-): { entries: { key: string; value: string; range: SourceRange }[]; bodyStart: number } {
+): SplitDirectiveHeader {
   const entries: { key: string; value: string; range: SourceRange }[] = [];
   let cursor = openIndex + 1;
   while (cursor < closingIndex) {
     const header = lines[cursor];
     if (header === undefined) break;
-    if (/^[ \t]*$/.test(lineText(header))) {
+    const text = lineText(header);
+    if (BLANK.test(text)) {
       cursor += 1;
       continue;
     }
-    const match = /^[ \t]*([A-Za-z][A-Za-z0-9-]*)[ \t]*:(.*)$/.exec(lineText(header));
+    if (STRUCTURAL_COMMENT.test(text)) {
+      cursor += 1;
+      continue;
+    }
+    if (HEADER_SEPARATOR.test(text)) {
+      return { entries, bodyStart: cursor + 1, separatorFound: true };
+    }
+    const match = HEADER_ENTRY.exec(text);
     if (match === null) break;
     const key = match[1] ?? "";
     const rawValue = match[2] ?? "";
@@ -1184,12 +1241,7 @@ function splitHeaderEntries(
     });
     cursor += 1;
   }
-  while (cursor < closingIndex) {
-    const blank = lines[cursor];
-    if (blank !== undefined && !/^[ \t]*$/.test(lineText(blank))) break;
-    cursor += 1;
-  }
-  return { entries, bodyStart: cursor };
+  return { entries, bodyStart: closingIndex, separatorFound: false };
 }
 function parseMermaidEnvelope(
   source: string,
@@ -1212,11 +1264,15 @@ function parseMermaidEnvelope(
       diagnostics,
       MERMAID_PLUGIN_TYPE,
     );
-  const { entries, bodyStart } = splitHeaderEntries(
+  const { entries, bodyStart, separatorFound } = splitHeaderEntries(
     lines,
     openIndex,
     closingIndex,
   );
+  if (!separatorFound) {
+    missingSeparatorDiagnostic(lines, openIndex, closingIndex, first, options, diagnostics);
+    return finishInvalid();
+  }
   const header = parseMermaidHeader(
     entries,
     blockRange,
@@ -1240,6 +1296,64 @@ function parseMermaidEnvelope(
 }
 
 
+function parseDerivationEnvelope(
+  source: string,
+  lines: readonly SourceLine[],
+  openIndex: number,
+  closingIndex: number,
+  first: SourceLine,
+  last: SourceLine,
+  options: ParseOptions,
+  diagnostics: Diagnostic[],
+): ParsedBlock {
+  const blockRange = rangeFromLines(first, last);
+  const startIndex = diagnostics.length;
+  const finishInvalid = (): ParsedBlock =>
+    invalidBlockFor(source, first, last, startIndex, diagnostics, DERIVATION_PLUGIN_TYPE);
+  const { entries, bodyStart, separatorFound } = splitHeaderEntries(
+    lines,
+    openIndex,
+    closingIndex,
+  );
+  if (!separatorFound) {
+    missingSeparatorDiagnostic(lines, openIndex, closingIndex, first, options, diagnostics);
+    return finishInvalid();
+  }
+  const header = parseDerivationHeader(entries, blockRange, options.sourceName);
+  if (header.diagnostics.length > 0) {
+    diagnostics.push(...header.diagnostics);
+    return finishInvalid();
+  }
+  const bodyLines = lines.slice(bodyStart, closingIndex);
+  const body = bodyLines.map((line) => lineText(line)).join("\n");
+  const bodyRanges = bodyLines.map((line) => rangeFromLines(line, line));
+  const validated = validateDerivationBody({
+    header,
+    body,
+    bodyRanges,
+    blockRange,
+    sourceName: options.sourceName,
+    parseAnnotation: (text, range) => {
+      const lineIndex = bodyLines.findIndex(
+        (line) =>
+          rangeFromLines(line, line).start.offset === range.start.offset,
+      );
+      const annotationLine = bodyLines[lineIndex];
+      const nodes = parseInlineNodes(
+        text,
+        annotationLine ?? first,
+        annotationLine ?? last,
+        options,
+        diagnostics,
+      );
+      return nodes;
+    },
+  });
+  if (validated.block !== undefined) return validated.block;
+  diagnostics.push(...validated.diagnostics);
+  return finishInvalid();
+}
+
 function parseCalloutEnvelope(
   source: string,
   lines: readonly SourceLine[],
@@ -1257,7 +1371,11 @@ function parseCalloutEnvelope(
   const startIndex = diagnostics.length;
   const finishInvalid = (): ParsedBlock =>
     invalidBlockFor(source, first, last, startIndex, diagnostics, CALLOUT_PLUGIN_TYPE);
-  const { entries, bodyStart } = splitHeaderEntries(lines, openIndex, closingIndex);
+  const { entries, bodyStart, separatorFound } = splitHeaderEntries(lines, openIndex, closingIndex);
+  if (!separatorFound) {
+    missingSeparatorDiagnostic(lines, openIndex, closingIndex, first, options, diagnostics);
+    return finishInvalid();
+  }
   let variant = "note";
   let title: Inline[] | undefined;
   let id: string | undefined;
@@ -1323,6 +1441,506 @@ function parseCalloutEnvelope(
   return block;
 }
 
+const TABLE_COLUMN_KEY = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
+const TABLE_COLUMN_TYPES = Object.freeze([
+  "text",
+  "prose",
+  "number",
+  "quantity",
+  "boolean",
+] as const);
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    !Array.isArray(value)
+  );
+}
+
+function parseTableDeclarationBody(
+  bodyText: string,
+  options: ParseOptions,
+  first: SourceLine,
+  diagnostics: Diagnostic[],
+): Record<string, unknown> | undefined {
+  const parsed = parseDocument(bodyText, {
+    prettyErrors: false,
+    strict: true,
+    uniqueKeys: true,
+  });
+  for (const error of parsed.errors) {
+    diagnostics.push(
+      diagnostic(
+        "azeforge.table#invalid-yaml",
+        "The table Block body contains invalid structural declarations.",
+        options,
+        first,
+        "error",
+        rangeFromLines(first, first),
+        { data: { detail: typeof error.message === "string" ? error.message : String(error) } },
+      ),
+    );
+  }
+  if (parsed.errors.length > 0) return undefined;
+  let valid = true;
+  visit(parsed, {
+    Alias() {
+      valid = false;
+      diagnostics.push(
+        diagnostic(
+          "azeforge.table#alias-disabled",
+          "Table declarations cannot use YAML aliases.",
+          options,
+          first,
+          "error",
+          rangeFromLines(first, first),
+        ),
+      );
+    },
+    Pair(_key, pair) {
+      if (
+        isScalar(pair.key) &&
+        pair.key.value === "<<" &&
+        pair.key.type === "PLAIN"
+      ) {
+        valid = false;
+        diagnostics.push(
+          diagnostic(
+            "azeforge.table#merge-key-disabled",
+            "Table declarations cannot use YAML merge keys.",
+            options,
+            first,
+            "error",
+            rangeFromLines(first, first),
+          ),
+        );
+      }
+    },
+    Node(_key, node) {
+      if (!isAlias(node) && node.anchor !== undefined) {
+        valid = false;
+        diagnostics.push(
+          diagnostic(
+            "azeforge.table#anchor-disabled",
+            "Table declarations cannot use YAML anchors.",
+            options,
+            first,
+            "error",
+            rangeFromLines(first, first),
+          ),
+        );
+      }
+      if (node.tag !== undefined) {
+        valid = false;
+        diagnostics.push(
+          diagnostic(
+            "azeforge.table#tag-disabled",
+            "Table declarations cannot use YAML tags.",
+            options,
+            first,
+            "error",
+            rangeFromLines(first, first),
+          ),
+        );
+      }
+    },
+  });
+  if (!valid) return undefined;
+  try {
+    const value = parsed.toJS({ maxAliasCount: 0 });
+    if (!isPlainRecord(value)) {
+      diagnostics.push(
+        diagnostic(
+          "azeforge.table#body-must-be-records",
+          "A table Block body must be a declaration record, not a scalar or list.",
+          options,
+          first,
+          "error",
+          rangeFromLines(first, first),
+        ),
+      );
+      return undefined;
+    }
+    return value;
+  } catch {
+    diagnostics.push(
+      diagnostic(
+        "azeforge.table#invalid-yaml",
+        "The table Block body contains invalid structural declarations.",
+        options,
+        first,
+        "error",
+        rangeFromLines(first, first),
+      ),
+    );
+    return undefined;
+  }
+}
+
+function tableColumnFromValue(
+  item: unknown,
+  first: SourceLine,
+  options: ParseOptions,
+  diagnostics: Diagnostic[],
+): TableColumn | undefined {
+  if (!isPlainRecord(item)) {
+    diagnostics.push(
+      diagnostic(
+        "azeforge.table#invalid-column",
+        "Each table column must be a record with a lowercase-kebab `key`.",
+        options,
+        first,
+        "error",
+        rangeFromLines(first, first),
+      ),
+    );
+    return undefined;
+  }
+  const key = item.key;
+  if (typeof key !== "string" || !TABLE_COLUMN_KEY.test(key)) {
+    diagnostics.push(
+      diagnostic(
+        "azeforge.table#invalid-column",
+        "Table column `key` must be lowercase-kebab.",
+        options,
+        first,
+        "error",
+        rangeFromLines(first, first),
+        { data: { key: typeof key === "string" ? key : null } },
+      ),
+    );
+    return undefined;
+  }
+  for (const [field, label] of [
+    ["name", "column name"],
+    ["unit", "column unit"],
+  ] as const) {
+    const raw = item[field];
+    if (raw === undefined) continue;
+    if (typeof raw !== "string" || raw.length === 0) {
+      diagnostics.push(
+        diagnostic(
+          "azeforge.table#invalid-column",
+          `Table column ${label} must be a non-empty string.`,
+          options,
+          first,
+          "error",
+          rangeFromLines(first, first),
+          { data: { key } },
+        ),
+      );
+      return undefined;
+    }
+  }
+  if (item.type !== undefined) {
+    if (
+      typeof item.type !== "string" ||
+      !(TABLE_COLUMN_TYPES as readonly string[]).includes(item.type)
+    ) {
+      diagnostics.push(
+        diagnostic(
+          "azeforge.table#invalid-column",
+          `Table column type must be one of ${(TABLE_COLUMN_TYPES as readonly string[]).join(", ")}.`,
+          options,
+          first,
+          "error",
+          rangeFromLines(first, first),
+          { data: { key } },
+        ),
+      );
+      return undefined;
+    }
+    if (
+      item.type === "quantity" &&
+      item.unit !== undefined &&
+      typeof item.unit === "string"
+    ) {
+      try {
+        validateUnitExpression(item.unit);
+      } catch (error) {
+        diagnostics.push(
+          diagnostic(
+            "azeforge.table#invalid-quantity-unit",
+            `Table column quantity unit "${item.unit}" is not registered.`,
+            options,
+            first,
+            "error",
+            rangeFromLines(first, first),
+            {
+              data: { key, unit: item.unit },
+              ...(error instanceof QuantityError
+                ? { suggestion: error.message }
+                : {}),
+            },
+          ),
+        );
+        return undefined;
+      }
+    }
+  }
+  for (const keyName of Object.keys(item)) {
+    if (keyName === "key" || keyName === "name" || keyName === "type" || keyName === "unit") continue;
+    diagnostics.push(
+      diagnostic(
+        "azeforge.table#unknown-column-field",
+        `Table column field "${keyName}" is not supported.`,
+        options,
+        first,
+        "error",
+        rangeFromLines(first, first),
+        { data: { key } },
+      ),
+    );
+    return undefined;
+  }
+  const name = typeof item.name === "string" ? item.name : undefined;
+  const type = typeof item.type === "string" ? item.type : undefined;
+  const unit = typeof item.unit === "string" ? item.unit : undefined;
+  const column: TableColumn = { key };
+  return {
+    ...column,
+    ...(name === undefined ? {} : { name }),
+    ...(type === undefined ? {} : { type }),
+    ...(unit === undefined ? {} : { unit }),
+  };
+}
+
+function parseTypedTableBody(
+  bodyLines: readonly SourceLine[],
+  first: SourceLine,
+  last: SourceLine,
+  blockRange: SourceRange,
+  options: ParseOptions,
+  diagnostics: Diagnostic[],
+): TypedTableData | undefined {
+  const bodyText = bodyLines.map((line) => lineText(line)).join("\n").trim();
+  if (bodyText.length === 0) {
+    diagnostics.push(
+      diagnostic(
+        "azeforge.table#empty-body",
+        "A table Block body must declare `columns:` and `rows:` records.",
+        options,
+        first,
+        "error",
+        blockRange,
+        { suggestion: "Declare typed columns followed by typed rows." },
+      ),
+    );
+    return undefined;
+  }
+  const value = parseTableDeclarationBody(bodyText, options, first, diagnostics);
+  if (value === undefined) return undefined;
+  if (value.columns === undefined || value.rows === undefined) {
+    diagnostics.push(
+      diagnostic(
+        "azeforge.table#missing-columns-or-rows",
+        "A table Block body must declare both `columns:` and `rows:`.",
+        options,
+        first,
+        "error",
+        blockRange,
+      ),
+    );
+    return undefined;
+  }
+  if (!Array.isArray(value.columns) || !Array.isArray(value.rows)) {
+    diagnostics.push(
+      diagnostic(
+        "azeforge.table#missing-columns-or-rows",
+        "A table Block body must declare `columns` and `rows` as collections.",
+        options,
+        first,
+        "error",
+        blockRange,
+      ),
+    );
+    return undefined;
+  }
+  const columns: TableColumn[] = [];
+  const seenKeys = new Set<string>();
+  for (const item of value.columns) {
+    const column = tableColumnFromValue(item, first, options, diagnostics);
+    if (column === undefined) return undefined;
+    if (seenKeys.has(column.key)) {
+      diagnostics.push(
+        diagnostic(
+          "azeforge.table#duplicate-column",
+          `Table column key "${column.key}" is declared more than once.`,
+          options,
+          first,
+          "error",
+          blockRange,
+          { data: { key: column.key } },
+        ),
+      );
+      return undefined;
+    }
+    seenKeys.add(column.key);
+    columns.push(column);
+  }
+  if (columns.length === 0) {
+    diagnostics.push(
+      diagnostic(
+        "azeforge.table#no-columns",
+        "A table Block must declare at least one column.",
+        options,
+        first,
+        "error",
+        blockRange,
+      ),
+    );
+    return undefined;
+  }
+  let groups: TableGroup[] | undefined;
+  if (value.groups !== undefined) {
+    if (!Array.isArray(value.groups)) {
+      diagnostics.push(
+        diagnostic(
+          "azeforge.table#invalid-groups",
+          "Table `groups` must be a collection.",
+          options,
+          first,
+          "error",
+          blockRange,
+        ),
+      );
+      return undefined;
+    }
+    groups = [];
+    const seenGroupNames = new Set<string>();
+    for (const item of value.groups) {
+      if (!isPlainRecord(item) || typeof item.name !== "string" || !Array.isArray(item.columns)) {
+        diagnostics.push(
+          diagnostic(
+            "azeforge.table#invalid-group",
+            "Each table group needs a `name` string and a `columns` collection.",
+            options,
+            first,
+            "error",
+            blockRange,
+          ),
+        );
+        return undefined;
+      }
+      if (seenGroupNames.has(item.name)) {
+        diagnostics.push(
+          diagnostic(
+            "azeforge.table#duplicate-group",
+            `Table group name "${item.name}" is declared more than once.`,
+            options,
+            first,
+            "error",
+            blockRange,
+            { data: { name: item.name } },
+          ),
+        );
+        return undefined;
+      }
+      const groupColumns: string[] = [];
+      for (const key of item.columns) {
+        if (typeof key !== "string" || !seenKeys.has(key)) {
+          diagnostics.push(
+            diagnostic(
+              "azeforge.table#unknown-group-column",
+              `Table group references an unknown column "${String(key)}".`,
+              options,
+              first,
+              "error",
+              blockRange,
+              { data: { name: item.name, column: typeof key === "string" ? key : null } },
+            ),
+          );
+          return undefined;
+        }
+        groupColumns.push(key);
+      }
+      const extra = Object.keys(item).filter(
+        (keyName) => keyName !== "name" && keyName !== "columns",
+      );
+      if (extra.length > 0) {
+        diagnostics.push(
+          diagnostic(
+            "azeforge.table#unknown-group-field",
+            `Unknown table group field "${extra[0] ?? ""}".`,
+            options,
+            first,
+            "error",
+            blockRange,
+            { data: { name: item.name } },
+          ),
+        );
+        return undefined;
+      }
+      seenGroupNames.add(item.name);
+      groups.push({ name: item.name, columns: groupColumns });
+    }
+  }
+  const rows: (Readonly<Record<string, TypedTableCell>>)[] = [];
+  for (const [rowIndex, item] of value.rows.entries()) {
+    if (!isPlainRecord(item)) {
+      diagnostics.push(
+        diagnostic(
+          "azeforge.table#invalid-row",
+          "Each table row must be a record keyed by column keys.",
+          options,
+          first,
+          "error",
+          blockRange,
+          { data: { row: rowIndex + 1 } },
+        ),
+      );
+      return undefined;
+    }
+    const row: Record<string, TypedTableCell> = {};
+    for (const key of columns) {
+      const raw = item[key.key];
+      if (raw === undefined) continue;
+      if (typeof raw === "string") {
+        const nodes = parseInlineNodes(raw, first, last, options, diagnostics);
+        if (nodes === undefined) return undefined;
+        row[key.key] = nodes;
+      } else if (typeof raw === "number" || typeof raw === "boolean") {
+        row[key.key] = raw;
+      } else {
+        diagnostics.push(
+          diagnostic(
+            "azeforge.table#invalid-cell",
+            `Table cell for column "${key.key}" must be text, a number, or a boolean.`,
+            options,
+            first,
+            "error",
+            blockRange,
+            { data: { row: rowIndex + 1, column: key.key } },
+          ),
+        );
+        return undefined;
+      }
+    }
+    for (const keyName of Object.keys(item)) {
+      if (seenKeys.has(keyName)) continue;
+      diagnostics.push(
+        diagnostic(
+          "azeforge.table#unknown-row-column",
+          `Table row references unknown column "${keyName}".`,
+          options,
+          first,
+          "error",
+          blockRange,
+          { data: { row: rowIndex + 1, column: keyName } },
+        ),
+      );
+      return undefined;
+    }
+    rows.push(row);
+  }
+  return {
+    columns,
+    rows,
+    ...(groups === undefined || groups.length === 0 ? {} : { groups }),
+  };
+}
+
 function parseTableEnvelope(
   source: string,
   lines: readonly SourceLine[],
@@ -1337,7 +1955,11 @@ function parseTableEnvelope(
   const startIndex = diagnostics.length;
   const finishInvalid = (): ParsedBlock =>
     invalidBlockFor(source, first, last, startIndex, diagnostics, TABLE_PLUGIN_TYPE);
-  const { entries, bodyStart } = splitHeaderEntries(lines, openIndex, closingIndex);
+  const { entries, bodyStart, separatorFound } = splitHeaderEntries(lines, openIndex, closingIndex);
+  if (!separatorFound) {
+    missingSeparatorDiagnostic(lines, openIndex, closingIndex, first, options, diagnostics);
+    return finishInvalid();
+  }
   let caption: Inline[] | undefined;
   let id: string | undefined;
   for (const entry of entries) {
@@ -1375,11 +1997,10 @@ function parseTableEnvelope(
       return finishInvalid();
     }
   }
-  const bodyTexts = lines
-    .slice(bodyStart, closingIndex)
-    .map((line) => lineText(line as SourceLine))
-    .filter((text) => !/^[ \t]*$/.test(text));
-  const bodySourceLines = lines.slice(bodyStart, closingIndex).filter((line) => !/^[ \t]*$/.test(lineText(line as SourceLine))) as SourceLine[];
+  const bodyLines = lines.slice(bodyStart, closingIndex);
+  const bodySourceLines = bodyLines.filter(
+    (line) => !/^[ \t]*$/.test(lineText(line as SourceLine)),
+  ) as SourceLine[];
   const bodyRawHtml = findRawHtml(bodySourceLines);
   if (bodyRawHtml !== undefined) {
     diagnostics.push(
@@ -1394,48 +2015,18 @@ function parseTableEnvelope(
     );
     return invalidBlockFor(source, first, last, startIndex, diagnostics, TABLE_PLUGIN_TYPE);
   }
-  if (bodyTexts.length < 2) {
-    diagnostics.push(
-      diagnostic(
-        "azeforge.table#body-must-be-table",
-        "A table Block body must contain a GFM table with a header and delimiter row.",
-        options,
-        first,
-        "error",
-        blockRange,
-        { suggestion: "Add a header row followed by a delimiter row such as `| --- |`." },
-      ),
-    );
-    return finishInvalid();
-  }
-  const parsed = tryParseGfmTable(bodyTexts);
-  if (parsed === undefined || parsed.consumed !== bodyTexts.length) {
-    diagnostics.push(
-      diagnostic(
-        "azeforge.table#body-must-be-table",
-        "A table Block body must contain only a GFM table.",
-        options,
-        first,
-        "error",
-        blockRange,
-        { suggestion: "Keep only the GFM header, delimiter, and body rows in the table body." },
-      ),
-    );
-    return finishInvalid();
-  }
-  const safetyTexts: string[] = [];
-  const headerCells = splitTableRow(bodyTexts[0] as string);
-  const bodyCellRows = bodyTexts.slice(2).map((line) => splitTableRow(line));
-  if (headerCells !== undefined) safetyTexts.push(...headerCells);
-  for (const row of bodyCellRows) {
-    if (row !== undefined) safetyTexts.push(...row);
-  }
-  if (!ensureInlineTargetsSafe(safetyTexts, first, last, options, diagnostics)) {
-    return finishInvalid();
-  }
+  const data = parseTypedTableBody(
+    bodyLines,
+    first,
+    last,
+    blockRange,
+    options,
+    diagnostics,
+  );
+  if (data === undefined) return finishInvalid();
   const block: TableBlock = {
     kind: "table",
-    data: parsed.data,
+    data,
     range: blockRange,
     ...(id === undefined || id === "" ? {} : { id }),
     ...(caption === undefined ? {} : { caption }),
@@ -1464,24 +2055,60 @@ function parseBlocks(
       continue;
     }
 
-    const directive = /^ {0,3}:{4,}[ \t]*([^ \t:]*)/.exec(lineText(line));
-    if (directive !== null) {
+    const candidateText = lineText(line);
+    if (depth === 0 && NESTED_DIRECTIVE_OPEN.exec(candidateText) !== null) {
+      const first = line;
+      const diagnosticIndex = diagnostics.length;
+      diagnostics.push(
+        diagnostic(
+          "azeforge.source#unexpected-nested-directive",
+          "A nested `::` directive may only appear inside an enclosing directive Block.",
+          options,
+          first,
+          "error",
+          rangeFromLines(first, first),
+        ),
+      );
+      blocks.push({
+        kind: "invalid",
+        raw: lineText(first),
+        range: rangeFromLines(first, first),
+        diagnosticIndexes: [diagnosticIndex],
+      });
+      index += 1;
+      continue;
+    }
+    const directiveOpen = depth === 0
+      ? OUTER_DIRECTIVE_OPEN.exec(candidateText)
+      : NESTED_DIRECTIVE_OPEN.exec(candidateText);
+    const directiveClose = depth === 0
+      ? OUTER_DIRECTIVE_CLOSE
+      : NESTED_DIRECTIVE_CLOSE;
+    if (directiveOpen !== null) {
       const first = line;
       const openIndex = index;
-      const originalType = directive[1] === "" ? undefined : directive[1];
+      const rawType = directiveOpen[1] === undefined ? undefined : directiveOpen[1].trim();
+      const originalType =
+        rawType === undefined || rawType === "" || /^[ \t]*$/.test(rawType)
+          ? undefined
+          : rawType;
       let closingIndex = -1;
       {
-        let depth = 1;
+        let scanDepth = 1;
         for (let scan = openIndex + 1; scan < lines.length; scan += 1) {
-          const text = lineText(lines[scan] as SourceLine);
-          if (/^ {0,3}:{4,}[ \t]*$/.test(text)) {
-            depth -= 1;
-            if (depth === 0) {
+          const candidate = lineText(lines[scan] as SourceLine);
+          if (directiveClose.test(candidate)) {
+            scanDepth -= 1;
+            if (scanDepth === 0) {
               closingIndex = scan;
               break;
             }
-          } else if (/^ {0,3}:{4,}[ \t]*[^ \t:]/.test(text)) {
-            depth += 1;
+          } else if (
+            depth === 0
+              ? OUTER_DIRECTIVE_OPEN.exec(candidate) !== null
+              : NESTED_DIRECTIVE_OPEN.exec(candidate) !== null
+          ) {
+            scanDepth += 1;
           }
         }
       }
@@ -1567,6 +2194,25 @@ function parseBlocks(
       }
       if (
         closed &&
+        originalType === DERIVATION_PLUGIN_TYPE &&
+        activeTypes.includes(DERIVATION_PLUGIN_TYPE)
+      ) {
+        blocks.push(
+          parseDerivationEnvelope(
+            source,
+            lines,
+            openIndex,
+            closingIndex,
+            first,
+            last,
+            options,
+            diagnostics,
+          ),
+        );
+        continue;
+      }
+      if (
+        closed &&
         originalType === TABLE_PLUGIN_TYPE &&
         activeTypes.includes(TABLE_PLUGIN_TYPE)
       ) {
@@ -1585,6 +2231,7 @@ function parseBlocks(
         continue;
       }
       const diagnosticIndex = diagnostics.length;
+      const closingDelimiter = depth === 0 ? "::::" : "::";
       const typeStartIndex =
         originalType === undefined
           ? lineTextStartIndex(first)
@@ -1607,7 +2254,7 @@ function parseBlocks(
             ? originalType === undefined
               ? "A directive Block must name a type."
               : `Directive Block type "${originalType}" is not available.`
-            : "A directive Block must end with a closing `::::` delimiter.",
+            : `A directive Block must end with a closing \`${closingDelimiter}\` delimiter.`,
           options,
           first,
           "error",
@@ -1675,7 +2322,7 @@ function parseBlocks(
             ...(!closed
               ? {
                   suggestion:
-                    "Add a closing `::::` delimiter before the next Block.",
+                    `Add a closing \`${closingDelimiter}\` delimiter before the next Block.`,
                   ...(unambiguousEnd
                     ? {
                         fix: {
@@ -1687,8 +2334,8 @@ function parseBlocks(
                               expectedText: "",
                               replacementText:
                                 source.endsWith("\n") || source.endsWith("\r")
-                                  ? `::::${newline}`
-                                  : `${newline}::::`,
+                                  ? `${closingDelimiter}${newline}`
+                                  : `${newline}${closingDelimiter}`,
                             },
                           ],
                         },
@@ -1820,9 +2467,13 @@ function parseBlocks(
       }
       const nextText = lineText(next);
       const after = lines[index + 1];
+      const nextIsDirective =
+        depth === 0
+          ? OUTER_DIRECTIVE_OPEN.exec(nextText) !== null
+          : NESTED_DIRECTIVE_OPEN.exec(nextText) !== null;
       if (
         parseAtxHeading(nextText) !== undefined ||
-        /^ {0,3}:{4,}/.test(nextText) ||
+        nextIsDirective ||
         fenceOpen(nextText) !== undefined ||
         isThematicBreakText(nextText) ||
         stripQuotePrefix(nextText) !== undefined ||
@@ -1887,25 +2538,35 @@ function directiveIdOccurrences(
 
   for (let index = bodyStart; index < lines.length; index += 1) {
     const opening = lines[index];
+    if (opening === undefined) continue;
     if (
-      opening === undefined ||
-      !/^ {0,3}:{4,}[ \t]*[^ \t:]+/.test(lineText(opening))
+      OUTER_DIRECTIVE_OPEN.exec(lineText(opening)) === null &&
+      NESTED_DIRECTIVE_OPEN.exec(lineText(opening)) === null
     ) {
       continue;
     }
+    let closed = false;
     for (let headerIndex = index + 1; headerIndex < lines.length; headerIndex += 1) {
       const header = lines[headerIndex];
-      if (
-        header === undefined ||
-        /^ {0,3}:{4,}[ \t]*$/.test(lineText(header))
-      ) {
+      if (header === undefined) break;
+      const headerText = lineText(header);
+      if (OUTER_DIRECTIVE_CLOSE.test(headerText) || NESTED_DIRECTIVE_CLOSE.test(headerText)) {
+        closed = true;
         break;
       }
-      if (/^[ \t]*$/.test(header.text)) continue;
-      if (!/^[ \t]*[A-Za-z][A-Za-z0-9-]*[ \t]*:/.test(header.text)) break;
-      const idMatch = /^[ \t]*id[ \t]*:[ \t]*(.*?)[ \t]*$/.exec(header.text);
+      if (HEADER_SEPARATOR.test(headerText)) break;
+      if (BLANK.test(headerText) || STRUCTURAL_COMMENT.test(headerText)) continue;
+      if (!HEADER_ENTRY.test(headerText)) break;
+      const idMatch = /^[ \t]*id[ \t]*:[ \t]*(.*?)[ \t]*$/.exec(headerText);
       const id = idMatch?.[1];
-      if (id === undefined) continue;
+      if (id === undefined) {
+        if (/^[ \t]*id[ \t]*:/.test(headerText) && idMatch === null) {
+          // An `id:` entry with no value still terminates header scanning;
+          // its empty value is diagnosed by the owning plugin.
+          break;
+        }
+        continue;
+      }
       const startIndex = header.text.indexOf(id, header.text.indexOf(":") + 1);
       occurrences.push({
         id,
@@ -1920,6 +2581,15 @@ function directiveIdOccurrences(
       });
       break;
     }
+    if (!closed) {
+      // Skip past an unclosed directive region so later occurrences are
+      // still discovered; the block parser reports the unclosed error.
+      const recoveryIndex = lines.findIndex(
+        (candidate, candidateIndex) =>
+          candidateIndex > index && BLANK.test(lineText(candidate)),
+      );
+      if (recoveryIndex >= 0) index = recoveryIndex - 1;
+    }
   }
   return occurrences;
 }
@@ -1933,7 +2603,11 @@ function requiredVersionDiagnostic(
 ): Diagnostic | undefined {
   const containsDirective = lines
     .slice(bodyStart)
-    .some((line) => /^ {0,3}:{4,}/.test(lineText(line)));
+    .some(
+      (line) =>
+        OUTER_DIRECTIVE_OPEN.exec(lineText(line)) !== null ||
+        NESTED_DIRECTIVE_OPEN.exec(lineText(line)) !== null,
+    );
   if (!containsDirective) return undefined;
 
   if (versionDeclared) return undefined;
@@ -1951,14 +2625,14 @@ function requiredVersionDiagnostic(
   );
   return diagnostic(
     "azeforge.source#version-required",
-    "Source with directive Blocks must declare AzeMark version 1.",
+    "Source with directive Blocks must declare AzeMark version 2.",
     options,
     insertionLine,
     "error",
     insertionRange,
     {
       fix: {
-        title: "Declare AzeMark version 1.",
+        title: "Declare AzeMark version 2.",
         applicability: "safe",
         edits: [
           {
@@ -1966,8 +2640,8 @@ function requiredVersionDiagnostic(
             expectedText: "",
             replacementText:
               bodyStart === 0
-                ? `---${newline}azemark: 1${newline}---${newline}${newline}`
-                : `azemark: 1${newline}`,
+                ? `---${newline}azemark: 2${newline}---${newline}${newline}`
+                : `azemark: 2${newline}`,
           },
         ],
       },
@@ -1989,6 +2663,7 @@ export function parseSource(source: string, options: ParseOptions = {}): ParseRe
   if (versionDiagnostic !== undefined) diagnostics.push(versionDiagnostic);
   const activePlugins = options.plugins ?? [
     equationPlugin,
+    derivationPlugin,
     calloutPlugin,
     mermaidPlugin,
     tablePlugin,
@@ -2010,8 +2685,8 @@ export function parseSource(source: string, options: ParseOptions = {}): ParseRe
   );
   return {
     document: {
-      azemarkVersion: 1,
-      schemaVersion: 1,
+      azemarkVersion: 2,
+      schemaVersion: 2,
       metadata: frontMatter.metadata,
       blocks,
     },

@@ -203,7 +203,7 @@ test("PDF preserves equations, diagrams, and callouts through pdf adapters", asy
   context.after(() => rm(directory, { recursive: true, force: true }));
   await writeFile(
     join(directory, "report.aze.md"),
-    `---\nazemark: 1\ntitle: Blocks\n---\n\n# Blocks\n\n:::: callout\nvariant: note\ntitle: A note\n\nKeep this together.\n::::\n\n:::: equation\nid: pythagoras\n\na^2 + b^2 = c^2\n::::\n\n::::: mermaid\nid: loop\ntitle: Loop\ndescription: A tiny loop\n\nflowchart TD\n  a[Start] --> b[End]\n:::::\n`,
+    `---\nazemark: 2\ntitle: Blocks\n---\n\n# Blocks\n\n:::: callout\nvariant: note\ntitle: A note\n----\nKeep this together.\n::::\n\n:::: equation\nid: pythagoras\n----\na^2 + b^2 = c^2\n::::\n\n:::: mermaid\nid: loop\ntitle: Loop\ndescription: A tiny loop\n----\nflowchart TD\n  a[Start] --> b[End]\n::::\n`,
   );
   const result = runCli(["render", "report.aze.md", "--output", "report.pdf"], directory);
   assert.equal(result.status, 0, result.stderr.toString("utf8"));
@@ -284,14 +284,14 @@ test("pagination splits tables and code while dark sections break on headings", 
   const rows = Array.from({ length: 60 }, (_, index) => `| Row ${index} | ${index} N |`).join("\n");
   const code = Array.from({ length: 80 }, (_, index) => `line ${index}`).join("\n");
   const long = `# Long report\n\n| Name | Value |\n| --- | ---: |\n${rows}\n\n\`\`\`text\n${code}\n\`\`\`\n`;
-  await writeFile(join(directory, "long.aze.md"), `---\nazemark: 1\ntitle: Long\n---\n\n${long}`);
+  await writeFile(join(directory, "long.aze.md"), `---\nazemark: 2\ntitle: Long\n---\n\n${long}`);
 
   const result = runCli(["render", "long.aze.md", "--output", "long.pdf"], directory);
   assert.equal(result.status, 0, result.stderr.toString("utf8"));
   assert.ok(pageCountOf(pdfText(await readFile(join(directory, "long.pdf")))) >= 2);
 
   const sections = `# First\n\nOpening text.\n\n# Second\n\nMiddle text.\n\n# Third\n\nClosing text.\n`;
-  await writeFile(join(directory, "sections.aze.md"), `---\nazemark: 1\ntitle: Sections\n---\n\n${sections}`);
+  await writeFile(join(directory, "sections.aze.md"), `---\nazemark: 2\ntitle: Sections\n---\n\n${sections}`);
   const dark = runCli(
     ["render", "sections.aze.md", "--output", "dark.pdf", "--theme", "dark-presentation"],
     directory,
@@ -314,7 +314,7 @@ test("oversized atomic content fails closed without partial output", async (cont
   );
   await writeFile(
     join(directory, "report.aze.md"),
-    `---\nazemark: 1\ntitle: Tall\n---\n\n# Tall\n\n![tall graphic](tall.svg)\n`,
+    `---\nazemark: 2\ntitle: Tall\n---\n\n# Tall\n\n![tall graphic](tall.svg)\n`,
   );
   const result = runCli(["render", "report.aze.md", "--output", "report.pdf"], directory);
   assert.equal(result.status, 1, result.stderr.toString("utf8"));
@@ -402,5 +402,5 @@ test("PDF capabilities describe the paged browser profile", () => {
   const pdfBlocks = getBuiltInRegistry().blockRenderers.filter(
     ({ descriptor }) => descriptor.rendererId === "pdf",
   );
-  assert.equal(pdfBlocks.length, 4);
+  assert.equal(pdfBlocks.length, 5);
 });

@@ -1,5 +1,5 @@
 ---
-azemark: 2
+azemark: 1
 ---
 
 This version is unsupported.

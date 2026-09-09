@@ -45,7 +45,7 @@ Create a Source file — plain Markdown with a small front matter header:
 ```bash
 cat > hello.aze.md <<'EOF'
 ---
-azemark: 1
+azemark: 2
 title: Hello AzeForge
 author:
   - Test Author
@@ -72,15 +72,15 @@ Readable math — no LaTeX required:
 ```bash
 cat > equation.aze.md <<'EOF'
 ---
-azemark: 1
+azemark: 2
 title: Equation check
 ---
 
-::::: equation
+:::: equation
 id: euler
-
+----
 F(omega) = integral x=0..infinity of x^2 dx
-:::::
+::::
 EOF
 
 azeforge render equation.aze.md --output equation.html
@@ -97,26 +97,40 @@ azeforge validate equation.aze.md --allow-raw-latex && echo ALLOWED
 ```bash
 cat > blocks.aze.md <<'EOF'
 ---
-azemark: 1
+azemark: 2
 title: Blocks
 ---
 
-::::: callout
+:::: callout
 variant: note
 title: Determinism note
-
+----
 Callout bodies parse ordinary Markdown, including nested equations.
-:::::
+::::
 
-::::: table
+:::: table
 caption: Thermal properties
 id: materials
-
-| material | density [kg/m^3] | conductivity [W/(m K)] |
-| :--- | :---: | ---: |
-| Aluminum | 2700 | 205 |
-| Steel | 7850 | 50 |
-:::::
+----
+columns:
+  - key: material
+    name: Material
+  - key: density
+    name: Density [kg/m^3]
+    type: quantity
+    unit: kg/m^3
+  - key: conductivity
+    name: Conductivity [W/(m K)]
+    type: quantity
+    unit: W/(m K)
+rows:
+  - material: Aluminum
+    density: 2700
+    conductivity: 205
+  - material: Steel
+    density: 7850
+    conductivity: 50
+::::
 EOF
 
 azeforge render blocks.aze.md --output blocks.html
@@ -129,18 +143,18 @@ Mermaid flowcharts render through the pinned browser engine:
 ```bash
 cat > diagram.aze.md <<'EOF'
 ---
-azemark: 1
+azemark: 2
 title: Diagram
 ---
 
-:::::: mermaid
+:::: mermaid
 id: flow
 title: Measurement flow
-
+----
 flowchart LR
   start[Start] --> inspect[Inspect setup]
   inspect --> done[Done]
-::::::
+::::
 EOF
 
 azeforge render diagram.aze.md --output diagram.html
@@ -177,7 +191,7 @@ Break something and watch it fail closed — exit `1`, previous Artifact
 untouched:
 
 ```bash
-printf -- '---\nazemark: 2\n---\n\nUnsupported.\n' > invalid.aze.md
+printf -- '---\nazemark: 2\n---\n\n:::: mystery\nbody\n::::\n' > invalid.aze.md
 printf 'previous Artifact' > preserved.html
 azeforge render invalid.aze.md --output preserved.html; echo "exit: $?"
 cat preserved.html

@@ -9,7 +9,7 @@ import test from "node:test";
 
 const CLI_PATH = fileURLToPath(new URL("../dist/cli.js", import.meta.url));
 const VALID_SOURCE = `---
-azemark: 1
+azemark: 2
 title: Watch report
 ---
 
@@ -248,7 +248,7 @@ test("watch machine mode emits ordered events with increasing sequences", async 
 test("watch observes a previously missing asset when created", async (context) => {
   const directory = await mkdtemp(join(tmpdir(), "azeforge-watch-missing-"));
   context.after(() => rm(directory, { recursive: true, force: true }));
-  await writeFile(join(directory, "doc.aze.md"), "---\nazemark: 1\n---\n\n# Doc\n\n![alt](late.png)\n");
+  await writeFile(join(directory, "doc.aze.md"), "---\nazemark: 2\n---\n\n# Doc\n\n![alt](late.png)\n");
 
   const handle = startCli(["watch", "doc.aze.md", "--output", "doc.html"], directory);
   stopAfter(context, handle);

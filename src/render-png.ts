@@ -3,6 +3,7 @@ import { deflateSync, inflateSync } from "node:zlib";
 
 import type { Browser, HTTPRequest } from "puppeteer-core";
 import { calloutHtmlBlockRenderer } from "./callout.js";
+import { derivationHtmlBlockRenderer } from "./derivation.js";
 import { equationHtmlBlockRenderer } from "./equation.js";
 
 import { assetManifestHash } from "./assets.js";
@@ -57,6 +58,7 @@ function pngBlockRenderer(renderer: AnyBlockRenderer): AnyBlockRenderer {
 
 export const pngBlockRenderers: readonly AnyBlockRenderer[] = Object.freeze([
   pngBlockRenderer(equationHtmlBlockRenderer),
+  pngBlockRenderer(derivationHtmlBlockRenderer),
   pngBlockRenderer(calloutHtmlBlockRenderer),
   pngBlockRenderer(mermaidHtmlBlockRenderer),
   pngBlockRenderer(tableHtmlBlockRenderer),

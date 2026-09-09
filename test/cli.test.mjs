@@ -10,7 +10,7 @@ import { createCompiler } from "../dist/index.js";
 
 const CLI_PATH = fileURLToPath(new URL("../dist/cli.js", import.meta.url));
 const VALID_SOURCE = `---
-azemark: 1
+azemark: 2
 title: CLI report
 ---
 
@@ -201,7 +201,8 @@ test("human diagnostics use author vocabulary with help and safe fixes", async (
   );
   assert.match(stderr, /Help: Add a closing `::::` delimiter/);
   assert.match(stderr, /\n  :::: mystery\n       \^{7}\n/);
-  assert.match(stderr, /Fix: Declare AzeMark version 1\./);
+  assert.match(stderr, /Fix: Declare AzeMark version 2\./);
+  assert.match(stderr, /Source with directive Blocks must declare AzeMark version 2\./);
   assert.doesNotMatch(stderr, /parser|token|stack/i);
 });
 
@@ -254,7 +255,7 @@ test("failed render preserves the last committed Artifact", async (context) => {
   context.after(() => rm(directory, { recursive: true, force: true }));
   await writeFile(
     join(directory, "invalid.aze.md"),
-    "---\nazemark: 2\n---\n\nFuture Source\n",
+    "---\nazemark: 1\n---\n\nFuture Source\n",
   );
   await writeFile(join(directory, "report.html"), "last successful Artifact");
 

@@ -20,7 +20,7 @@ function runCli(arguments_, cwd, stdinBytes) {
 
 const MESSY_SOURCE = [
   "---",
-  "azemark: 1",
+  "azemark: 2",
   "title: Messy",
   "---",
   "#   Spaced heading   ###",
@@ -28,17 +28,17 @@ const MESSY_SOURCE = [
   "",
   "Paragraph with trailing space.   ",
   "",
-  "::::: equation",
+  ":::: equation",
   "id:euler",
   "number:true",
-  "",
+  "----",
   "alpha + sqrt(x)   ",
-  ":::::",
+  "::::",
 ].join("\n");
 
 const FORMATTED_SOURCE = [
   "---",
-  "azemark: 1",
+  "azemark: 2",
   "title: Messy",
   "---",
   "",
@@ -49,7 +49,7 @@ const FORMATTED_SOURCE = [
   ":::: equation",
   "id: euler",
   "number: true",
-  "",
+  "----",
   "alpha + sqrt(x)",
   "::::",
   "",
@@ -87,14 +87,14 @@ test("format preserves unknown directive bodies byte-for-byte", async (context) 
   context.after(() => rm(directory, { recursive: true, force: true }));
   const source = [
     "---",
-    "azemark: 1",
+    "azemark: 2",
     "title: Unknown",
     "---",
     "Before",
     "",
-    "::::: mystery",
+    ":::: mystery",
     "x = 1   ",
-    ":::::",
+    "::::",
     "",
     "After",
   ].join("\n");
@@ -107,7 +107,7 @@ test("format preserves unknown directive bodies byte-for-byte", async (context) 
     result.stdout.toString("utf8"),
     [
       "---",
-      "azemark: 1",
+      "azemark: 2",
       "title: Unknown",
       "---",
       "",
@@ -128,7 +128,7 @@ test("format preserves denied raw regions and comments", async (context) => {
   context.after(() => rm(directory, { recursive: true, force: true }));
   const source = [
     "---",
-    "azemark: 1",
+    "azemark: 2",
     "title: Raw",
     "---",
     "",
@@ -152,7 +152,7 @@ test("format preserves denied raw regions and comments", async (context) => {
 test("format rejects ambiguous unclosed directives without output", async (context) => {
   const directory = await mkdtemp(join(tmpdir(), "azeforge-format-ambiguous-"));
   context.after(() => rm(directory, { recursive: true, force: true }));
-  const source = "---\nazemark: 1\n---\n\nBefore\n\n:::: mystery\nbroken\n\n# After\n";
+  const source = "---\nazemark: 2\n---\n\nBefore\n\n:::: mystery\nbroken\n\n# After\n";
   await writeFile(join(directory, "ambiguous.aze.md"), source);
 
   const result = runCli(["format", "ambiguous.aze.md"], directory);
@@ -184,7 +184,7 @@ test("format rejects unclosed front matter without output", async () => {
 });
 
 test("format leaves hash-led paragraphs without heading space untouched", async () => {
-  const source = "---\nazemark: 1\n---\n\n#Title\n";
+  const source = "---\nazemark: 2\n---\n\n#Title\n";
   const formatted = createCompiler().format(source);
   assert.deepEqual(formatted.diagnostics, []);
   assert.equal(formatted.source, source);
@@ -197,14 +197,14 @@ test("format strips BOM and normalizes CRLF to LF", async (context) => {
     join(directory, "crlf.aze.md"),
     Buffer.concat([
       Buffer.from([0xef, 0xbb, 0xbf]),
-      Buffer.from("---\r\nazemark: 1\r\n---\r\n\r\n# Title\r\n", "utf8"),
+      Buffer.from("---\r\nazemark: 2\r\n---\r\n\r\n# Title\r\n", "utf8"),
     ]),
   );
 
   const result = runCli(["format", "crlf.aze.md"], directory);
 
   assert.equal(result.status, 0);
-  assert.equal(result.stdout.toString("utf8"), "---\nazemark: 1\n---\n\n# Title\n");
+  assert.equal(result.stdout.toString("utf8"), "---\nazemark: 2\n---\n\n# Title\n");
   assert.ok(!result.stdout.includes(Buffer.from([0xef, 0xbb, 0xbf])));
   assert.ok(!result.stdout.includes(Buffer.from("\r")));
 });
@@ -236,7 +236,7 @@ test("format --check reports an ambiguous Source without rewriting it", async (c
   const directory = await mkdtemp(join(tmpdir(), "azeforge-format-check-amb-"));
   context.after(() => rm(directory, { recursive: true, force: true }));
   const path = join(directory, "amb.aze.md");
-  const source = "---\nazemark: 1\n---\n\n:::: broken\nno end\n\n# After\n";
+  const source = "---\nazemark: 2\n---\n\n:::: broken\nno end\n\n# After\n";
   await writeFile(path, source);
 
   const result = runCli(["format", "--check", "amb.aze.md"], directory);
@@ -269,7 +269,7 @@ test("format --write refuses to rewrite ambiguous Source", async (context) => {
   const directory = await mkdtemp(join(tmpdir(), "azeforge-format-write-amb-"));
   context.after(() => rm(directory, { recursive: true, force: true }));
   const path = join(directory, "amb.aze.md");
-  const source = "---\nazemark: 1\n---\n\n:::: broken\nno end\n\n# After\n";
+  const source = "---\nazemark: 2\n---\n\n:::: broken\nno end\n\n# After\n";
   await writeFile(path, source);
 
   const result = runCli(["format", "--write", "amb.aze.md"], directory);
@@ -337,7 +337,7 @@ test("format --diagnostics json emits one finite report instead of Source", asyn
   const directory = await mkdtemp(join(tmpdir(), "azeforge-format-json-"));
   context.after(() => rm(directory, { recursive: true, force: true }));
   const path = join(directory, "amb.aze.md");
-  await writeFile(path, "---\nazemark: 1\n---\n\n:::: broken\nno end\n\n# After\n");
+  await writeFile(path, "---\nazemark: 2\n---\n\n:::: broken\nno end\n\n# After\n");
 
   const result = runCli(
     ["format", "--check", "amb.aze.md", "--diagnostics", "json"],
@@ -359,7 +359,7 @@ test("format --diagnostics json emits one finite report instead of Source", asyn
 test("format preserves multiline denied raw HTML while emitting LF", async () => {
   const source = [
     "---",
-    "azemark: 1",
+    "azemark: 2",
     "---",
     "",
     "Before",
@@ -377,24 +377,24 @@ test("format preserves multiline denied raw HTML while emitting LF", async () =>
   assert.deepEqual(formatted.diagnostics, []);
   assert.equal(
     formatted.source,
-    "---\nazemark: 1\n---\n\nBefore\n\n<div>\ncontent  \n</div>\n\nAfter\n",
+    "---\nazemark: 2\n---\n\nBefore\n\n<div>\ncontent  \n</div>\n\nAfter\n",
   );
 });
 
 test("format preserves denied raw LaTeX body trivia while emitting LF", async () => {
   const source = [
     "---\r",
-    "azemark: 1\r",
+    "azemark: 2\r",
     "---\r",
     "\r",
-    "::::: equation\r",
+    ":::: equation\r",
     "syntax:latex\r",
-    "\r",
+    "----\r",
     "\\begin{aligned}  \r",
     "\r",
     "x &= y\t\r",
     "\\end{aligned}\r",
-    ":::::\r",
+    "::::\r",
     "",
   ].join("\n");
 
@@ -405,12 +405,12 @@ test("format preserves denied raw LaTeX body trivia while emitting LF", async ()
     formatted.source,
     [
       "---",
-      "azemark: 1",
+      "azemark: 2",
       "---",
       "",
       ":::: equation",
       "syntax: latex",
-      "",
+      "----",
       "\\begin{aligned}  ",
       "",
       "x &= y\t",

@@ -1,5 +1,5 @@
 ---
-azemark: 1
+azemark: 2
 title: Nesting failures
 ---
 
@@ -13,7 +13,7 @@ Another paragraph before the callouts.
 
 :::: callout
 variant: note
-
+----
 Nested quote with a bad protocol that must surface with a range
 inside the callout:
 
@@ -25,5 +25,5 @@ The next callout never closes:
 
 :::: callout
 variant: note
-
+----
 too deep without a closing marker
