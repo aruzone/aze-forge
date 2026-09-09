@@ -25,6 +25,8 @@ const REGISTERED_UNITS: Readonly<Record<string, true>> = Object.freeze({
   C: true, T: true, Wb: true, H: true, Hz: true, Bq: true, Gy: true,
   Sv: true, kat: true, L: true, min: true, h: true, d: true, deg: true,
   "%": true,
+  /** Registered alias for degree Celsius (engineering source spelling). */
+  degC: true,
 });
 
 function isRegisteredUnitName(name: string): boolean {
