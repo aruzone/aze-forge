@@ -1,8 +1,9 @@
 <p align="center">
-  <img src="docs/assets/azeforge-logo-03-2.jpg" alt="AzeForge" width="160">
+  <img src="https://raw.githubusercontent.com/aruzone/aze-forge/main/docs/assets/azeforge-logo-03-2.jpg" alt="AzeForge" width="160">
 </p>
 
 <h1 align="center">AzeForge</h1>
+
 Write once in readable **AzeMark**, publish everywhere: deterministic,
 self-contained **HTML**, **SVG**, **PNG**, and **PDF** from a single Source —
 no build chain, no runtime dependencies in your output.
