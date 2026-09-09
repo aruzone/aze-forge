@@ -39,7 +39,7 @@ diagnostics on stderr. Files with raw LaTeX need `--allow-raw-latex`.
 
 | File | Expected `render` codes |
 |---|---|
-| `invalid/01-equations-invalid.aze.md` | `azeforge.equation#missing-integration-variable` (line-specific), `azeforge.equation#invalid-syntax` × 2 (unparseable body, raw TeX in a readable block). |
+| `invalid/01-equations-invalid.aze.md` | `azeforge.equation#missing-integration-variable` (line-specific), `azeforge.equation#unsupported-notation` (TeX braces, raw TeX in a readable block). |
 | `invalid/02-latex-denied.aze.md` | `azeforge.security#raw-latex-disabled` (passes with `--allow-raw-latex`). |
 | `invalid/03-directives.aze.md` | `azeforge.source#unknown-directive` (with `availableTypes: ["callout","equation","mermaid","table"]` plus a suggestion), `azeforge.source#unclosed-directive`. Surrounding valid Blocks survive in `ParsedDocument`; no `AzeDocument`, no Artifact. |
 | `invalid/04-identifiers.aze.md` | `azeforge.reference#invalid-id` (`Bad-ID`), `azeforge.reference#duplicate-id` (`shared`, related to first definition). |

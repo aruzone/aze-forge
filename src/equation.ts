@@ -15,6 +15,15 @@ import katex from "katex";
 
 import { createDiagnostic } from "./diagnostics.js";
 import { sha256 } from "./hash.js";
+import {
+  canonicalSpelling,
+  parseNativeMath,
+  projectMathNode,
+  rangeForOffset,
+  treeToTex,
+  treeToTexFromProjection,
+} from "./math.js";
+import type { MathNode } from "./math.js";
 import type {
   AzeBlockPlugin,
   Diagnostic,
@@ -32,186 +41,6 @@ export const HTML_RENDERER_ID = "html" as const;
 export const HTML_RENDERER_VERSION = "1.0.0" as const;
 export const MAX_EQUATION_TEX_LENGTH = 4000;
 export const MAX_EQUATION_SOURCE_LENGTH = 4000;
-
-const GREEK_LOWER: Readonly<Record<string, string>> = Object.freeze({
-  alpha: "\\alpha",
-  beta: "\\beta",
-  gamma: "\\gamma",
-  delta: "\\delta",
-  epsilon: "\\epsilon",
-  zeta: "\\zeta",
-  eta: "\\eta",
-  theta: "\\theta",
-  iota: "\\iota",
-  kappa: "\\kappa",
-  lambda: "\\lambda",
-  mu: "\\mu",
-  nu: "\\nu",
-  xi: "\\xi",
-  pi: "\\pi",
-  rho: "\\rho",
-  sigma: "\\sigma",
-  tau: "\\tau",
-  upsilon: "\\upsilon",
-  phi: "\\phi",
-  chi: "\\chi",
-  psi: "\\psi",
-  omega: "\\omega",
-});
-
-const GREEK_UPPER: Readonly<Record<string, string>> = Object.freeze({
-  Alpha: "\\Alpha",
-  Beta: "\\Beta",
-  Gamma: "\\Gamma",
-  Delta: "\\Delta",
-  Epsilon: "\\Epsilon",
-  Zeta: "\\Zeta",
-  Eta: "\\Eta",
-  Theta: "\\Theta",
-  Iota: "\\Iota",
-  Kappa: "\\Kappa",
-  Lambda: "\\Lambda",
-  Mu: "\\Mu",
-  Nu: "\\Nu",
-  Xi: "\\Xi",
-  Pi: "\\Pi",
-  Rho: "\\Rho",
-  Sigma: "\\Sigma",
-  Tau: "\\Tau",
-  Upsilon: "\\Upsilon",
-  Phi: "\\Phi",
-  Chi: "\\Chi",
-  Psi: "\\Psi",
-  Omega: "\\Omega",
-});
-
-function replaceWord(
-  input: string,
-  word: string,
-  replacement: string,
-): string {
-  return input.replace(
-    new RegExp(`(?<![A-Za-z])${word}(?![A-Za-z])`, "g"),
-    replacement,
-  );
-}
-
-function splitTopLevel(value: string, separator: string): string[] {
-  const parts: string[] = [];
-  let depth = 0;
-  let current = "";
-  for (const char of value) {
-    if (char === "(" || char === "[") depth += 1;
-    if (char === ")" || char === "]") depth -= 1;
-    if (char === separator && depth === 0) {
-      parts.push(current);
-      current = "";
-      continue;
-    }
-    current += char;
-  }
-  parts.push(current);
-  return parts;
-}
-
-function translateMatrix(body: string): string {
-  return body.replace(
-    /matrix\s*\[((?:\[[^\]]*\],?)+)\]/g,
-    (_match, rows: string) => {
-      const rowMatches = [...rows.matchAll(/\[([^\]]*)\]/g)].map((m) => m[1] ?? "");
-      const texRows = rowMatches.map((row) =>
-        splitTopLevel(row, ",")
-          .map((cell) => cell.trim())
-          .join(" & "),
-      );
-      return `\\begin{bmatrix}${texRows.join(" \\\\ ")} \\end{bmatrix}`;
-    },
-  );
-}
-
-function translateCases(body: string): string {
-  return body.replace(
-    /cases\s*\(\s*([^)]*)\s*\)/g,
-    (_match, inner: string) => {
-      const rows = splitTopLevel(inner, ";").map((row) => row.trim());
-      return `\\begin{cases}${rows.join(" \\\\ ")} \\end{cases}`;
-    },
-  );
-}
-
-/**
- * Translate readable §12 equation Source into pinned KaTeX TeX.
- * Every alias maps to a KaTeX-native target; translation is pure
- * string rewriting and KaTeX remains the final validator.
- */
-export function translateReadableToTex(source: string): string {
-  let tex = source;
-  tex = translateMatrix(tex);
-  tex = translateCases(tex);
-  tex = tex.replace(
-    /root\s*\(\s*([^,()]+?)\s*,\s*([^()]+?)\s*\)/g,
-    (_, n: string, x: string) => `\\sqrt[${n.trim()}]{${x.trim()}}`,
-  );
-  tex = tex.replace(
-    /frac\s*\(\s*([^,()]+?)\s*,\s*([^()]+?)\s*\)/g,
-    (_, a: string, b: string) => `\\frac{${a.trim()}}{${b.trim()}}`,
-  );
-  tex = tex.replace(
-    /sqrt\s*\(\s*([^()]+?)\s*\)/g,
-    (_, x: string) => `\\sqrt{${x.trim()}}`,
-  );
-  for (const fn of ["sin", "cos", "tan", "exp", "log", "ln"]) {
-    tex = tex.replace(
-      new RegExp(`(?<![A-Za-z\\\\])${fn}\\s*\\(`, "g"),
-      `\\${fn}(`,
-    );
-  }
-  tex = tex.replace(
-    /limit\s+([A-Za-z]+)\s*->\s*([^\s]+)\s+of\s+/g,
-    (_, variable: string, target: string) =>
-      `\\lim_{${variable} \\to ${target}} `,
-  );
-  tex = tex.replace(
-    /\b(sum|product)\s+([A-Za-z]+)\s*=\s*([^\s]+)\.\.([^\s]+)\s+of\s+/g,
-    (_, op: string, variable: string, from: string, to: string) =>
-      `${op === "sum" ? "\\sum" : "\\prod"}_{${variable}=${from}}^{${to}} `,
-  );
-  tex = tex.replace(
-    /integral\s+[A-Za-z]+\s*=\s*([^\s]+)\.\.([^\s]+)\s+of\s+/g,
-    (_, from: string, to: string) => `\\int_{${from}}^{${to}} `,
-  );
-  tex = tex.replace(/integral\s+of\s+/g, "\\int ");
-  tex = tex.replace(
-    /partial\s+([A-Za-z0-9()]+)\s*\/\s*partial\s+([A-Za-z]+)/g,
-    (_, numerator: string, variable: string) =>
-      `\\frac{\\partial ${numerator}}{\\partial ${variable}}`,
-  );
-  tex = tex.replace(
-    /\bd\s*\/\s*d([A-Za-z])\s+([A-Za-z0-9()^_]+)/g,
-    (_, variable: string, fn: string) =>
-      `\\frac{d ${fn}}{d ${variable}}`,
-  );
-  for (const [name, target] of Object.entries(GREEK_LOWER)) {
-    tex = replaceWord(tex, name, ` ${target} `);
-  }
-  for (const [name, target] of Object.entries(GREEK_UPPER)) {
-    tex = replaceWord(tex, name, ` ${target} `);
-  }
-  tex = replaceWord(tex, "infinity", " \\infty ");
-  tex = replaceWord(tex, "partial", " \\partial ");
-  tex = replaceWord(tex, "in", " \\in ");
-  tex = replaceWord(tex, "notin", " \\notin ");
-  tex = replaceWord(tex, "subset", " \\subset ");
-  tex = replaceWord(tex, "union", " \\cup ");
-  tex = replaceWord(tex, "intersect", " \\cap ");
-  tex = replaceWord(tex, "forall", " \\forall ");
-  tex = replaceWord(tex, "exists", " \\exists ");
-  tex = tex.replace(/!=/g, " \\neq ");
-  tex = tex.replace(/<=/g, " \\leq ");
-  tex = tex.replace(/>=/g, " \\geq ");
-  tex = tex.replace(/\s+/g, " ").trim();
-  return tex;
-}
 
 export interface EquationHeader {
   readonly id?: string;
@@ -338,14 +167,6 @@ export function parseEquationHeader(
   };
 }
 
-function hasIntegrationVariable(body: string): boolean {
-  const clauses = body.split(/\\\\|;/);
-  return clauses.every((clause) => {
-    if (!clause.includes("integral") && !clause.includes("\\int")) return true;
-    return /\bd\s*[A-Za-z]\b/.test(clause);
-  });
-}
-
 const KATEX_RENDER_OPTIONS = {
   displayMode: true,
   output: "htmlAndMathml",
@@ -401,15 +222,6 @@ export function renderEquationToHtml(tex: string): string {
   return sanitizeKatexHtml(katex.renderToString(tex, { ...KATEX_RENDER_OPTIONS }));
 }
 
-/**
- * Shared math backend for derivation steps: translates readable source to
- * TeX and renders through pinned KaTeX with the same sanitization that
- * equation Fragments receive.
- */
-export function renderReadableMathSource(source: string): string {
-  return renderEquationToHtml(translateReadableToTex(source));
-}
-
 export type EquationSanitizerFinding = "executable-markup" | "unsafe-url";
 
 export class EquationSanitizerError extends Error {
@@ -460,6 +272,69 @@ export function sanitizeKatexHtml(html: string): string {
 export interface ValidatedEquation {
   readonly block?: EquationBlock;
   readonly diagnostics: readonly Diagnostic[];
+}
+
+function buildNativeBlock(
+  parsed: { tree: MathNode },
+  header: EquationHeader,
+  blockRange: SourceRange,
+  bodyRanges: readonly SourceRange[],
+  sourceName: string | undefined,
+  warningProblems: readonly {
+    readonly code: string;
+    readonly message: string;
+    readonly offset: number;
+    readonly length: number;
+    readonly suggestion?: string;
+    readonly data?: Readonly<Record<string, JsonValue>>;
+  }[],
+): ValidatedEquation {
+  const location = (range: SourceRange) =>
+    sourceName === undefined ? { range } : { source: sourceName, range };
+  const tex = treeToTex(parsed.tree);
+  if (tex.length > MAX_EQUATION_TEX_LENGTH) {
+    return {
+      diagnostics: [
+        createDiagnostic(
+          "azeforge.equation#invalid-syntax",
+          "error",
+          "The equation Block exceeds the maximum supported length.",
+          {
+            location: location(bodyRanges[0] ?? blockRange),
+            data: { length: tex.length },
+          },
+        ),
+      ],
+    };
+  }
+  const block: EquationBlock = {
+    kind: "equation",
+    range: blockRange,
+    ...(header.id === undefined ? {} : { id: header.id }),
+    pluginVersion: EQUATION_PLUGIN_VERSION,
+    notation: "native",
+    tree: projectMathNode(parsed.tree),
+    spelling: canonicalSpelling(parsed.tree),
+    ...(header.number === undefined ? {} : { number: header.number }),
+    ...(header.align === undefined ? {} : { align: header.align }),
+  };
+  return {
+    block: Object.freeze(block),
+    diagnostics: warningProblems.map((problem) =>
+      createDiagnostic(
+        `azeforge.equation#${problem.code}`,
+        "warning",
+        problem.message,
+        {
+          location: location(rangeForOffset(bodyRanges, problem.offset, problem.length)),
+          ...(problem.suggestion === undefined
+            ? {}
+            : { suggestion: problem.suggestion }),
+          ...(problem.data === undefined ? {} : { data: problem.data }),
+        },
+      ),
+    ),
+  };
 }
 
 export function validateEquationBody(options: {
@@ -522,49 +397,35 @@ export function validateEquationBody(options: {
       ],
     };
   }
-  if (header.syntax === "readable" && trimmed.includes("\\")) {
-    return {
-      diagnostics: [
+  if (header.syntax === "readable") {
+    const parsed = parseNativeMath(trimmed);
+    if ("problems" in parsed) {
+      const diagnostics = parsed.problems.map((problem) =>
         createDiagnostic(
-          "azeforge.equation#invalid-syntax",
+          `azeforge.equation#${problem.code}`,
           "error",
-          "The readable equation contains raw TeX markup.",
+          problem.message,
           {
-            location: location(bodyRanges[0] ?? blockRange),
-            suggestion:
-              "Use readable aliases, or set syntax: latex with --allow-raw-latex.",
+            location: location(
+              rangeForOffset(bodyRanges, problem.offset, problem.length),
+            ),
+            ...(problem.code === "unsupported-notation" && allowRawLatex
+              ? {
+                  suggestion: `${problem.suggestion ?? "Use registered native notation."} Or use \`syntax: latex\` with --allow-raw-latex on this trusted machine.`,
+                }
+              : problem.suggestion === undefined
+                ? {}
+                : { suggestion: problem.suggestion }),
+            ...(problem.data === undefined ? {} : { data: problem.data }),
           },
         ),
-      ],
-    };
-  }
-  if (header.syntax === "readable" && !hasIntegrationVariable(trimmed)) {
-    const lineIndex = body
-      .split("\n")
-      .findIndex(
-        (line) =>
-          (line.includes("integral") || line.includes("\\int")) &&
-          !/\bd\s*[A-Za-z]\b/.test(line),
       );
-    const range = bodyRanges[lineIndex >= 0 ? lineIndex : 0] ?? blockRange;
-    return {
-      diagnostics: [
-        createDiagnostic(
-          "azeforge.equation#missing-integration-variable",
-          "error",
-          "The integral is missing an integration variable.",
-          {
-            location: location(range),
-            suggestion: "Add an integration variable such as dx to the integral.",
-            data: { construct: "integral" },
-          },
-        ),
-      ],
-    };
+      return { diagnostics };
+    }
+    return buildNativeBlock(parsed, header, blockRange, bodyRanges, sourceName, parsed.warnings);
   }
-  const tex =
-    header.syntax === "latex" ? trimmed : translateReadableToTex(trimmed);
-  if (tex.length > MAX_EQUATION_TEX_LENGTH) {
+  // Raw LaTeX escape hatch: KaTeX is the validator, raw string hashed.
+  if (trimmed.length > MAX_EQUATION_TEX_LENGTH) {
     return {
       diagnostics: [
         createDiagnostic(
@@ -573,31 +434,24 @@ export function validateEquationBody(options: {
           "The equation Block exceeds the maximum supported length.",
           {
             location: location(bodyRanges[0] ?? blockRange),
-            data: { length: tex.length },
+            data: { length: trimmed.length },
           },
         ),
       ],
     };
   }
   try {
-    katex.renderToString(tex, { ...KATEX_RENDER_OPTIONS });
+    katex.renderToString(trimmed, { ...KATEX_RENDER_OPTIONS });
   } catch {
     return {
       diagnostics: [
         createDiagnostic(
-          header.syntax === "latex"
-            ? "azeforge.equation#invalid-latex"
-            : "azeforge.equation#invalid-syntax",
+          "azeforge.equation#invalid-latex",
           "error",
-          header.syntax === "latex"
-            ? "The raw LaTeX equation could not be parsed."
-            : "The equation could not be parsed.",
+          "The raw LaTeX equation could not be parsed.",
           {
             location: location(bodyRanges[0] ?? blockRange),
-            suggestion:
-              header.syntax === "latex"
-                ? "Check KaTeX-supported syntax without custom macros."
-                : "Check the readable equation syntax against supported aliases.",
+            suggestion: "Check KaTeX-supported syntax without custom macros.",
           },
         ),
       ],
@@ -608,20 +462,25 @@ export function validateEquationBody(options: {
     range: blockRange,
     ...(header.id === undefined ? {} : { id: header.id }),
     pluginVersion: EQUATION_PLUGIN_VERSION,
-    syntax: header.syntax,
-    source: trimmed,
-    tex,
+    notation: "latex",
+    tex: trimmed,
     ...(header.number === undefined ? {} : { number: header.number }),
     ...(header.align === undefined ? {} : { align: header.align }),
   };
   return { block: Object.freeze(block), diagnostics: [] };
 }
 
+/** TeX for a Block: latex keeps its raw string; native derives from the semantic tree. */
+export function equationBlockTex(block: EquationBlock): string {
+  if (block.notation === "latex") return block.tex ?? "";
+  return treeToTexFromProjection(block.tree);
+}
+
 const pluginDescriptor = Object.freeze({
   type: EQUATION_PLUGIN_TYPE,
   version: EQUATION_PLUGIN_VERSION,
   title: "Equation",
-  summary: "Readable equations rendered through pinned KaTeX.",
+  summary: "Native readable equations parsed into semantic trees and rendered through pinned KaTeX.",
   diagnosticNamespace: "azeforge.equation",
   sourceSchema: equationSourceSchema,
   bodySyntax: Object.freeze({
@@ -639,7 +498,7 @@ const blockRendererDescriptor = Object.freeze({
   id: EQUATION_HTML_BLOCK_RENDERER_ID,
   version: EQUATION_HTML_BLOCK_RENDERER_VERSION,
   blockType: EQUATION_PLUGIN_TYPE,
-  pluginVersionRange: "1.0.0",
+  pluginVersionRange: "2.0.0",
   rendererId: HTML_RENDERER_ID,
   rendererVersionRange: "1.0.0",
 });
@@ -648,7 +507,7 @@ function renderEquationFragment(
   block: EquationBlock,
   _context: Readonly<{ sourceName?: string }>,
 ): string {
-  const fragment = renderEquationToHtml(block.tex);
+  const fragment = renderEquationToHtml(equationBlockTex(block));
   const align = block.align ?? "center";
   const label = block.id === undefined ? "" : ` data-equation-id="${block.id}"`;
   const number = block.number === true ? ' data-equation-number="true"' : "";

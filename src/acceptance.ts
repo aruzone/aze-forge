@@ -243,6 +243,33 @@ export const ACCEPTANCE_ENTRIES: readonly AcceptanceEntry[] = Object.freeze([
     ["#7", "#9"],
   ),
   acceptanceEntry(
+    "P0-EQN-003",
+    "p0",
+    "equation",
+    "Native mathematics grammar",
+    "readable Source is compiled",
+    [
+      "closed-grammar Source parses into semantic trees with spelling-normalized identity",
+      "unsupported notation is refused with stable-coded sub-ranged diagnostics and no silent fallback",
+      "renderer-derived KaTeX TeX carries MathML for every native tree",
+    ],
+    "automated",
+    ["#7", "#12"],
+  ),
+  acceptanceEntry(
+    "P0-DRV-001",
+    "p0",
+    "derivation",
+    "A derivation Block",
+    "it is compiled",
+    [
+      "ordered `- expression:` steps parse into step trees with annotations and stable step-range diagnostics",
+      "it renders aligned with annotations in step-then-annotation order",
+    ],
+    "automated",
+    ["#7", "#12"],
+  ),
+  acceptanceEntry(
     "P0-MMD-001",
     "p0",
     "mermaid",

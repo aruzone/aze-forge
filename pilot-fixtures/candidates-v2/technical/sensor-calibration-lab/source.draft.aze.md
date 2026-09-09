@@ -35,7 +35,7 @@ id: calibration-residual
 number: true
 align: center
 ----
-e_i = y_i - y_hat_i
+e_i = y_i - (y_hat)_i
 ::::
 
 The root-mean-square error summarizes all residuals.
@@ -45,7 +45,7 @@ id: calibration-rmse
 number: true
 align: center
 ----
-RMSE = sqrt((sum i=1..n of e_i^2) / n)
+S = sqrt((sum i=1..n of e_i^2) / n)
 ::::
 
 ## Calibration record

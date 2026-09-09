@@ -92,7 +92,7 @@ proof: |
 
   :: equation
   ----
-  d(A, C) <= d(A, B) + d(B, C)
+  abs(A - C) <= abs(A - B) + abs(B - C)
   ::
 
   by expanding each distance via the Pythagorean identity and comparing

@@ -77,7 +77,7 @@ test("capabilities --json enumerates the P0 contract in canonical order", async 
   );
   assert.deepEqual(
     payload.plugins.map(({ version }) => version),
-    ["1.0.0", "1.0.0", "1.0.0", "1.0.0", "2.0.0"],
+    ["1.0.0", "1.0.0", "2.0.0", "1.0.0", "2.0.0"],
   );
   assert.deepEqual(
     payload.renderers.map(({ id }) => id),

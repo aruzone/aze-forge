@@ -57,6 +57,11 @@ node --test test/equation.test.mjs
 - `test/equation.test.mjs` is the equation seam: versioned Blocks, alias
   coverage, ranged diagnostics, raw-LaTeX policy, adapter failure modes,
   registry rejection, descriptor conformance, and real CLI calls.
+- `test/native-math.test.mjs` is the closed native mathematics grammar
+  seam: precedence, binders, constructs, normalization, identity
+  projections, stable sub-ranged diagnostics, and ceilings.
+- `test/derivation.test.mjs` is the derivation seam: ordered
+  `- expression:` step records with annotations and aligned rendering.
 
 ## Acceptance runner
 

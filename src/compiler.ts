@@ -411,7 +411,11 @@ function collectRenderText(blocks: readonly AzeBlock[], out: string[]): void {
   for (const block of blocks) {
     switch (block.kind) {
       case "equation":
-        out.push(block.source);
+        if (block.notation === "latex") {
+          if (block.tex !== undefined) out.push(block.tex);
+        } else if (block.spelling !== undefined) {
+          out.push(block.spelling);
+        }
         break;
       case "derivation":
         for (const step of block.steps) {

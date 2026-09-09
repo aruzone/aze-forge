@@ -41,6 +41,8 @@ const SUITE_EVIDENCE = [
   ["P0-CLI-007", "test/acceptance.test.mjs"],
   ["P0-EQN-001", "test/equation.test.mjs"],
   ["P0-EQN-002", "test/equation.test.mjs"],
+  ["P0-EQN-003", "test/native-math.test.mjs"],
+  ["P0-DRV-001", "test/derivation.test.mjs"],
   ["P0-MMD-001", "test/mermaid.test.mjs"],
   ["P0-OUT-001", "test/acceptance.test.mjs"],
   ["P0-OUT-002", "test/acceptance.test.mjs"],
@@ -72,10 +74,15 @@ function goldenFailures(html) {
   const failures = [];
   if (!/<h1/.test(html)) failures.push("h1");
   if ((html.match(/<h2/g) ?? []).length < 3) failures.push("h2x3");
-  if ((html.match(/class="katex"/g) ?? []).length !== 3) failures.push("katex-x3");
-  if ((html.match(/<math/g) ?? []).length !== 3) failures.push("mathml-x3");
+  // Three equations plus five derivation steps each render a KaTeX pair.
+  if ((html.match(/class="katex"/g) ?? []).length !== 8) failures.push("katex-x8");
+  if ((html.match(/<math/g) ?? []).length !== 8) failures.push("mathml-x8");
   for (const id of ["gaussian-integral", "arithmetic-series", "heat-equation"]) {
     if (!html.includes(`data-equation-id="${id}"`)) failures.push(id);
+  }
+  if (!html.includes('data-derivation-id="geometric-series-sum"')) failures.push("geometric-series-sum");
+  if (!html.includes("converges when abs(r) &lt; 1") && !html.includes("converges when abs(r) < 1")) {
+    failures.push("derivation-annotation");
   }
   if (!/<table id="materials">[\s\S]*?<caption>Representative material properties/.test(html)) {
     failures.push("caption");
@@ -102,7 +109,7 @@ test("acceptance catalog is canonical and coverage rejects missing or unknown ID
   const onDisk = JSON.parse(await readFile(new URL("../acceptance/catalog.json", import.meta.url), "utf8"));
   assert.deepEqual(onDisk, JSON.parse(JSON.stringify(canonical)));
   assert.equal(canonical.catalog.id, "azeforge.acceptance/v1");
-  assert.equal(canonical.entries.filter((item) => item.gate === "p0").length, 30);
+  assert.equal(canonical.entries.filter((item) => item.gate === "p0").length, 32);
 
   const declared = SUITE_EVIDENCE.map(([id]) => id);
   assert.deepEqual(checkAcceptanceCoverage(declared), { missing: [], unknown: [] });

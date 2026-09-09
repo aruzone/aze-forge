@@ -185,9 +185,14 @@ export interface EquationBlock {
   readonly range: SourceRange;
   readonly id?: string;
   readonly pluginVersion: string;
-  readonly syntax: "readable" | "latex";
-  readonly source: string;
-  readonly tex: string;
+  /** Native equations carry a semantic expression tree; latex is the host-gated escape hatch. */
+  readonly notation: "native" | "latex";
+  /** Native: the closed-grammar semantic expression tree (identity carrier). */
+  readonly tree?: JsonValue;
+  /** Native: canonical spelling for formatter re-emission. */
+  readonly spelling?: string;
+  /** Latex escape hatch: the raw TeX string, hashed as today. */
+  readonly tex?: string;
   readonly number?: boolean;
   readonly align?: "left" | "center" | "right";
 }
@@ -204,6 +209,9 @@ export interface MermaidBlock {
 }
 
 export interface DerivationStep {
+  /** Semantic expression tree of the step (identity carrier). */
+  readonly tree: JsonValue;
+  /** Canonical spelling of the step expression (formatter re-emission). */
   readonly expression: string;
   readonly annotation?: readonly Inline[];
 }

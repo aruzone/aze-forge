@@ -142,10 +142,15 @@ export function documentContentHash(document: AzeDocument): ContentHash {
       const projected: Record<string, JsonValue> = {
         kind: block.kind,
         pluginVersion: block.pluginVersion,
-        syntax: block.syntax,
-        source: block.source,
-        tex: block.tex,
+        notation: block.notation,
       };
+      // Native identity is the semantic tree (spelling-normalized,
+      // presentation-preserving); latex keeps its raw string hashed.
+      if (block.notation === "latex") {
+        if (block.tex !== undefined) projected.tex = block.tex;
+      } else {
+        if (block.tree !== undefined) projected.tree = block.tree;
+      }
       if (block.id !== undefined) projected.id = block.id;
       if (block.number !== undefined) projected.number = block.number;
       if (block.align !== undefined) projected.align = block.align;
@@ -168,7 +173,7 @@ export function documentContentHash(document: AzeDocument): ContentHash {
         kind: block.kind,
         pluginVersion: block.pluginVersion,
         steps: block.steps.map((step) => ({
-          expression: step.expression,
+          tree: step.tree,
           ...(step.annotation === undefined
             ? {}
             : { annotation: step.annotation.map(projectInlineNode) }),

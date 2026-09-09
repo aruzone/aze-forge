@@ -262,20 +262,22 @@ function isParsedBlock(value: unknown): value is ParsedBlock {
         "range",
         "id",
         "pluginVersion",
-        "syntax",
-        "source",
+        "notation",
+        "tree",
+        "spelling",
         "tex",
         "number",
         "align",
       ]) &&
       isSourceRange(value.range) &&
       (value.id === undefined || typeof value.id === "string") &&
-      value.pluginVersion === "1.0.0" &&
-      (value.syntax === "readable" || value.syntax === "latex") &&
-      typeof value.source === "string" &&
-      value.source.length > 0 &&
-      typeof value.tex === "string" &&
-      value.tex.length > 0 &&
+      value.pluginVersion === "2.0.0" &&
+      (value.notation === "native" || value.notation === "latex") &&
+      (value.notation === "latex"
+        ? typeof value.tex === "string" && value.tex.length > 0
+        : isObjectRecord(value.tree) &&
+          typeof value.spelling === "string" &&
+          value.spelling.length > 0) &&
       (value.number === undefined || typeof value.number === "boolean") &&
       (value.align === undefined ||
         value.align === "left" ||
@@ -324,8 +326,9 @@ function isParsedBlock(value: unknown): value is ParsedBlock {
       value.steps.length > 0 &&
       value.steps.every((step) =>
         isObjectRecord(step) &&
-        hasOnlyKeys(step, ["expression", "annotation"]) &&
+        hasOnlyKeys(step, ["expression", "tree", "annotation"]) &&
         typeof step.expression === "string" &&
+        isObjectRecord(step.tree) &&
         (step.annotation === undefined ||
           (Array.isArray(step.annotation) &&
             (step.annotation as unknown[]).every((node) => isInlineNode(node)))),

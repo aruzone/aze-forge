@@ -19,7 +19,7 @@ Greek, roots, and sums in one line:
 
 :::: equation
 ----
-alpha + Beta + sqrt(x) + sum i=1..n of i^2
+alpha + Gamma + sqrt(x) + sum i=1..n of i^2
 ::::
 
 Limits, matrices, and sets:

@@ -37,6 +37,22 @@ id: heat-equation
 partial T / partial t = alpha partial^2 T / partial x^2
 ::::
 
+:::: derivation
+id: geometric-series-sum
+number: true
+----
+- expression: S_n = sum i=0..n of r^i
+  annotation: partial sum of the first n + 1 powers
+- expression: r * S_n = sum i=1..n+1 of r^i
+  annotation: multiply every term by r
+- expression: S_n - r * S_n = 1 - r^(n+1)
+  annotation: subtraction telescopes the interior terms
+- expression: S_n = (1 - r^(n+1)) / (1 - r)
+  annotation: closed form, valid for r != 1
+- expression: limit n->infinity of S_n = 1 / (1 - r)
+  annotation: converges when abs(r) < 1
+::::
+
 ## Materials
 
 :::: table

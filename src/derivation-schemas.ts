@@ -25,7 +25,7 @@ export const derivationDataSchema: JsonValue = Object.freeze({
   $id: "azeforge.derivation/data/v1",
   type: "object",
   additionalProperties: false,
-  required: ["steps", "pluginVersion"],
+  required: ["kind", "steps", "pluginVersion"],
   properties: {
     kind: { const: "derivation" },
     pluginVersion: { const: "1.0.0" },
@@ -35,10 +35,15 @@ export const derivationDataSchema: JsonValue = Object.freeze({
       items: {
         type: "object",
         additionalProperties: false,
-        required: ["expression"],
+        required: ["expression", "tree"],
         properties: {
           expression: { type: "string", minLength: 1, maxLength: 4000 },
-          annotation: { type: "string", minLength: 1, maxLength: 500 },
+          tree: { type: "object" },
+          annotation: {
+            type: "array",
+            minItems: 1,
+            items: { type: "object" },
+          },
         },
       },
     },

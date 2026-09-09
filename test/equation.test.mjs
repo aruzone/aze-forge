@@ -40,8 +40,9 @@ test("a valid readable equation becomes a versioned Block with KaTeX HTML+MathML
   const block = parsed.document.blocks[0];
   assert.equal(block?.kind, "equation");
   assert.equal(block?.pluginVersion, EQUATION_PLUGIN_VERSION);
-  assert.equal(block?.syntax, "readable");
+  assert.equal(block?.notation, "native");
   assert.equal(block?.id, "euler");
+  assert.equal(typeof block?.tree, "object");
 
   const compiled = await compiler.compile(
     sourceWith("F(omega) = integral x=0..infinity of x^2 dx\n", "id: euler\n"),
@@ -83,16 +84,16 @@ test("equation headers tolerate blank lines between entries", async () => {
 test("every readable alias maps to pinned KaTeX offline", async () => {
   assert.equal(KATEX_VERSION, "0.18.5");
   const bodies = [
-    "alpha + Beta + infinity",
+    "alpha + Gamma + infinity",
     "sqrt(x) + frac(a, b) + root(3, x)",
     "sum i=1..n of i^2 + product k=1..m of k",
     "integral t=-infinity..infinity of f(t) dt",
     "limit x->0 of sin(x)",
-    "partial f / partial x + d/dx f(x)",
+    "partial f / partial t + pmatrix [[a, b], [c, d]]",
     "matrix [[a,b],[c,d]]",
-    "cases (x; y)",
-    "x in A union B intersect C, forall x exists y",
-    "a != b and c <= d and e >= f",
+    "cases(x when x > 0; y otherwise)",
+    "x in A union B intersect C",
+    "a != b <= c >= d",
   ];
   const compiler = createCompiler();
   for (const body of bodies) {
@@ -136,7 +137,7 @@ test("invalid equations produce stable ranged diagnostics", () => {
   assert.equal(garbage.document.blocks[0]?.kind, "invalid");
   assert.equal(
     garbage.diagnostics[0]?.code,
-    "azeforge.equation#invalid-syntax",
+    "azeforge.equation#unsupported-notation",
   );
   assert.ok(garbage.diagnostics[0]?.location?.range !== undefined);
 });
@@ -157,7 +158,7 @@ test("raw LaTeX fails by default and renders with explicit approval", async () =
     allowRawLatex: true,
   });
   assert.equal(allowed.document.blocks[0]?.kind, "equation");
-  assert.equal(allowed.document.blocks[0]?.syntax, "latex");
+  assert.equal(allowed.document.blocks[0]?.notation, "latex");
 
   const rendered = await compiler.compile(raw, {
     format: "html",
@@ -239,7 +240,7 @@ test("missing, incompatible, disabled, throwing, and timed-out adapters never pr
   const incompatible = {
     descriptor: {
       ...equationHtmlBlockRenderer.descriptor,
-      pluginVersionRange: "2.0.0",
+      pluginVersionRange: "3.0.0",
     },
     render: equationHtmlBlockRenderer.render,
   };
@@ -286,18 +287,18 @@ test("descriptors are inert, immutable, and versioned through the conformance se
   const registry = getBuiltInRegistry();
   assertRegistryDescriptorsImmutable(registry);
   assert.equal(registry.plugins[0]?.descriptor.type, "equation");
-  assert.equal(registry.plugins[0]?.descriptor.version, "1.0.0");
+  assert.equal(registry.plugins[0]?.descriptor.version, "2.0.0");
   assert.equal(
     registry.plugins[0]?.descriptor.sourceSchema.$id,
-    "azeforge.equation/source/v1",
+    "azeforge.equation/source/v2",
   );
   assert.equal(
     registry.plugins[0]?.descriptor.dataSchema.$id,
-    "azeforge.equation/data/v1",
+    "azeforge.equation/data/v2",
   );
   assert.equal(
     registry.blockRenderers[0]?.descriptor.pluginVersionRange,
-    "1.0.0",
+    "2.0.0",
   );
   assert.ok(Object.isFrozen(registry.plugins[0]));
   assert.ok(Object.isFrozen(registry.blockRenderers[0]));

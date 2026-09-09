@@ -287,6 +287,41 @@
       ]
     },
     {
+      "id": "P0-EQN-003",
+      "gate": "p0",
+      "area": "equation",
+      "given": "Native mathematics grammar",
+      "when": "readable Source is compiled",
+      "then": [
+        "closed-grammar Source parses into semantic trees with spelling-normalized identity",
+        "unsupported notation is refused with stable-coded sub-ranged diagnostics and no silent fallback",
+        "renderer-derived KaTeX TeX carries MathML for every native tree"
+      ],
+      "evidence": "automated",
+      "required": true,
+      "contracts": [
+        "#7",
+        "#12"
+      ]
+    },
+    {
+      "id": "P0-DRV-001",
+      "gate": "p0",
+      "area": "derivation",
+      "given": "A derivation Block",
+      "when": "it is compiled",
+      "then": [
+        "ordered `- expression:` steps parse into step trees with annotations and stable step-range diagnostics",
+        "it renders aligned with annotations in step-then-annotation order"
+      ],
+      "evidence": "automated",
+      "required": true,
+      "contracts": [
+        "#7",
+        "#12"
+      ]
+    },
+    {
       "id": "P0-MMD-001",
       "gate": "p0",
       "area": "mermaid",
