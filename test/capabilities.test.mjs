@@ -73,17 +73,17 @@ test("capabilities --json enumerates the P0 contract in canonical order", async 
   );
   assert.deepEqual(
     payload.plugins.map(({ type }) => type),
-    ["callout", "derivation", "equation", "mermaid", "table"],
+    ["callout", "chart", "derivation", "equation", "mermaid", "plot", "table"],
   );
   assert.deepEqual(
     payload.plugins.map(({ version }) => version),
-    ["1.0.0", "1.0.0", "2.0.0", "1.0.0", "2.0.0"],
+    ["1.0.0", "1.0.0", "1.0.0", "2.0.0", "1.0.0", "1.0.0", "2.0.0"],
   );
   assert.deepEqual(
     payload.renderers.map(({ id }) => id),
     ["html", "pdf", "png", "svg"],
   );
-  assert.equal(payload.blockRenderers.length, 20);
+  assert.equal(payload.blockRenderers.length, 28);
   assert.deepEqual(
     payload.themes.map(({ id }) => id),
     ["academic", "dark-presentation", "default"],
@@ -98,6 +98,9 @@ test("capabilities --json enumerates the P0 contract in canonical order", async 
   assert.ok(!("reason" in payload.engines.browser));
   assert.equal(payload.engines.katex.availability, "unknown");
   assert.equal(payload.engines.mermaid.availability, "unknown");
+  assert.equal(payload.engines.plot.availability, "unknown");
+  assert.equal(payload.engines.plot.emitter, "1.0.0");
+  assert.equal(payload.engines.plot.eval, "plot-eval/v1");
 
   // Limits match the resolved defaults and state the lowerable-only policy.
   assert.deepEqual(payload.limits.diagnostics, {
@@ -128,6 +131,7 @@ test("capabilities --probe reports local availability and stays exit 0", async (
   }
   assert.equal(payload.engines.katex.availability, "available");
   assert.equal(payload.engines.mermaid.availability, "available");
+  assert.equal(payload.engines.plot.availability, "available");
 });
 
 test("human version, capabilities, and help use stderr with empty stdout", () => {
@@ -175,7 +179,7 @@ test("human reports derive names and versions from the canonical model", () => {
   const capabilities = runCli(["capabilities"]);
   assert.equal(capabilities.status, 0);
   const human = capabilities.stderr.toString("utf8");
-  for (const name of ["render", "validate", "watch", "serve", "format", "capabilities", "version", "callout", "derivation", "equation", "mermaid", "table", "html", "svg", "png", "pdf", "default", "academic", "dark-presentation"]) {
+  for (const name of ["render", "validate", "watch", "serve", "format", "capabilities", "version", "callout", "chart", "derivation", "equation", "mermaid", "plot", "table", "html", "svg", "png", "pdf", "default", "academic", "dark-presentation"]) {
     assert.ok(human.includes(name), `human capabilities missing ${name}`);
   }
   const version = runCli(["version"]);

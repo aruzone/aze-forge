@@ -340,6 +340,70 @@ function isParsedBlock(value: unknown): value is ParsedBlock {
         value.align === "right")
     );
   }
+  if (value.kind === "plot") {
+    return (
+      hasOnlyKeys(value, [
+        "kind",
+        "range",
+        "id",
+        "pluginVersion",
+        "number",
+        "width",
+        "height",
+        "legend",
+        "grid",
+        "parameters",
+        "xAxis",
+        "yAxis",
+        "series",
+      ]) &&
+      isSourceRange(value.range) &&
+      (value.id === undefined || typeof value.id === "string") &&
+      value.pluginVersion === "1.0.0" &&
+      typeof value.width === "number" &&
+      typeof value.height === "number" &&
+      typeof value.legend === "boolean" &&
+      typeof value.grid === "boolean" &&
+      isObjectRecord(value.parameters) &&
+      isObjectRecord(value.xAxis) &&
+      isObjectRecord(value.yAxis) &&
+      Array.isArray(value.series) &&
+      value.series.length > 0 &&
+      (value.number === undefined || typeof value.number === "boolean")
+    );
+  }
+  if (value.kind === "chart") {
+    return (
+      hasOnlyKeys(value, [
+        "kind",
+        "range",
+        "id",
+        "pluginVersion",
+        "chartType",
+        "number",
+        "width",
+        "height",
+        "legend",
+        "grid",
+        "xLabel",
+        "yLabel",
+        "yMin",
+        "yMax",
+        "series",
+      ]) &&
+      isSourceRange(value.range) &&
+      (value.id === undefined || typeof value.id === "string") &&
+      value.pluginVersion === "1.0.0" &&
+      typeof value.chartType === "string" &&
+      typeof value.width === "number" &&
+      typeof value.height === "number" &&
+      typeof value.legend === "boolean" &&
+      typeof value.grid === "boolean" &&
+      Array.isArray(value.series) &&
+      value.series.length > 0 &&
+      (value.number === undefined || typeof value.number === "boolean")
+    );
+  }
   if (value.kind === "invalid") {
     return (
       hasOnlyKeys(value, [

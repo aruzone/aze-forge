@@ -13,6 +13,24 @@ import {
 } from "./mermaid.js";
 import { MERMAID_VERSION } from "./mermaid-schemas.js";
 import {
+  D3_ARRAY_VERSION,
+  D3_SCALE_VERSION,
+  D3_SHAPE_VERSION,
+  PLOT_EMITTER_VERSION,
+  PLOT_EVAL_VERSION,
+} from "./plot-schemas.js";
+import {
+  MAX_BAR_CATEGORIES,
+  MAX_BINS,
+  MAX_CHART_SERIES,
+  MAX_HISTOGRAM_VALUES,
+  MAX_LABEL_CHARS,
+  MAX_PARAMETERS,
+  MAX_PLOT_SERIES,
+  MAX_POINTS_PER_SERIES,
+  MAX_SAMPLES,
+} from "./plot.js";
+import {
   CHROME_HEADLESS_SHELL_VERSION,
   resolvePinnedBrowserExecutable,
 } from "./mermaid-browser.js";
@@ -178,6 +196,14 @@ export interface CapabilitiesReport {
     }>;
     readonly mermaid: Readonly<{
       version: typeof MERMAID_VERSION;
+      availability: EngineAvailability;
+    }>;
+    readonly plot: Readonly<{
+      emitter: typeof PLOT_EMITTER_VERSION;
+      eval: typeof PLOT_EVAL_VERSION;
+      d3array: typeof D3_ARRAY_VERSION;
+      d3scale: typeof D3_SCALE_VERSION;
+      d3shape: typeof D3_SHAPE_VERSION;
       availability: EngineAvailability;
     }>;
     readonly fonts: readonly {
@@ -375,6 +401,20 @@ export async function buildCapabilities(
           maxSourceChars: MAX_MERMAID_SOURCE_LENGTH,
           maxTextChars: MAX_MERMAID_TEXT_LENGTH,
         },
+        plot: {
+          maxSeries: MAX_PLOT_SERIES,
+          maxPointsPerSeries: MAX_POINTS_PER_SERIES,
+          maxSamples: MAX_SAMPLES,
+          maxParameters: MAX_PARAMETERS,
+          maxLabelChars: MAX_LABEL_CHARS,
+        },
+        chart: {
+          maxSeries: MAX_CHART_SERIES,
+          maxHistogramValues: MAX_HISTOGRAM_VALUES,
+          maxBins: MAX_BINS,
+          maxBarCategories: MAX_BAR_CATEGORIES,
+          maxLabelChars: MAX_LABEL_CHARS,
+        },
       },
       serve: { bind: "127.0.0.1", port: { min: 0, max: 65535, default: 0 } },
     },
@@ -397,6 +437,14 @@ export async function buildCapabilities(
         availability: bundled,
       },
       mermaid: { version: MERMAID_VERSION, availability: bundled },
+      plot: {
+        emitter: PLOT_EMITTER_VERSION,
+        eval: PLOT_EVAL_VERSION,
+        d3array: D3_ARRAY_VERSION,
+        d3scale: D3_SCALE_VERSION,
+        d3shape: D3_SHAPE_VERSION,
+        availability: bundled,
+      },
       fonts: [
         { family: "Inter", weights: [400, 700] },
         { family: "JetBrains Mono", weights: [400] },

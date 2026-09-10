@@ -5,6 +5,7 @@ import type { Browser, HTTPRequest } from "puppeteer-core";
 import { calloutHtmlBlockRenderer } from "./callout.js";
 import { derivationHtmlBlockRenderer } from "./derivation.js";
 import { equationHtmlBlockRenderer } from "./equation.js";
+import { chartHtmlBlockRenderer, plotHtmlBlockRenderer } from "./plot.js";
 
 import { assetManifestHash } from "./assets.js";
 import { artifactBytesHash, canonicalJson, sha256 } from "./hash.js";
@@ -59,6 +60,8 @@ export const svgBlockRenderers: readonly AnyBlockRenderer[] = Object.freeze([
   svgBlockRenderer(calloutHtmlBlockRenderer),
   svgBlockRenderer(mermaidHtmlBlockRenderer),
   svgBlockRenderer(tableHtmlBlockRenderer),
+  svgBlockRenderer(plotHtmlBlockRenderer),
+  svgBlockRenderer(chartHtmlBlockRenderer),
 ]);
 
 export interface SvgBrowserCapability {

@@ -21,9 +21,12 @@ import {
   validateMermaidBody,
 } from "./mermaid.js";
 import { MERMAID_PLUGIN_TYPE } from "./mermaid-schemas.js";
+import { CHART_PLUGIN_TYPE, PLOT_PLUGIN_TYPE } from "./plot-schemas.js";
+import { EMPTY_DOCUMENT_DEFAULTS, chartPlugin, parseDocumentDefaults, plotPlugin, validateChartBlock, validatePlotBlock, type PlotBlockDefaults, type PlotDocumentDefaults, type PlotInputLine } from "./plot.js";
 import type {
   ArtifactFormat,
   CalloutBlock,
+  ChartBlock,
   Diagnostic,
   DiagnosticFix,
   DiagnosticLocation,
@@ -36,6 +39,7 @@ import type {
   ParseResult,
   RelatedLocation,
   SourceRange,
+  PlotBlock,
   TableBlock,
   TableColumn,
   TableData,
@@ -66,6 +70,7 @@ const KNOWN_METADATA_KEYS: Readonly<Record<string, true>> = {
   title: true,
   theme: true,
   outputs: true,
+  defaults: true,
 };
 const BLANK = /^[ \t]*$/;
 const STRUCTURAL_COMMENT = /^[ \t]*\/[\/](?:[ \t].*)?$/;
@@ -112,12 +117,12 @@ function nearestMetadataKey(value: string): string {
   }
   return nearest;
 }
-
 interface ParsedFrontMatter {
   readonly metadata: DocumentMetadata;
   readonly diagnostics: readonly Diagnostic[];
   readonly bodyStart: number;
   readonly versionDeclared: boolean;
+  readonly defaults: PlotDocumentDefaults;
 }
 
 function diagnostic(
@@ -251,6 +256,7 @@ function parseFrontMatter(
       diagnostics: [],
       bodyStart: 0,
       versionDeclared: false,
+      defaults: EMPTY_DOCUMENT_DEFAULTS,
     };
   }
   const openingText = firstLine.text.startsWith("\uFEFF")
@@ -262,6 +268,7 @@ function parseFrontMatter(
       diagnostics: [],
       bodyStart: 0,
       versionDeclared: false,
+      defaults: EMPTY_DOCUMENT_DEFAULTS,
     };
   }
 
@@ -284,6 +291,7 @@ function parseFrontMatter(
         ) + 1,
       ),
       versionDeclared: false,
+      defaults: EMPTY_DOCUMENT_DEFAULTS,
     };
   }
 
@@ -382,6 +390,7 @@ function parseFrontMatter(
       diagnostics,
       bodyStart: closingIndex + 1,
       versionDeclared: false,
+      defaults: EMPTY_DOCUMENT_DEFAULTS,
     };
   }
 
@@ -469,12 +478,21 @@ if (record.azemark !== undefined && record.azemark !== 2) {
       metadata.extensions[key] = extension;
     }
   }
+  let frontMatterDefaults: PlotDocumentDefaults = EMPTY_DOCUMENT_DEFAULTS;
+  if (record.defaults !== undefined) {
+    const parsed = parseDocumentDefaults(record.defaults, { text: "", range: rangeFromLines(metadataLine, metadataLine) }, options.sourceName);
+    diagnostics.push(...parsed.diagnostics);
+    if (parsed.diagnostics.every((entry) => entry.severity !== "error")) {
+      frontMatterDefaults = parsed.defaults;
+    }
+  }
 
   return {
     metadata,
     diagnostics,
     bodyStart: closingIndex + 1,
     versionDeclared: Object.prototype.hasOwnProperty.call(record, "azemark"),
+    defaults: frontMatterDefaults,
   };
 }
 
@@ -2038,6 +2056,56 @@ function parseTableEnvelope(
   return block;
 }
 
+function parsePlotFamilyEnvelope(
+  source: string,
+  lines: readonly SourceLine[],
+  openIndex: number,
+  closingIndex: number,
+  first: SourceLine,
+  last: SourceLine,
+  options: ParseOptions,
+  diagnostics: Diagnostic[],
+  pluginType: string,
+  sectionDefaults: PlotBlockDefaults | undefined,
+  validate: (args: {
+    readonly headerLines: readonly PlotInputLine[];
+    readonly bodyLines: readonly PlotInputLine[];
+    readonly blockRange: SourceRange;
+    readonly sourceName: string | undefined;
+    readonly defaults?: PlotBlockDefaults;
+  }) => {
+    readonly block?: PlotBlock | ChartBlock;
+    readonly diagnostics: readonly Diagnostic[];
+  },
+): ParsedBlock {
+  const blockRange = rangeFromLines(first, last);
+  const startIndex = diagnostics.length;
+  const finishInvalid = (): ParsedBlock =>
+    invalidBlockFor(source, first, last, startIndex, diagnostics, pluginType);
+  const { bodyStart, separatorFound } = splitHeaderEntries(lines, openIndex, closingIndex);
+  if (!separatorFound) {
+    missingSeparatorDiagnostic(lines, openIndex, closingIndex, first, options, diagnostics);
+    return finishInvalid();
+  }
+  const toInput = (line: SourceLine): PlotInputLine => ({
+    text: lineText(line),
+    range: rangeFromLines(line, line),
+  });
+  const headerLines = lines.slice(openIndex + 1, bodyStart - 1).map(toInput);
+  const bodyLines = lines.slice(bodyStart, closingIndex).map(toInput);
+  const validated = validate({
+    headerLines,
+    bodyLines,
+    blockRange,
+    sourceName: options.sourceName,
+    ...(sectionDefaults === undefined ? {} : { defaults: sectionDefaults }),
+  });
+  diagnostics.push(...validated.diagnostics);
+  if (validated.block !== undefined) return validated.block;
+  return finishInvalid();
+}
+
+
 function parseBlocks(
   source: string,
   lines: readonly SourceLine[],
@@ -2047,6 +2115,7 @@ function parseBlocks(
   activeTypes: readonly string[],
   allowRawLatex: boolean,
   depth = 0,
+  defaults: PlotDocumentDefaults = EMPTY_DOCUMENT_DEFAULTS,
 ): readonly ParsedBlock[] {
   const blocks: ParsedBlock[] = [];
   let index = bodyStart;
@@ -2229,6 +2298,50 @@ function parseBlocks(
             last,
             options,
             diagnostics,
+          ),
+        );
+        continue;
+      }
+      if (
+        closed &&
+        originalType === PLOT_PLUGIN_TYPE &&
+        activeTypes.includes(PLOT_PLUGIN_TYPE)
+      ) {
+        blocks.push(
+          parsePlotFamilyEnvelope(
+            source,
+            lines,
+            openIndex,
+            closingIndex,
+            first,
+            last,
+            options,
+            diagnostics,
+            PLOT_PLUGIN_TYPE,
+            defaults.plot,
+            validatePlotBlock,
+          ),
+        );
+        continue;
+      }
+      if (
+        closed &&
+        originalType === CHART_PLUGIN_TYPE &&
+        activeTypes.includes(CHART_PLUGIN_TYPE)
+      ) {
+        blocks.push(
+          parsePlotFamilyEnvelope(
+            source,
+            lines,
+            openIndex,
+            closingIndex,
+            first,
+            last,
+            options,
+            diagnostics,
+            CHART_PLUGIN_TYPE,
+            defaults.chart,
+            validateChartBlock,
           ),
         );
         continue;
@@ -2670,6 +2783,8 @@ export function parseSource(source: string, options: ParseOptions = {}): ParseRe
     calloutPlugin,
     mermaidPlugin,
     tablePlugin,
+    plotPlugin,
+    chartPlugin,
   ];
   const activeTypes = [...new Set(activePlugins.map((plugin) => plugin.descriptor.type))].sort();
   const blocks = parseBlocks(
@@ -2680,6 +2795,8 @@ export function parseSource(source: string, options: ParseOptions = {}): ParseRe
     diagnostics,
     activeTypes,
     options.allowRawLatex ?? false,
+    0,
+    frontMatter.defaults,
   );
   diagnostics.push(
     ...validateBlockIds(

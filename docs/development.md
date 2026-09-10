@@ -69,6 +69,10 @@ node --test test/equation.test.mjs
   projections, stable sub-ranged diagnostics, and ceilings.
 - `test/derivation.test.mjs` is the derivation seam: ordered
   `- expression:` step records with annotations and aligned rendering.
+- `test/plot.test.mjs` is the plots and data charts seam: bounded evaluable
+  expressions, exact-decimal canonicalization, gap/asymptote sampling,
+  bar-family binning, stable diagnostics, quantized deterministic SVG, and
+  the plot capabilities engine.
 
 ## Acceptance runner
 

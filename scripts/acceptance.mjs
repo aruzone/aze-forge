@@ -310,7 +310,7 @@ async function stepCatalog() {
     `azeforge.acceptance/v1 with ${canonical.entries.length} entries`,
   );
   const p0 = canonical.entries.filter((item) => item.gate === "p0");
-  check("P0-CLI-007", "catalog covers every required P0 contract", p0.length === 32 && p0.every((item) => item.required), `${p0.length} P0 entries`);
+  check("P0-CLI-007", "catalog covers every required P0 contract", p0.length === 35 && p0.every((item) => item.required), `${p0.length} P0 entries`);
   const ids = new Set(canonical.entries.map((item) => item.id));
   check("P0-CLI-007", "catalog IDs are unique", ids.size === canonical.entries.length, `${ids.size} unique IDs`);
   const coverage = checkAcceptanceCoverage(AUTOMATED_P0_IDS);
@@ -333,6 +333,9 @@ function assertGoldenHtml(id, html) {
   if (!html.includes('data-derivation-id="geometric-series-sum"')) failures.push("geometric-series-sum");
   if (!html.includes("converges when abs(r)")) failures.push("derivation-annotation");
   if (!/<figure class="aze-mermaid"/.test(html)) failures.push("mermaid");
+  if (!html.includes('data-plot-id="rc-step-response"')) failures.push("rc-step-response");
+  if (!html.includes("analytic step response")) failures.push("plot-legend");
+  if (!html.includes('data-chart-id="bench-scores"')) failures.push("bench-scores");
   if (!html.includes('href="https://example.com/engineering-notation"')) failures.push("link");
   if (!/<table id="materials">[\s\S]*?<caption>Representative material properties/.test(html)) failures.push("caption");
   if (!/text-align:left/.test(html) || !/text-align:center/.test(html) || !/text-align:right/.test(html)) failures.push("align");
@@ -378,8 +381,10 @@ async function stepGoldenMatrix(live) {
           const failures = [];
           if (countOccurrences(svg, 'class="katex"') !== 8) failures.push("katex-x8");
           if (!svg.includes("aze-mermaid")) failures.push("mermaid");
+          if (!svg.includes("aze-plot")) failures.push("plot");
+          if (!svg.includes("aze-chart")) failures.push("chart");
           if (!/Representative material properties/.test(svg)) failures.push("caption");
-          check("P0-OUT-001", `${cell} carries every semantic object`, failures.length === 0, failures.join(",") || "equations,mermaid,table");
+          check("P0-OUT-001", `${cell} carries every semantic object`, failures.length === 0, failures.join(",") || "equations,mermaid,table,plot,chart");
         }
         if (format === "png") {
           const chunks = pngChunks(bytes);

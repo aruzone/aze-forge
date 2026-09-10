@@ -184,6 +184,71 @@ export function documentContentHash(document: AzeDocument): ContentHash {
       if (block.align !== undefined) projected.align = block.align;
       return projected;
     }
+    if (block.kind === "plot") {
+      const projected: Record<string, JsonValue> = {
+        kind: block.kind,
+        pluginVersion: block.pluginVersion,
+        width: block.width,
+        height: block.height,
+        legend: block.legend,
+        grid: block.grid,
+        parameters: block.parameters as unknown as JsonValue,
+        xAxis: block.xAxis as unknown as JsonValue,
+        yAxis: block.yAxis as unknown as JsonValue,
+        series: block.series.map((entry) =>
+          entry.kind === "function"
+            ? {
+                kind: entry.kind,
+                ...(entry.label === undefined ? {} : { label: entry.label }),
+                variable: entry.variable,
+                tree: entry.tree,
+                domainMin: entry.domainMin,
+                domainMax: entry.domainMax,
+                samples: entry.samples,
+              }
+            : {
+                kind: entry.kind,
+                ...(entry.label === undefined ? {} : { label: entry.label }),
+                points: entry.points.map((point) => ({ ...point }) as unknown as JsonValue),
+              },
+        ),
+      };
+      if (block.id !== undefined) projected.id = block.id;
+      if (block.number !== undefined) projected.number = block.number;
+      return projected;
+    }
+    if (block.kind === "chart") {
+      const projected: Record<string, JsonValue> = {
+        kind: block.kind,
+        pluginVersion: block.pluginVersion,
+        chartType: block.chartType,
+        width: block.width,
+        height: block.height,
+        legend: block.legend,
+        grid: block.grid,
+        series: block.series.map((entry) =>
+          entry.kind === "bars"
+            ? {
+                kind: entry.kind,
+                ...(entry.label === undefined ? {} : { label: entry.label }),
+                bars: entry.bars.map((bar) => ({ ...bar }) as unknown as JsonValue),
+              }
+            : {
+                kind: entry.kind,
+                ...(entry.label === undefined ? {} : { label: entry.label }),
+                values: [...entry.values] as unknown as JsonValue,
+                edges: [...entry.edges] as unknown as JsonValue,
+              },
+        ),
+      };
+      if (block.id !== undefined) projected.id = block.id;
+      if (block.number !== undefined) projected.number = block.number;
+      if (block.xLabel !== undefined) projected.xLabel = block.xLabel;
+      if (block.yLabel !== undefined) projected.yLabel = block.yLabel;
+      if (block.yMin !== undefined) projected.yMin = block.yMin;
+      if (block.yMax !== undefined) projected.yMax = block.yMax;
+      return projected;
+    }
     if (block.kind === "thematicBreak") {
       const projected: Record<string, JsonValue> = { kind: block.kind };
       if (block.id !== undefined) projected.id = block.id;

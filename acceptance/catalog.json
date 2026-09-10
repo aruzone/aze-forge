@@ -339,6 +339,57 @@
       ]
     },
     {
+      "id": "P0-PLT-001",
+      "gate": "p0",
+      "area": "plot",
+      "given": "A native plot Block",
+      "when": "it is compiled",
+      "then": [
+        "function and point series parse into authored-order series with evaluable trees and canonical exact decimals",
+        "it renders deterministic browser-free SVG with gaps across undefined regions, error bars, legend, and accessible title and description"
+      ],
+      "evidence": "automated",
+      "required": true,
+      "contracts": [
+        "#51",
+        "#58"
+      ]
+    },
+    {
+      "id": "P0-PLT-002",
+      "gate": "p0",
+      "area": "plot",
+      "given": "Invalid plot declarations and undefined regions",
+      "when": "they are compiled",
+      "then": [
+        "unbound names, non-evaluable constructs, invalid data, and log-domain violations diagnose with stable codes and item ranges",
+        "undefined samples gap without diagnostics and all-undefined series warn without failing"
+      ],
+      "evidence": "automated",
+      "required": true,
+      "contracts": [
+        "#51",
+        "#58"
+      ]
+    },
+    {
+      "id": "P0-CHT-001",
+      "gate": "p0",
+      "area": "chart",
+      "given": "A bar-family chart Block",
+      "when": "it is compiled",
+      "then": [
+        "bar, grouped-bar, stacked-bar, and histogram series parse with authored category order and resolved histogram edges",
+        "bin counts derive deterministically at render while out-of-range values and unordered edges error"
+      ],
+      "evidence": "automated",
+      "required": true,
+      "contracts": [
+        "#51",
+        "#58"
+      ]
+    },
+    {
       "id": "P0-OUT-001",
       "gate": "p0",
       "area": "artifact",

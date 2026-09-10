@@ -226,6 +226,97 @@ export interface DerivationBlock {
   readonly align?: "left" | "center" | "right";
 }
 
+export interface PlotAxisConfig {
+  readonly label?: string;
+  readonly scale: "linear" | "log";
+  readonly min?: string;
+  readonly max?: string;
+}
+
+export interface PlotFunctionSeries {
+  readonly kind: "function";
+  readonly label?: string;
+  readonly variable: string;
+  readonly expression: string;
+  readonly tree: JsonValue;
+  readonly domainMin: string;
+  readonly domainMax: string;
+  readonly samples: number;
+}
+
+export interface PlotDataPoint {
+  readonly x: string;
+  readonly y: string;
+  readonly error?: string;
+  readonly errorLow?: string;
+  readonly errorHigh?: string;
+}
+
+export interface PlotPointSeries {
+  readonly kind: "line" | "scatter";
+  readonly label?: string;
+  readonly points: readonly PlotDataPoint[];
+}
+
+export type PlotSeries = PlotFunctionSeries | PlotPointSeries;
+
+export interface PlotBlock {
+  readonly kind: "plot";
+  readonly range: SourceRange;
+  readonly id?: string;
+  readonly pluginVersion: string;
+  readonly number?: boolean;
+  readonly width: number;
+  readonly height: number;
+  readonly legend: boolean;
+  readonly grid: boolean;
+  readonly parameters: Readonly<Record<string, string>>;
+  readonly xAxis: PlotAxisConfig;
+  readonly yAxis: PlotAxisConfig;
+  readonly series: readonly PlotSeries[];
+}
+
+export interface ChartBar {
+  readonly category: string;
+  readonly value: string;
+  readonly error?: string;
+  readonly errorLow?: string;
+  readonly errorHigh?: string;
+}
+
+export interface ChartBarSeries {
+  readonly kind: "bars";
+  readonly label?: string;
+  readonly bars: readonly ChartBar[];
+}
+
+export interface ChartHistogramSeries {
+  readonly kind: "histogram";
+  readonly label?: string;
+  readonly values: readonly string[];
+  readonly edges: readonly string[];
+}
+
+export type ChartSeries = ChartBarSeries | ChartHistogramSeries;
+
+export interface ChartBlock {
+  readonly kind: "chart";
+  readonly range: SourceRange;
+  readonly id?: string;
+  readonly pluginVersion: string;
+  readonly chartType: "bar" | "grouped-bar" | "stacked-bar" | "histogram";
+  readonly number?: boolean;
+  readonly width: number;
+  readonly height: number;
+  readonly legend: boolean;
+  readonly grid: boolean;
+  readonly xLabel?: string;
+  readonly yLabel?: string;
+  readonly yMin?: string;
+  readonly yMax?: string;
+  readonly series: readonly ChartSeries[];
+}
+
 export type ParsedBlock =
   | HeadingBlock
   | ParagraphBlock
@@ -238,7 +329,10 @@ export type ParsedBlock =
   | EquationBlock
   | MermaidBlock
   | DerivationBlock
+  | PlotBlock
+  | ChartBlock
   | InvalidBlock;
+
 export type AzeBlock =
   | HeadingBlock
   | ParagraphBlock
@@ -250,7 +344,9 @@ export type AzeBlock =
   | CalloutBlock
   | EquationBlock
   | MermaidBlock
-  | DerivationBlock;
+  | DerivationBlock
+  | PlotBlock
+  | ChartBlock;
 export type ArtifactFormat = "html" | "svg" | "png" | "pdf";
 
 export interface DocumentMetadata {
@@ -517,6 +613,8 @@ export type AnyBlockRenderer =
   | AzeBlockRenderer<DerivationBlock>
   | AzeBlockRenderer<CalloutBlock>
   | AzeBlockRenderer<TableBlock>
+  | AzeBlockRenderer<PlotBlock>
+  | AzeBlockRenderer<ChartBlock>
   | MermaidBlockRenderer;
 export type BlockRenderer = AnyBlockRenderer;
 export interface CompilerPolicy {

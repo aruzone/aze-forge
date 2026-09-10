@@ -21,6 +21,7 @@ import type {
   AzeDocument,
   BlockRendererContext,
   CalloutBlock,
+  ChartBlock,
   CompileOptions,
   CompileResult,
   Compiler,
@@ -35,6 +36,7 @@ import type {
   ParseResult,
   TableBlock,
   Theme,
+  PlotBlock,
   SourceRange,
   ValidationResult,
 } from "./model.js";
@@ -472,6 +474,26 @@ function collectRenderText(blocks: readonly AzeBlock[], out: string[]): void {
             for (const cell of row) {
               out.push(inlineTextValue(cell));
             }
+          }
+        }
+        break;
+      case "plot":
+        if (block.id !== undefined) out.push(block.id);
+        if (block.xAxis.label !== undefined) out.push(block.xAxis.label);
+        if (block.yAxis.label !== undefined) out.push(block.yAxis.label);
+        for (const entry of block.series) {
+          if (entry.label !== undefined) out.push(entry.label);
+          if (entry.kind === "function") out.push(entry.expression);
+        }
+        break;
+      case "chart":
+        if (block.id !== undefined) out.push(block.id);
+        if (block.xLabel !== undefined) out.push(block.xLabel);
+        if (block.yLabel !== undefined) out.push(block.yLabel);
+        for (const entry of block.series) {
+          if (entry.label !== undefined) out.push(entry.label);
+          if (entry.kind === "bars") {
+            for (const bar of entry.bars) out.push(bar.category);
           }
         }
         break;
@@ -1219,6 +1241,14 @@ interface PluginAdapterResolution {
     block: TableBlock,
     context: BlockRendererContext,
   ) => string;
+  readonly renderPlot?: (
+    block: PlotBlock,
+    context: BlockRendererContext,
+  ) => string;
+  readonly renderChart?: (
+    block: ChartBlock,
+    context: BlockRendererContext,
+  ) => string;
 }
 
 function checkPluginAdapters(
@@ -1236,10 +1266,19 @@ function checkPluginAdapters(
   let renderTable:
     | ((block: TableBlock, context: BlockRendererContext) => string)
     | undefined;
+  let renderPlot:
+    | ((block: PlotBlock, context: BlockRendererContext) => string)
+    | undefined;
+  let renderChart:
+    | ((block: ChartBlock, context: BlockRendererContext) => string)
+    | undefined;
   for (const entry of [
     { blockType: "callout", pluginVersion: "1.0.0" },
     { blockType: "table", pluginVersion: "2.0.0" },
+    { blockType: "plot", pluginVersion: "1.0.0" },
+    { blockType: "chart", pluginVersion: "1.0.0" },
   ] as const) {
+    const entryType: string = entry.blockType;
     const blocks = pluginBlocks(document, entry.blockType);
     if (blocks.length === 0) continue;
     const targets = blocks.map((block) => ({ block }));
@@ -1365,7 +1404,7 @@ function checkPluginAdapters(
         }
         return result;
       };
-    } else {
+    } else if (entry.blockType === "table") {
       const render = chosen.render as (
         block: TableBlock,
         context: BlockRendererContext,
@@ -1377,12 +1416,43 @@ function checkPluginAdapters(
         }
         return result;
       };
+    } else if (entry.blockType === "plot") {
+      const render = chosen.render as (
+        block: PlotBlock,
+        context: BlockRendererContext,
+      ) => string | Promise<string>;
+      renderPlot = (block, context) => {
+        const result = render(block, context);
+        if (typeof result !== "string") {
+          throw new BlockRendererSyncError(chosen.descriptor.id, "plot");
+        }
+        return result;
+      };
+    } else if (entry.blockType === "chart") {
+      const render = chosen.render as (
+        block: ChartBlock,
+        context: BlockRendererContext,
+      ) => string | Promise<string>;
+      renderChart = (block, context) => {
+        const result = render(block, context);
+        if (typeof result !== "string") {
+          throw new BlockRendererSyncError(chosen.descriptor.id, "chart");
+        }
+        return result;
+      };
+    } else {
+      throw new CompilerConfigurationError(
+        "AZE_CONFIG_ADAPTER_BLOCK_TYPE",
+        `Plugin adapter entry for "${entryType}" has no sync renderer wiring.`,
+      );
     }
   }
   return {
     diagnostics,
     ...(renderCallout === undefined ? {} : { renderCallout }),
     ...(renderTable === undefined ? {} : { renderTable }),
+    ...(renderPlot === undefined ? {} : { renderPlot }),
+    ...(renderChart === undefined ? {} : { renderChart }),
   };
 }
 
@@ -1762,6 +1832,12 @@ export function createCompiler(options: CompilerOptions = {}): Compiler {
           ...(pluginPreflight.renderTable === undefined
             ? {}
             : { renderTable: pluginPreflight.renderTable }),
+          ...(pluginPreflight.renderPlot === undefined
+            ? {}
+            : { renderPlot: pluginPreflight.renderPlot }),
+          ...(pluginPreflight.renderChart === undefined
+            ? {}
+            : { renderChart: pluginPreflight.renderChart }),
         };
         const renderArguments = [
           imageResolution.document,

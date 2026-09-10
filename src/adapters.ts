@@ -102,6 +102,21 @@ export {
   tableHtmlBlockRenderer,
   tablePlugin,
 } from "./table.js";
+export {
+  CHART_HTML_BLOCK_RENDERER_ID,
+  CHART_HTML_BLOCK_RENDERER_VERSION,
+  PLOT_HTML_BLOCK_RENDERER_ID,
+  PLOT_HTML_BLOCK_RENDERER_VERSION,
+  PlotSanitizerError,
+  assertPlotFragmentSafe,
+  chartHtmlBlockRenderer,
+  chartPlugin,
+  plotDependencyClosure,
+  plotHtmlBlockRenderer,
+  plotPlugin,
+  renderChartFragment,
+  renderPlotFragment,
+} from "./plot.js";
 
 export type {
   AnyBlockRenderer,

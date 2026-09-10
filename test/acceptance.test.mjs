@@ -43,6 +43,9 @@ const SUITE_EVIDENCE = [
   ["P0-EQN-002", "test/equation.test.mjs"],
   ["P0-EQN-003", "test/native-math.test.mjs"],
   ["P0-DRV-001", "test/derivation.test.mjs"],
+  ["P0-PLT-001", "test/plot.test.mjs"],
+  ["P0-PLT-002", "test/plot.test.mjs"],
+  ["P0-CHT-001", "test/plot.test.mjs"],
   ["P0-MMD-001", "test/mermaid.test.mjs"],
   ["P0-OUT-001", "test/acceptance.test.mjs"],
   ["P0-OUT-002", "test/acceptance.test.mjs"],
@@ -88,6 +91,9 @@ function goldenFailures(html) {
     failures.push("caption");
   }
   if (!/<figure class="aze-mermaid"/.test(html)) failures.push("mermaid");
+  if (!html.includes('data-plot-id="rc-step-response"')) failures.push("rc-step-response");
+  if (!html.includes("analytic step response")) failures.push("plot-legend");
+  if (!html.includes('data-chart-id="bench-scores"')) failures.push("bench-scores");
   if (!html.includes('href="https://example.com/engineering-notation"')) failures.push("link");
   return failures;
 }
@@ -109,7 +115,7 @@ test("acceptance catalog is canonical and coverage rejects missing or unknown ID
   const onDisk = JSON.parse(await readFile(new URL("../acceptance/catalog.json", import.meta.url), "utf8"));
   assert.deepEqual(onDisk, JSON.parse(JSON.stringify(canonical)));
   assert.equal(canonical.catalog.id, "azeforge.acceptance/v1");
-  assert.equal(canonical.entries.filter((item) => item.gate === "p0").length, 32);
+  assert.equal(canonical.entries.filter((item) => item.gate === "p0").length, 35);
 
   const declared = SUITE_EVIDENCE.map(([id]) => id);
   assert.deepEqual(checkAcceptanceCoverage(declared), { missing: [], unknown: [] });

@@ -9,7 +9,7 @@ commands to run. All paths below are relative to the repo root.
 
 ```bash
 npm run build
-for f in test-files/valid/*.aze.md test-files/equations/01-readable.aze.md test-files/mermaid/*.aze.md test-files/images/01-project-images.aze.md; do
+for f in test-files/valid/*.aze.md test-files/equations/01-readable.aze.md test-files/mermaid/*.aze.md test-files/plot/*.aze.md test-files/chart/*.aze.md test-files/images/01-project-images.aze.md; do
   node dist/cli.js validate "$f" || echo "FAIL: $f"
 done
 node dist/cli.js validate test-files/equations/02-latex.aze.md --allow-raw-latex
@@ -34,6 +34,8 @@ diagnostics on stderr. Files with raw LaTeX need `--allow-raw-latex`.
 | `mermaid/01-flowchart.aze.md` | Flowchart Blocks (TD and LR) with `id`/`title`/`description` headers and without; decision diamonds, edge labels, loops; deterministic seed, namespaced IDs, accessible `<title>`/`<desc>`. |
 | `mermaid/02-sequence.aze.md` | `sequenceDiagram` with participants, requests, and responses; deterministic participant/message layout. |
 | `images/01-project-images.aze.md` | P0-06: root-confined PNG plus sanitized SVG embedded as data under the `academic` metadata Theme; deterministic `assetManifestHash`. |
+| `plot/01-rc-response.aze.md` | Native `plot` Block: function series with `parameters:` scientific-input normalization plus scatter series with symmetric/asymmetric error bars; deterministic browser-free SVG with legend and `<title>`/`<desc>`. |
+| `chart/01-grouped-bar.aze.md` | `grouped-bar` chart with error bars plus a `histogram` with explicit edges; authored category order, resolved edge list, render-derived counts. |
 
 ## Invalid (each exits `1`)
 
@@ -41,7 +43,7 @@ diagnostics on stderr. Files with raw LaTeX need `--allow-raw-latex`.
 |---|---|
 | `invalid/01-equations-invalid.aze.md` | `azeforge.equation#missing-integration-variable` (line-specific), `azeforge.equation#unsupported-notation` (TeX braces, raw TeX in a readable block). |
 | `invalid/02-latex-denied.aze.md` | `azeforge.security#raw-latex-disabled` (passes with `--allow-raw-latex`). |
-| `invalid/03-directives.aze.md` | `azeforge.source#unknown-directive` (with `availableTypes: ["callout","equation","mermaid","table"]` plus a suggestion), `azeforge.source#unclosed-directive`. Surrounding valid Blocks survive in `ParsedDocument`; no `AzeDocument`, no Artifact. |
+| `invalid/03-directives.aze.md` | `azeforge.source#unknown-directive` (with `availableTypes: ["callout","chart","derivation","equation","mermaid","plot","table"]` plus a suggestion), `azeforge.source#unclosed-directive`. Surrounding valid Blocks survive in `ParsedDocument`; no `AzeDocument`, no Artifact. |
 | `invalid/04-identifiers.aze.md` | `azeforge.reference#invalid-id` (`Bad-ID`), `azeforge.reference#duplicate-id` (`shared`, related to first definition). |
 | `invalid/05-raw-html.aze.md` | `azeforge.security#raw-html-disabled`; markup never rendered. |
 | `invalid/06-version.aze.md` | `azeforge.source#version-unsupported`; previous Artifact preserved. |
@@ -50,6 +52,7 @@ diagnostics on stderr. Files with raw LaTeX need `--allow-raw-latex`.
 | `invalid/08-callouts-tables.aze.md` | P0-04: `azeforge.callout#unknown-variant` (range underlines `bogus`, help lists the five variants), `azeforge.table#body-must-be-records` (scalar body in a typed `table` Block), `azeforge.link#unsafe-protocol` (`ftp:` inside a callout), `azeforge.table#unknown-header` (`width:`, suggests `caption`/`id`). Valid Blocks before/after survive. |
 | `invalid/09-nesting.aze.md` | P0-04: `azeforge.link#unsafe-protocol` (bad link inside a nested blockquote inside a callout — nested ranges still resolve), `azeforge.source#unclosed-directive` (trailing callout with no closing `::::`). |
 | `invalid/10-unclosed-code.aze.md` | P0-04: `azeforge.source#unclosed-fence`; the range points to the opening fence and no Artifact is produced. |
+| `invalid/11-plot-chart.aze.md` | `azeforge.plot#unbound-variable`, `azeforge.plot#missing-domain`, `azeforge.plot#log-axis-value`, `azeforge.chart#value-out-of-bin-range` (one per Block, item-ranged; no Artifact). |
 
 ## Spot checks
 
@@ -67,6 +70,24 @@ grep -ci '<script\|<foreignobject\|onclick\|<animate\|href="http' /tmp/flow.html
 # Same Source twice -> byte-identical Artifact (same fingerprint):
 node dist/cli.js render test-files/mermaid/01-flowchart.aze.md --output /tmp/flow2.html
 cmp /tmp/flow.html /tmp/flow2.html && echo "byte-identical"
+
+# Native plots: function curve with gaps, measured points, error bars, legend:
+node dist/cli.js render test-files/plot/01-rc-response.aze.md --output /tmp/plot.html
+grep -o 'class="aze-plot"\|data-plot-id="[a-z-]*"\|<circle\|<path' /tmp/plot.html | sort | uniq -c
+grep -ci '<script\|onclick\|onload\|javascript:' /tmp/plot.html  # expect 0
+
+# Bar charts and histograms: categories in authored order, derived counts:
+node dist/cli.js render test-files/chart/01-grouped-bar.aze.md --output /tmp/chart.html
+grep -o 'class="aze-chart"\|data-chart-id="[a-z-]*"\|<rect' /tmp/chart.html | sort | uniq -c
+
+# Same plot Source twice -> byte-identical Artifact (quantized coordinates):
+node dist/cli.js render test-files/plot/01-rc-response.aze.md --output /tmp/plot2.html
+cmp /tmp/plot.html /tmp/plot2.html && echo "byte-identical"
+
+# Invalid plots: scoped diagnostics, no Artifact, exit 1:
+node dist/cli.js render test-files/invalid/11-plot-chart.aze.md \
+  --output /tmp/broken-plot.html --diagnostics json 2>/dev/null | \
+  grep -o '"code":"azeforge.\(plot\|chart\)#[a-z-]*"' | sort | uniq -c
 
 # Invalid diagrams: scoped diagnostics, no Artifact, exit 1.
 # The combined fixture reports the three parse-time codes; deep syntax is
