@@ -1,0 +1,31 @@
+# Canonical CI image: Ubuntu 24.04 x64 + Node 24, mirroring the
+# `canonical` job in .github/workflows/ci.yml. From the repo root
+# (`npm run test:canonical-local` does both steps):
+#   docker build --platform linux/amd64 -f Dockerfile.canonical -t aze-forge-canonical .
+#   docker run --rm --privileged --platform linux/amd64 aze-forge-canonical
+# --privileged exists only for CI's own Chrome-sandbox sysctl; product
+# behavior is unchanged. On ARM64 hosts Docker emulates x64 (slow
+# Chromium renders, correct bytes); the refresh host gate passes inside.
+FROM ubuntu:24.04
+RUN apt-get update && apt-get install -y curl ca-certificates unzip fonts-liberation \
+ libasound2t64 libatk-bridge2.0-0t64 libatk1.0-0t64 libatspi2.0-0t64 \
+ libcairo2 libcups2t64 libdbus-1-3 libdrm2 libexpat1 libgbm1 \
+ libglib2.0-0t64 libnspr4 libnss3 libpango-1.0-0 libudev1 libx11-6 \
+ libxcb1 libxcomposite1 libxdamage1 libxext6 libxfixes3 libxkbcommon0 \
+ libxrandr2 \
+ && curl -fsSL https://deb.nodesource.com/setup_24.x | bash - \
+ && apt-get install -y nodejs \
+ && node --version
+WORKDIR /repo
+COPY package*.json ./
+RUN npm ci
+COPY . .
+RUN npm run build --silent
+# CI runs as a non-root user, and Chrome refuses its sandbox as root.
+# Mirror that: the browser cache and repo move to `runner`.
+RUN useradd -m -s /bin/bash runner \
+ && mkdir -p /home/runner/.npm /home/runner/.cache/puppeteer \
+ && cp -r /root/.cache/puppeteer/. /home/runner/.cache/puppeteer/ \
+ && chown -R runner:runner /home/runner /repo
+USER runner
+CMD ["bash", "-lc", "sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 2>/dev/null || true; node -e \"if (process.arch !== 'x64') throw new Error('Canonical evidence requires x64')\"; npm run test:canonical-suite --silent; npm run test:canonical --silent"]

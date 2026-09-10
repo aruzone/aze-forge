@@ -54,6 +54,13 @@ node --test test/equation.test.mjs
 - `test:browser-smoke` invokes the packaged pinned engine.
 - `test:canonical-suite` and `test:canonical` own Golden report and visual
   evidence and are authoritative only on Ubuntu 24.04 x64 with Node 24.
+- `test:canonical-local` runs those two suites in a local Docker replica
+  of the canonical CI job (`Dockerfile.canonical`, Ubuntu 24.04 x64 +
+  Node 24). The acceptance `--refresh` host gate passes inside the
+  container. On ARM64 hosts Docker emulates x64: semantic evidence is
+  green, but byte-identical PNG/fingerprint evidence and the pinned
+  mermaid render timeouts do not reproduce under emulation — those
+  cells still need real x64 (CI) before they count as canonical.
 - `test/equation.test.mjs` is the equation seam: versioned Blocks, alias
   coverage, ranged diagnostics, raw-LaTeX policy, adapter failure modes,
   registry rejection, descriptor conformance, and real CLI calls.

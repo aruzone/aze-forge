@@ -1,0 +1,6 @@
+node_modules/
+dist/
+.git/
+*.tmp
+.DS_Store
+acceptance/manual-evidence/
