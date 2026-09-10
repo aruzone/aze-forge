@@ -260,7 +260,7 @@ After
   assert.deepEqual(invalid?.diagnosticIndexes, [0]);
   assert.deepEqual(parsed.diagnostics[0]?.data, {
     type: "mystery",
-    availableTypes: ["callout", "chart", "derivation", "equation", "geometry", "mermaid", "plot", "table"],
+    availableTypes: ["callout", "chart", "circuit", "derivation", "equation", "formula", "geometry", "mermaid", "plot", "reaction", "structure", "table"],
   });
   assert.equal(
     parsed.diagnostics[0]?.code,
@@ -433,14 +433,14 @@ azemark: 2
         code: "azeforge.source#unknown-directive",
         data: {
           type: "one",
-          availableTypes: ["callout", "chart", "derivation", "equation", "geometry", "mermaid", "plot", "table"],
+          availableTypes: ["callout", "chart", "circuit", "derivation", "equation", "formula", "geometry", "mermaid", "plot", "reaction", "structure", "table"],
         },
       },
       {
         code: "azeforge.source#unknown-directive",
         data: {
           type: "two",
-          availableTypes: ["callout", "chart", "derivation", "equation", "geometry", "mermaid", "plot", "table"],
+          availableTypes: ["callout", "chart", "circuit", "derivation", "equation", "formula", "geometry", "mermaid", "plot", "reaction", "structure", "table"],
         },
       },
       {

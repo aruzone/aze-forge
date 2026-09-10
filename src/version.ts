@@ -25,6 +25,17 @@ import {
 } from "./mermaid-schemas.js";
 import type { JsonValue } from "./model.js";
 import {
+  FORMULA_PLUGIN_VERSION,
+  formulaDataSchema,
+  formulaSourceSchema,
+  REACTION_PLUGIN_VERSION,
+  reactionDataSchema,
+  reactionSourceSchema,
+  STRUCTURE_PLUGIN_VERSION,
+  structureDataSchema,
+  structureSourceSchema,
+} from "./chemistry-schemas.js";
+import {
   TABLE_PLUGIN_VERSION,
   tableDataSchema,
   tableSourceSchema,
@@ -72,6 +83,12 @@ export function publicSchemaVersions(): readonly VersionedSchema[] {
     { id: schemaId(tableDataSchema), version: TABLE_PLUGIN_VERSION },
     { id: schemaId(calloutSourceSchema), version: CALLOUT_PLUGIN_VERSION },
     { id: schemaId(calloutDataSchema), version: CALLOUT_PLUGIN_VERSION },
+    { id: schemaId(formulaSourceSchema), version: FORMULA_PLUGIN_VERSION },
+    { id: schemaId(formulaDataSchema), version: FORMULA_PLUGIN_VERSION },
+    { id: schemaId(reactionSourceSchema), version: REACTION_PLUGIN_VERSION },
+    { id: schemaId(reactionDataSchema), version: REACTION_PLUGIN_VERSION },
+    { id: schemaId(structureSourceSchema), version: STRUCTURE_PLUGIN_VERSION },
+    { id: schemaId(structureDataSchema), version: STRUCTURE_PLUGIN_VERSION },
   ]);
 }
 

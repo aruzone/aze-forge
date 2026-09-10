@@ -6,6 +6,12 @@ import { derivationHtmlBlockRenderer } from "./derivation.js";
 import { equationHtmlBlockRenderer } from "./equation.js";
 import { chartHtmlBlockRenderer, plotHtmlBlockRenderer } from "./plot.js";
 import { geometryHtmlBlockRenderer } from "./geometry.js";
+import {
+  formulaHtmlBlockRenderer,
+  reactionHtmlBlockRenderer,
+  structureHtmlBlockRenderer,
+} from "./chemistry.js";
+import { circuitHtmlBlockRenderer } from "./circuit-render.js";
 
 import { assetManifestHash } from "./assets.js";
 import { artifactBytesHash, canonicalJson, sha256 } from "./hash.js";
@@ -40,7 +46,7 @@ export const PDF_MAX_PAGES = 200;
 export const PDF_MAX_HTML_BYTES = 64 * 1024 * 1024;
 export const PDF_PRINT_TIMEOUT_MS = 30_000;
 const ALLOWED_REQUEST = /^(?:about:blank|data:(?:font\/woff2|image\/(?:png|jpeg|svg\+xml));base64,)/;
-const ATOMIC_SELECTOR = ".aze-equation,.aze-mermaid,.aze-plot,.aze-chart,.aze-geometry,figure,img";
+const ATOMIC_SELECTOR = ".aze-equation,.aze-mermaid,.aze-plot,.aze-chart,.aze-geometry,.aze-circuit,.aze-formula,.aze-reaction,.aze-structure,figure,img";
 /**
  * Renderer temporary-storage budget. It is accounted statically, not
  * metered: settled HTML is capped at 64 MiB in and canonical PDF at
@@ -78,6 +84,10 @@ export const pdfBlockRenderers: readonly AnyBlockRenderer[] = Object.freeze([
   pdfBlockRenderer(chartHtmlBlockRenderer),
   pdfBlockRenderer(geometryHtmlBlockRenderer),
   pdfBlockRenderer(tableHtmlBlockRenderer),
+  pdfBlockRenderer(formulaHtmlBlockRenderer),
+  pdfBlockRenderer(reactionHtmlBlockRenderer),
+  pdfBlockRenderer(structureHtmlBlockRenderer),
+  pdfBlockRenderer(circuitHtmlBlockRenderer),
 ]);
 
 export interface PdfBrowserCapability {

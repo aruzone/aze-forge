@@ -356,6 +356,94 @@ export interface GeometryDeclaration {
   readonly third?: string;
 }
 
+export interface ChemistryFormulaPart {
+  readonly kind: "element" | "group";
+  readonly symbol?: string;
+  readonly parts?: readonly ChemistryFormulaPart[];
+  readonly count: number;
+}
+
+export interface ChemistryFormulaUnit {
+  readonly multiplier: number;
+  readonly isotope?: number;
+  readonly parts: readonly ChemistryFormulaPart[];
+}
+
+export interface FormulaBlock {
+  readonly kind: "formula";
+  readonly range: SourceRange;
+  readonly id?: string;
+  readonly pluginVersion: string;
+  readonly number?: boolean;
+  readonly expression: string;
+  readonly units: readonly ChemistryFormulaUnit[];
+  readonly charge: number;
+  readonly chargeSpecified: boolean;
+  readonly electron: boolean;
+}
+
+export interface ReactionSpecies {
+  readonly coefficient?: number;
+  readonly unspecifiedCoefficient: boolean;
+  readonly expression: string;
+  readonly state?: "s" | "l" | "g" | "aq";
+  readonly units: readonly ChemistryFormulaUnit[];
+  readonly charge: number;
+  readonly chargeSpecified: boolean;
+  readonly electron: boolean;
+}
+
+export interface ReactionBlock {
+  readonly kind: "reaction";
+  readonly range: SourceRange;
+  readonly id?: string;
+  readonly pluginVersion: string;
+  readonly number?: boolean;
+  readonly above?: string;
+  readonly below?: string;
+  readonly balance: "none" | "check";
+  readonly arrow: "->" | "<-" | "<->";
+  readonly reactants: readonly ReactionSpecies[];
+  readonly products: readonly ReactionSpecies[];
+}
+
+export interface ChemistryAtom {
+  readonly name: string;
+  readonly element?: string;
+  readonly attach?: string;
+  readonly charge?: number;
+  readonly isotope?: number;
+  readonly x: string;
+  readonly y: string;
+  readonly stereo?: "unspecified";
+}
+
+export interface ChemistryBond {
+  readonly from: string;
+  readonly to: string;
+  readonly order: "1" | "2" | "3" | "aromatic";
+  readonly stereo?: "wedge" | "hash";
+}
+
+export interface ChemistryLabel {
+  readonly text: string;
+  readonly x: string;
+  readonly y: string;
+}
+
+export interface StructureBlock {
+  readonly kind: "structure";
+  readonly range: SourceRange;
+  readonly id?: string;
+  readonly pluginVersion: string;
+  readonly number?: boolean;
+  readonly width: number;
+  readonly height: number;
+  readonly atoms: readonly ChemistryAtom[];
+  readonly bonds: readonly ChemistryBond[];
+  readonly labels?: readonly ChemistryLabel[];
+}
+
 export interface GeometryBlock {
   readonly kind: "geometry";
   readonly range: SourceRange;
@@ -367,6 +455,33 @@ export interface GeometryBlock {
   readonly bounds?: GeometryBounds;
   readonly declarations: readonly GeometryDeclaration[];
 }
+export type CircuitTextRun =
+  | { readonly kind: "text" | "subscript" | "superscript"; readonly value: string }
+  | { readonly kind: "quantity"; readonly coefficient: string; readonly prefix: string; readonly unit: string };
+export type CircuitText = readonly CircuitTextRun[];
+export type CircuitComponentKind =
+  | "resistor" | "capacitor" | "inductor" | "voltage-source" | "current-source"
+  | "diode" | "led" | "switch" | "dependent-source" | "op-amp" | "bjt" | "mosfet"
+  | "and" | "or" | "nand" | "nor" | "xor" | "xnor" | "not" | "buffer"
+  | "mux-2to1" | "mux-4to1" | "d-flip-flop" | "digital-input" | "digital-output";
+export interface CircuitNode { readonly ref: string; readonly role: "signal" | "reference"; readonly label?: CircuitText; readonly range: SourceRange }
+export interface CircuitComponent {
+  readonly kind: CircuitComponentKind; readonly ref: string; readonly terminals: readonly string[];
+  readonly orientation?: "left-to-right" | "right-to-left" | "top-to-bottom" | "bottom-to-top";
+  readonly inputs?: 2 | 3 | 4; readonly name?: CircuitText; readonly value?: CircuitText;
+  readonly mode?: string; readonly range: SourceRange;
+}
+export interface CircuitRelation { readonly componentRef: string; readonly terminal: string; readonly nodeId: string; readonly range: SourceRange }
+export type CircuitAnnotation =
+  | { readonly kind: "voltage-label"; readonly positive: string; readonly negative: string; readonly range: SourceRange }
+  | { readonly kind: "current-label"; readonly componentRef: string; readonly terminal: string; readonly direction: "into" | "out"; readonly range: SourceRange };
+export interface CircuitBlock {
+  readonly kind: "circuit"; readonly pluginVersion: "1.0.0"; readonly range: SourceRange; readonly id?: string; readonly number?: boolean;
+  readonly title: CircuitText; readonly description?: CircuitText; readonly flow: "left-to-right" | "top-to-bottom";
+  readonly symbolConvention: "iec" | "ansi"; readonly nodes: readonly CircuitNode[]; readonly components: readonly CircuitComponent[];
+  readonly relations: readonly CircuitRelation[]; readonly annotations: readonly CircuitAnnotation[];
+}
+
 
 export type ParsedBlock =
   | HeadingBlock
@@ -383,6 +498,10 @@ export type ParsedBlock =
   | PlotBlock
   | ChartBlock
   | GeometryBlock
+  | FormulaBlock
+  | ReactionBlock
+  | StructureBlock
+  | CircuitBlock
   | InvalidBlock;
 
 export type AzeBlock =
@@ -399,7 +518,11 @@ export type AzeBlock =
   | DerivationBlock
   | PlotBlock
   | ChartBlock
-  | GeometryBlock;
+  | GeometryBlock
+  | FormulaBlock
+  | ReactionBlock
+  | CircuitBlock
+  | StructureBlock;
 export type ArtifactFormat = "html" | "svg" | "png" | "pdf";
 
 export interface DocumentMetadata {
@@ -669,6 +792,10 @@ export type AnyBlockRenderer =
   | AzeBlockRenderer<PlotBlock>
   | AzeBlockRenderer<ChartBlock>
   | AzeBlockRenderer<GeometryBlock>
+  | AzeBlockRenderer<FormulaBlock>
+  | AzeBlockRenderer<ReactionBlock>
+  | AzeBlockRenderer<StructureBlock>
+  | AzeBlockRenderer<CircuitBlock>
   | MermaidBlockRenderer;
 export type BlockRenderer = AnyBlockRenderer;
 export interface CompilerPolicy {

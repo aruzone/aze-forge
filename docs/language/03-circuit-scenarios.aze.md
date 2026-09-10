@@ -2,6 +2,7 @@
 azemark: 2
 title: Circuit floating and disconnected scenarios
 author: AzeForge Proto
+x-circuit-symbol-convention: iec
 ---
 
 # Circuit scenarios
@@ -16,125 +17,136 @@ number: true
 title: Floating clocked logic circuit
 ----
 - kind: node
-  ref: DIN
+  ref: din
 - kind: node
-  ref: EN
+  ref: en
 - kind: node
-  ref: CLK
+  ref: clk
 - kind: node
-  ref: U1-OUT
+  ref: u1-out
 - kind: node
-  ref: FF1-Q
+  ref: ff1-q
 - kind: node
-  ref: FF2-Q
+  ref: ff2-q
 - kind: node
-  ref: D2
+  ref: d2
 - kind: node
-  ref: D3
+  ref: d3
 - kind: node
-  ref: S0
+  ref: s0
 - kind: node
-  ref: S1
+  ref: s1
 - kind: node
-  ref: SEL
+  ref: sel
+- kind: node
+  ref: spare
+  label: intentionally unused
 - kind: digital-input
+  ref: DIN
   name: DIN
 - kind: digital-input
+  ref: EN
   name: EN
 - kind: digital-input
+  ref: CLK
   name: CLK
 - kind: digital-input
+  ref: D2
   name: D2
 - kind: digital-input
+  ref: D3
   name: D3
 - kind: digital-input
+  ref: S0
   name: S0
 - kind: digital-input
+  ref: S1
   name: S1
 - kind: digital-output
+  ref: SEL
   name: SEL
 - kind: and
-  name: U1
+  ref: U1
   inputs: 2
 - kind: d-flip-flop
-  name: FF1
+  ref: FF1
 - kind: d-flip-flop
-  name: FF2
+  ref: FF2
 - kind: mux-4to1
-  name: M1
+  ref: M1
 // bindings
 - kind: connect
   terminal: DIN.out
-  node: DIN
+  node: din
 - kind: connect
   terminal: EN.out
-  node: EN
+  node: en
 - kind: connect
   terminal: CLK.out
-  node: CLK
+  node: clk
 - kind: connect
   terminal: D2.out
-  node: D2
+  node: d2
 - kind: connect
   terminal: D3.out
-  node: D3
+  node: d3
 - kind: connect
   terminal: S0.out
-  node: S0
+  node: s0
 - kind: connect
   terminal: S1.out
-  node: S1
+  node: s1
 - kind: connect
   terminal: U1.in1
-  node: DIN
+  node: din
 - kind: connect
   terminal: U1.in2
-  node: EN
+  node: en
 - kind: connect
   terminal: U1.out
-  node: U1-OUT
+  node: u1-out
 - kind: connect
   terminal: FF1.d
-  node: U1-OUT
+  node: u1-out
 - kind: connect
   terminal: FF1.clk
-  node: CLK
+  node: clk
 - kind: connect
   terminal: FF1.q
-  node: FF1-Q
+  node: ff1-q
 - kind: connect
   terminal: FF2.d
-  node: FF1-Q
+  node: ff1-q
 - kind: connect
   terminal: FF2.clk
-  node: CLK
+  node: clk
 - kind: connect
   terminal: FF2.q
-  node: FF2-Q
+  node: ff2-q
 - kind: connect
   terminal: M1.d0
-  node: FF1-Q
+  node: ff1-q
 - kind: connect
   terminal: M1.d1
-  node: FF2-Q
+  node: ff2-q
 - kind: connect
   terminal: M1.d2
-  node: D2
+  node: d2
 - kind: connect
   terminal: M1.d3
-  node: D3
+  node: d3
 - kind: connect
   terminal: M1.s0
-  node: S0
+  node: s0
 - kind: connect
   terminal: M1.s1
-  node: S1
+  node: s1
 - kind: connect
   terminal: M1.out
-  node: SEL
+  node: sel
 - kind: connect
   terminal: SEL.in
-  node: SEL
+  node: sel
 ::::
 
 // Disconnected instructional schematic (R1): two separate subcircuits that are intentionally not connected, plus a declared-but-unused node. Should emit warnings, not errors.
@@ -145,71 +157,71 @@ number: true
 title: Disconnected instructional schematic with warnings
 ----
 - kind: node
-  ref: N1
+  ref: n1
 - kind: node
-  ref: N2
+  ref: n2
 - kind: node
-  ref: N3
+  ref: n3
 - kind: node
-  ref: N4
+  ref: n4
 - kind: node
-  ref: N5
+  ref: n5
 - kind: node
-  ref: N6
+  ref: n6
   label: unused spare
 // First component-bearing subgraph: simple RC low-pass.
 - kind: voltage-source
-  name: V1
+  ref: V1
   value: 5 V
 - kind: resistor
-  name: R1
+  ref: R1
   value: 1 kohm
 - kind: capacitor
-  name: C1
+  ref: C1
   value: 1 uF
 // Second component-bearing subgraph: LED with series resistor.
 - kind: voltage-source
-  name: V2
+  ref: V2
   value: 3 V
 - kind: resistor
-  name: R2
+  ref: R2
   value: 220 ohm
 - kind: led
-  name: LED1
+  ref: LED1
 - kind: connect
   terminal: V1.positive
-  node: N1
+  node: n1
 - kind: connect
   terminal: V1.negative
-  node: N2
+  node: n2
 - kind: connect
   terminal: R1.a
-  node: N1
+  node: n1
 - kind: connect
   terminal: R1.b
-  node: N3
+  node: n3
 - kind: connect
   terminal: C1.a
-  node: N3
+  node: n3
 - kind: connect
   terminal: C1.b
-  node: N2
+  node: n2
 - kind: connect
   terminal: V2.positive
-  node: N4
+  node: n4
 - kind: connect
   terminal: V2.negative
-  node: N5
+  node: n5
 - kind: connect
   terminal: R2.a
-  node: N4
+  node: n4
 - kind: connect
   terminal: R2.b
-  node: N5
+  node: n5
 - kind: connect
   terminal: LED1.anode
-  node: N5
+  node: n5
 - kind: connect
   terminal: LED1.cathode
-  node: N4
+  node: n4
 ::::

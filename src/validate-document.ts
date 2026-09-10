@@ -116,9 +116,165 @@ function hasInlineChildren(value: unknown): boolean {
   return Array.isArray(value) && value.every((child) => isInlineNode(child));
 }
 
+const CIRCUIT_COMPONENT_KINDS: Readonly<Record<string, true>> = {
+  resistor: true,
+  capacitor: true,
+  inductor: true,
+  "voltage-source": true,
+  "current-source": true,
+  diode: true,
+  led: true,
+  switch: true,
+  "dependent-source": true,
+  "op-amp": true,
+  bjt: true,
+  mosfet: true,
+  and: true,
+  or: true,
+  nand: true,
+  nor: true,
+  xor: true,
+  xnor: true,
+  not: true,
+  buffer: true,
+  "mux-2to1": true,
+  "mux-4to1": true,
+  "d-flip-flop": true,
+  "digital-input": true,
+  "digital-output": true,
+};
+
+const CIRCUIT_GATE_KINDS: Readonly<Record<string, true>> = {
+  and: true,
+  or: true,
+  nand: true,
+  nor: true,
+  xor: true,
+  xnor: true,
+};
+
+function isCircuitText(value: unknown): boolean {
+  return (
+    Array.isArray(value) &&
+    value.every((run) => {
+      if (!isObjectRecord(run)) return false;
+      if (
+        run.kind === "text" ||
+        run.kind === "subscript" ||
+        run.kind === "superscript"
+      ) {
+        return (
+          hasOnlyKeys(run, ["kind", "value"]) && typeof run.value === "string"
+        );
+      }
+      return (
+        run.kind === "quantity" &&
+        hasOnlyKeys(run, ["kind", "coefficient", "prefix", "unit"]) &&
+        typeof run.coefficient === "string" &&
+        typeof run.prefix === "string" &&
+        typeof run.unit === "string"
+      );
+    })
+  );
+}
+
+function isCircuitComponent(value: unknown): boolean {
+  if (!isObjectRecord(value)) return false;
+  const kind = value.kind;
+  return (
+    typeof kind === "string" &&
+    CIRCUIT_COMPONENT_KINDS[kind] === true &&
+    hasOnlyKeys(value, [
+      "kind",
+      "ref",
+      "terminals",
+      "orientation",
+      "inputs",
+      "name",
+      "value",
+      "mode",
+      "range",
+    ]) &&
+    typeof value.ref === "string" &&
+    Array.isArray(value.terminals) &&
+    value.terminals.every((terminal) => typeof terminal === "string") &&
+    (value.orientation === undefined ||
+      value.orientation === "left-to-right" ||
+      value.orientation === "right-to-left" ||
+      value.orientation === "top-to-bottom" ||
+      value.orientation === "bottom-to-top") &&
+    (value.inputs === undefined ||
+      (CIRCUIT_GATE_KINDS[kind] === true &&
+        (value.inputs === 2 || value.inputs === 3 || value.inputs === 4))) &&
+    ((kind === "digital-input" || kind === "digital-output")
+      ? isCircuitText(value.name)
+      : value.name === undefined || isCircuitText(value.name)) &&
+    (value.value === undefined || isCircuitText(value.value)) &&
+    (value.mode === undefined || typeof value.mode === "string") &&
+    isSourceRange(value.range)
+  );
+}
+
+function isCircuitAnnotation(value: unknown): boolean {
+  if (!isObjectRecord(value)) return false;
+  if (value.kind === "voltage-label") {
+    return (
+      hasOnlyKeys(value, ["kind", "positive", "negative", "range"]) &&
+      typeof value.positive === "string" &&
+      typeof value.negative === "string" &&
+      isSourceRange(value.range)
+    );
+  }
+  if (value.kind === "current-label") {
+    return (
+      hasOnlyKeys(value, [
+        "kind",
+        "componentRef",
+        "terminal",
+        "direction",
+        "range",
+      ]) &&
+      typeof value.componentRef === "string" &&
+      typeof value.terminal === "string" &&
+      (value.direction === "into" || value.direction === "out") &&
+      isSourceRange(value.range)
+    );
+  }
+  return false;
+}
+
 
 function isParsedBlock(value: unknown): value is ParsedBlock {
   if (!isObjectRecord(value)) return false;
+  if (value.kind === "circuit") {
+    return (
+      hasOnlyKeys(value, ["kind", "range", "id", "number", "pluginVersion", "title", "description", "flow", "symbolConvention", "nodes", "components", "relations", "annotations"]) &&
+      isSourceRange(value.range) &&
+      (value.id === undefined || typeof value.id === "string") &&
+      (value.number === undefined || typeof value.number === "boolean") &&
+      value.pluginVersion === "1.0.0" &&
+      isCircuitText(value.title) &&
+      (value.description === undefined || isCircuitText(value.description)) &&
+      (value.flow === "left-to-right" || value.flow === "top-to-bottom") &&
+      (value.symbolConvention === "iec" || value.symbolConvention === "ansi") &&
+      Array.isArray(value.nodes) &&
+      value.nodes.every(
+        (node) =>
+          isObjectRecord(node) &&
+          hasOnlyKeys(node, ["ref", "role", "label", "range"]) &&
+          typeof node.ref === "string" &&
+          (node.role === "signal" || node.role === "reference") &&
+          (node.label === undefined || isCircuitText(node.label)) &&
+          isSourceRange(node.range),
+      ) &&
+      Array.isArray(value.components) &&
+      value.components.every((component) => isCircuitComponent(component)) &&
+      Array.isArray(value.relations) &&
+      value.relations.every((relation) => isObjectRecord(relation) && hasOnlyKeys(relation, ["componentRef", "terminal", "nodeId", "range"]) && typeof relation.componentRef === "string" && typeof relation.terminal === "string" && typeof relation.nodeId === "string" && isSourceRange(relation.range)) &&
+      Array.isArray(value.annotations) &&
+      value.annotations.every((annotation) => isCircuitAnnotation(annotation))
+    );
+  }
   if (value.kind === "heading") {
     return (
       hasValidCommonBlockFields(value, ["kind", "level", "children", "range", "id"]) &&
@@ -425,6 +581,83 @@ function isParsedBlock(value: unknown): value is ParsedBlock {
       (value.bounds === undefined || isObjectRecord(value.bounds)) &&
       Array.isArray(value.declarations) &&
       value.declarations.length > 0 &&
+      (value.number === undefined || typeof value.number === "boolean")
+    );
+  }
+  if (value.kind === "formula") {
+    return (
+      hasOnlyKeys(value, [
+        "kind",
+        "range",
+        "id",
+        "pluginVersion",
+        "number",
+        "expression",
+        "units",
+        "charge",
+        "chargeSpecified",
+        "electron",
+      ]) &&
+      isSourceRange(value.range) &&
+      (value.id === undefined || typeof value.id === "string") &&
+      value.pluginVersion === "1.0.0" &&
+      typeof value.expression === "string" &&
+      Array.isArray(value.units) &&
+      typeof value.charge === "number" &&
+      typeof value.chargeSpecified === "boolean" &&
+      typeof value.electron === "boolean" &&
+      (value.number === undefined || typeof value.number === "boolean")
+    );
+  }
+  if (value.kind === "reaction") {
+    return (
+      hasOnlyKeys(value, [
+        "kind",
+        "range",
+        "id",
+        "pluginVersion",
+        "number",
+        "above",
+        "below",
+        "balance",
+        "arrow",
+        "reactants",
+        "products",
+      ]) &&
+      isSourceRange(value.range) &&
+      (value.id === undefined || typeof value.id === "string") &&
+      value.pluginVersion === "1.0.0" &&
+      (value.above === undefined || typeof value.above === "string") &&
+      (value.below === undefined || typeof value.below === "string") &&
+      (value.balance === "none" || value.balance === "check") &&
+      (value.arrow === "->" || value.arrow === "<-" || value.arrow === "<->") &&
+      Array.isArray(value.reactants) &&
+      Array.isArray(value.products) &&
+      (value.number === undefined || typeof value.number === "boolean")
+    );
+  }
+  if (value.kind === "structure") {
+    return (
+      hasOnlyKeys(value, [
+        "kind",
+        "range",
+        "id",
+        "pluginVersion",
+        "number",
+        "width",
+        "height",
+        "atoms",
+        "bonds",
+        "labels",
+      ]) &&
+      isSourceRange(value.range) &&
+      (value.id === undefined || typeof value.id === "string") &&
+      value.pluginVersion === "1.0.0" &&
+      typeof value.width === "number" &&
+      typeof value.height === "number" &&
+      Array.isArray(value.atoms) &&
+      Array.isArray(value.bonds) &&
+      (value.labels === undefined || Array.isArray(value.labels)) &&
       (value.number === undefined || typeof value.number === "boolean")
     );
   }

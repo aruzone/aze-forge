@@ -7,6 +7,12 @@ import { derivationHtmlBlockRenderer } from "./derivation.js";
 import { equationHtmlBlockRenderer } from "./equation.js";
 import { chartHtmlBlockRenderer, plotHtmlBlockRenderer } from "./plot.js";
 import { geometryHtmlBlockRenderer } from "./geometry.js";
+import {
+  formulaHtmlBlockRenderer,
+  reactionHtmlBlockRenderer,
+  structureHtmlBlockRenderer,
+} from "./chemistry.js";
+import { circuitHtmlBlockRenderer } from "./circuit-render.js";
 
 import { assetManifestHash } from "./assets.js";
 import { artifactBytesHash, canonicalJson, sha256 } from "./hash.js";
@@ -67,6 +73,10 @@ export const pngBlockRenderers: readonly AnyBlockRenderer[] = Object.freeze([
   pngBlockRenderer(plotHtmlBlockRenderer),
   pngBlockRenderer(chartHtmlBlockRenderer),
   pngBlockRenderer(geometryHtmlBlockRenderer),
+  pngBlockRenderer(formulaHtmlBlockRenderer),
+  pngBlockRenderer(reactionHtmlBlockRenderer),
+  pngBlockRenderer(structureHtmlBlockRenderer),
+  pngBlockRenderer(circuitHtmlBlockRenderer),
 ]);
 
 export interface PngBrowserCapability {
