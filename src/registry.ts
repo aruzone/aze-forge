@@ -15,6 +15,7 @@ import {
   mermaidPlugin,
 } from "./mermaid.js";
 import { chartHtmlBlockRenderer, chartPlugin, plotHtmlBlockRenderer, plotPlugin } from "./plot.js";
+import { geometryHtmlBlockRenderer, geometryPlugin } from "./geometry.js";
 import {
   svgBlockRenderers,
   svgRendererDescriptor,
@@ -61,6 +62,7 @@ export function getBuiltInRegistry(): ResolvedRegistry {
       tablePlugin,
       plotPlugin,
       chartPlugin,
+      geometryPlugin,
     ]),
     blockRenderers: Object.freeze([
       equationHtmlBlockRenderer,
@@ -70,6 +72,7 @@ export function getBuiltInRegistry(): ResolvedRegistry {
       tableHtmlBlockRenderer,
       plotHtmlBlockRenderer,
       chartHtmlBlockRenderer,
+      geometryHtmlBlockRenderer,
       ...svgBlockRenderers,
       ...pngBlockRenderers,
       ...pdfBlockRenderers,

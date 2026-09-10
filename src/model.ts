@@ -298,7 +298,6 @@ export interface ChartHistogramSeries {
 }
 
 export type ChartSeries = ChartBarSeries | ChartHistogramSeries;
-
 export interface ChartBlock {
   readonly kind: "chart";
   readonly range: SourceRange;
@@ -317,6 +316,58 @@ export interface ChartBlock {
   readonly series: readonly ChartSeries[];
 }
 
+export interface GeometryBounds {
+  readonly minX: string;
+  readonly minY: string;
+  readonly maxX: string;
+  readonly maxY: string;
+}
+
+export interface GeometryDeclaration {
+  readonly kind: string;
+  readonly name?: string;
+  readonly label?: string;
+  readonly visible?: boolean;
+  readonly style?: "solid" | "dashed";
+  readonly x?: string;
+  readonly y?: string;
+  readonly from?: string;
+  readonly to?: string;
+  readonly throughFirst?: string;
+  readonly throughSecond?: string;
+  readonly origin?: string;
+  readonly through?: string;
+  readonly center?: string;
+  readonly radius?: string;
+  readonly point?: string;
+  readonly startAngle?: string;
+  readonly endAngle?: string;
+  readonly direction?: "cw" | "ccw";
+  readonly vertices?: readonly string[];
+  readonly first?: string;
+  readonly second?: string;
+  readonly circle?: string;
+  readonly at?: string;
+  readonly pick?: number;
+  readonly segment?: string;
+  readonly measure?: string;
+  readonly group?: string;
+  readonly segments?: readonly string[];
+  readonly third?: string;
+}
+
+export interface GeometryBlock {
+  readonly kind: "geometry";
+  readonly range: SourceRange;
+  readonly id?: string;
+  readonly pluginVersion: string;
+  readonly number?: boolean;
+  readonly width: number;
+  readonly height: number;
+  readonly bounds?: GeometryBounds;
+  readonly declarations: readonly GeometryDeclaration[];
+}
+
 export type ParsedBlock =
   | HeadingBlock
   | ParagraphBlock
@@ -331,6 +382,7 @@ export type ParsedBlock =
   | DerivationBlock
   | PlotBlock
   | ChartBlock
+  | GeometryBlock
   | InvalidBlock;
 
 export type AzeBlock =
@@ -346,7 +398,8 @@ export type AzeBlock =
   | MermaidBlock
   | DerivationBlock
   | PlotBlock
-  | ChartBlock;
+  | ChartBlock
+  | GeometryBlock;
 export type ArtifactFormat = "html" | "svg" | "png" | "pdf";
 
 export interface DocumentMetadata {
@@ -615,6 +668,7 @@ export type AnyBlockRenderer =
   | AzeBlockRenderer<TableBlock>
   | AzeBlockRenderer<PlotBlock>
   | AzeBlockRenderer<ChartBlock>
+  | AzeBlockRenderer<GeometryBlock>
   | MermaidBlockRenderer;
 export type BlockRenderer = AnyBlockRenderer;
 export interface CompilerPolicy {

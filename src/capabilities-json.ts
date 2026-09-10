@@ -185,7 +185,7 @@ export const capabilitiesJsonSchema: JsonValue = Object.freeze({
     security: { type: "object" },
     engines: {
       type: "object",
-      required: ["browser", "katex", "mermaid", "plot", "fonts"],
+      required: ["browser", "katex", "mermaid", "plot", "geometry", "fonts"],
       additionalProperties: false,
       properties: {
         browser: {
@@ -229,6 +229,17 @@ export const capabilitiesJsonSchema: JsonValue = Object.freeze({
             d3array: { type: "string", minLength: 1 },
             d3scale: { type: "string", minLength: 1 },
             d3shape: { type: "string", minLength: 1 },
+            availability,
+          },
+        },
+        geometry: {
+          type: "object",
+          required: ["emitter", "eval", "epsilon", "availability"],
+          additionalProperties: false,
+          properties: {
+            emitter: { type: "string", minLength: 1 },
+            eval: { type: "string", minLength: 1 },
+            epsilon: { type: "number", minimum: 0 },
             availability,
           },
         },

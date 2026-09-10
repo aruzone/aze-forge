@@ -310,7 +310,7 @@ async function stepCatalog() {
     `azeforge.acceptance/v1 with ${canonical.entries.length} entries`,
   );
   const p0 = canonical.entries.filter((item) => item.gate === "p0");
-  check("P0-CLI-007", "catalog covers every required P0 contract", p0.length === 35 && p0.every((item) => item.required), `${p0.length} P0 entries`);
+  check("P0-CLI-007", "catalog covers every required P0 contract", p0.length === 37 && p0.every((item) => item.required), `${p0.length} P0 entries`);
   const ids = new Set(canonical.entries.map((item) => item.id));
   check("P0-CLI-007", "catalog IDs are unique", ids.size === canonical.entries.length, `${ids.size} unique IDs`);
   const coverage = checkAcceptanceCoverage(AUTOMATED_P0_IDS);

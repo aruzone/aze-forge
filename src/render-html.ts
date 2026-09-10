@@ -4,6 +4,7 @@ import { getKatexCss } from "./equation.js";
 import { KATEX_VERSION } from "./equation-schemas.js";
 import { MERMAID_VERSION } from "./mermaid-schemas.js";
 import { plotDependencyClosure, renderChartFragment, renderPlotFragment } from "./plot.js";
+import { geometryDependencyClosure, renderGeometryFragment } from "./geometry.js";
 import type { EmbeddedFontFace } from "./font.js";
 import { artifactBytesHash, canonicalJson, sha256 } from "./hash.js";
 import { escapeHtml, renderInlineHtml } from "./html-fragment.js";
@@ -16,6 +17,7 @@ import type {
   BlockRendererContext,
   CalloutBlock,
   ChartBlock,
+  GeometryBlock,
   ContentHash,
   DerivationBlock,
   EquationBlock,
@@ -59,6 +61,10 @@ export interface HtmlPluginRenderers {
     block: ChartBlock,
     context: BlockRendererContext,
   ) => string;
+  readonly renderGeometry?: (
+    block: GeometryBlock,
+    context: BlockRendererContext,
+  ) => string;
 }
 
 interface RenderContext {
@@ -80,6 +86,10 @@ interface RenderContext {
   ) => string;
   readonly renderChart: (
     block: ChartBlock,
+    context: BlockRendererContext,
+  ) => string;
+  readonly renderGeometry: (
+    block: GeometryBlock,
     context: BlockRendererContext,
   ) => string;
 }
@@ -156,7 +166,12 @@ function renderBlock(block: AzeBlock, context: RenderContext): string {
         ...(context.sourceName === undefined ? {} : { sourceName: context.sourceName }),
         renderBlocks: (children) => renderBlocks(children, context),
       });
-  }
+    case "geometry":
+      return context.renderGeometry(block, {
+        ...(context.sourceName === undefined ? {} : { sourceName: context.sourceName }),
+        renderBlocks: (children) => renderBlocks(children, context),
+      });
+}
 }
 
 function renderBlocks(blocks: readonly AzeBlock[], context: RenderContext): string {
@@ -205,6 +220,8 @@ export function createHtmlLayout(
     pluginRenderers.renderPlot ?? ((block: PlotBlock, context: BlockRendererContext): string => renderPlotFragment(block, context));
   const renderChart =
     pluginRenderers.renderChart ?? ((block: ChartBlock, context: BlockRendererContext): string => renderChartFragment(block, context));
+  const renderGeometry =
+    pluginRenderers.renderGeometry ?? ((block: GeometryBlock, context: BlockRendererContext): string => renderGeometryFragment(block, context));
   const context: RenderContext = {
     equationFragments,
     derivationFragments,
@@ -212,12 +229,13 @@ export function createHtmlLayout(
     renderCallout,
     renderPlot,
     renderChart,
+    renderGeometry,
     renderTable,
   };
   return {
     title: escapeHtml(documentTitle(document)),
     description: "AzeForge whole-Document Artifact",
-    css: `${embeddedFontCss(fontFaces)}${themeCss(theme)}${getKatexCss()}.aze-equation{margin:1em 0;text-align:center}.aze-equation[data-align="left"]{text-align:left}.aze-equation[data-align="right"]{text-align:right}.aze-derivation{margin:1em 0}.aze-derivation ol{list-style:none;padding:0;margin:0}.aze-derivation li{display:block;text-align:center;margin:.35em 0}.aze-derivation[data-align="left"] li{text-align:left}.aze-derivation[data-align="right"] li{text-align:right}.aze-derivation .aze-derivation-annotation{display:block;font-style:italic;color:#666;font-size:.9em}.aze-mermaid{margin:1em 0}.aze-mermaid svg{display:block;max-width:100%;max-height:520px;width:auto;height:auto;margin:0 auto}.aze-plot{margin:1em 0}.aze-plot svg{display:block;max-width:100%;height:auto;margin:0 auto}.aze-chart{margin:1em 0}.aze-chart svg{display:block;max-width:100%;height:auto;margin:0 auto}`,
+    css: `${embeddedFontCss(fontFaces)}${themeCss(theme)}${getKatexCss()}.aze-equation{margin:1em 0;text-align:center}.aze-equation[data-align="left"]{text-align:left}.aze-equation[data-align="right"]{text-align:right}.aze-derivation{margin:1em 0}.aze-derivation ol{list-style:none;padding:0;margin:0}.aze-derivation li{display:block;text-align:center;margin:.35em 0}.aze-derivation[data-align="left"] li{text-align:left}.aze-derivation[data-align="right"] li{text-align:right}.aze-derivation .aze-derivation-annotation{display:block;font-style:italic;color:#666;font-size:.9em}.aze-mermaid{margin:1em 0}.aze-mermaid svg{display:block;max-width:100%;max-height:520px;width:auto;height:auto;margin:0 auto}.aze-plot{margin:1em 0}.aze-plot svg{display:block;max-width:100%;height:auto;margin:0 auto}.aze-chart{margin:1em 0}.aze-chart svg{display:block;max-width:100%;height:auto;margin:0 auto}.aze-geometry{margin:1em 0}.aze-geometry svg{display:block;max-width:100%;height:auto;margin:0 auto}`,
     body: `<main><article>${renderBlocks(document.blocks, context)}</article></main>`,
     fingerprintDependencies: {
       theme: theme as unknown as JsonValue,
@@ -231,6 +249,9 @@ export function createHtmlLayout(
       diagrams: mermaidDependencyClosure,
       ...(document.blocks.some((block) => block.kind === "plot" || block.kind === "chart")
         ? { plots: plotDependencyClosure() }
+        : {}),
+      ...(document.blocks.some((block) => block.kind === "geometry")
+        ? { geometry: geometryDependencyClosure() }
         : {}),
       prose: {
         serializer: "azeforge-prose/v1",

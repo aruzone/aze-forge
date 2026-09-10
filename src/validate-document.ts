@@ -404,6 +404,30 @@ function isParsedBlock(value: unknown): value is ParsedBlock {
       (value.number === undefined || typeof value.number === "boolean")
     );
   }
+  if (value.kind === "geometry") {
+    return (
+      hasOnlyKeys(value, [
+        "kind",
+        "range",
+        "id",
+        "pluginVersion",
+        "number",
+        "width",
+        "height",
+        "bounds",
+        "declarations",
+      ]) &&
+      isSourceRange(value.range) &&
+      (value.id === undefined || typeof value.id === "string") &&
+      value.pluginVersion === "1.0.0" &&
+      typeof value.width === "number" &&
+      typeof value.height === "number" &&
+      (value.bounds === undefined || isObjectRecord(value.bounds)) &&
+      Array.isArray(value.declarations) &&
+      value.declarations.length > 0 &&
+      (value.number === undefined || typeof value.number === "boolean")
+    );
+  }
   if (value.kind === "invalid") {
     return (
       hasOnlyKeys(value, [

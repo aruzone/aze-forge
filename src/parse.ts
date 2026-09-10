@@ -21,6 +21,8 @@ import {
   validateMermaidBody,
 } from "./mermaid.js";
 import { MERMAID_PLUGIN_TYPE } from "./mermaid-schemas.js";
+import { GEOMETRY_PLUGIN_TYPE } from "./geometry-schemas.js";
+import { geometryPlugin, validateGeometryBlock, type GeometryInputLine } from "./geometry.js";
 import { CHART_PLUGIN_TYPE, PLOT_PLUGIN_TYPE } from "./plot-schemas.js";
 import { EMPTY_DOCUMENT_DEFAULTS, chartPlugin, parseDocumentDefaults, plotPlugin, validateChartBlock, validatePlotBlock, type PlotBlockDefaults, type PlotDocumentDefaults, type PlotInputLine } from "./plot.js";
 import type {
@@ -2105,6 +2107,40 @@ function parsePlotFamilyEnvelope(
   return finishInvalid();
 }
 
+function parseGeometryEnvelope(
+  source: string,
+  lines: readonly SourceLine[],
+  openIndex: number,
+  closingIndex: number,
+  first: SourceLine,
+  last: SourceLine,
+  options: ParseOptions,
+  diagnostics: Diagnostic[],
+): ParsedBlock {
+  const blockRange = rangeFromLines(first, last);
+  const startIndex = diagnostics.length;
+  const finishInvalid = (): ParsedBlock =>
+    invalidBlockFor(source, first, last, startIndex, diagnostics, GEOMETRY_PLUGIN_TYPE);
+  const { bodyStart, separatorFound } = splitHeaderEntries(lines, openIndex, closingIndex);
+  if (!separatorFound) {
+    missingSeparatorDiagnostic(lines, openIndex, closingIndex, first, options, diagnostics);
+    return finishInvalid();
+  }
+  const toInput = (line: SourceLine): GeometryInputLine => ({
+    text: lineText(line),
+    range: rangeFromLines(line, line),
+  });
+  const validated = validateGeometryBlock({
+    headerLines: lines.slice(openIndex + 1, bodyStart - 1).map(toInput),
+    bodyLines: lines.slice(bodyStart, closingIndex).map(toInput),
+    blockRange,
+    sourceName: options.sourceName,
+  });
+  diagnostics.push(...validated.diagnostics);
+  if (validated.block !== undefined) return validated.block;
+  return finishInvalid();
+}
+
 
 function parseBlocks(
   source: string,
@@ -2342,6 +2378,25 @@ function parseBlocks(
             CHART_PLUGIN_TYPE,
             defaults.chart,
             validateChartBlock,
+          ),
+        );
+        continue;
+      }
+      if (
+        closed &&
+        originalType === GEOMETRY_PLUGIN_TYPE &&
+        activeTypes.includes(GEOMETRY_PLUGIN_TYPE)
+      ) {
+        blocks.push(
+          parseGeometryEnvelope(
+            source,
+            lines,
+            openIndex,
+            closingIndex,
+            first,
+            last,
+            options,
+            diagnostics,
           ),
         );
         continue;
@@ -2785,6 +2840,7 @@ export function parseSource(source: string, options: ParseOptions = {}): ParseRe
     tablePlugin,
     plotPlugin,
     chartPlugin,
+    geometryPlugin,
   ];
   const activeTypes = [...new Set(activePlugins.map((plugin) => plugin.descriptor.type))].sort();
   const blocks = parseBlocks(

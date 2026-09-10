@@ -20,6 +20,20 @@ import {
   PLOT_EVAL_VERSION,
 } from "./plot-schemas.js";
 import {
+  GEOMETRY_EMITTER_VERSION,
+  GEOMETRY_EPSILON,
+  GEOMETRY_EVAL_VERSION,
+} from "./geometry-schemas.js";
+import {
+  MAX_COORDINATE_MAGNITUDE,
+  MAX_EQUAL_MARK_GROUPS,
+  MAX_EQUAL_MARK_SEGMENTS,
+  MAX_GEOMETRY_DECLARATIONS,
+  MAX_GEOMETRY_DIMENSION_PX,
+  MAX_GEOMETRY_LABEL_CHARS,
+  MAX_POLYGON_VERTICES,
+} from "./geometry.js";
+import {
   MAX_BAR_CATEGORIES,
   MAX_BINS,
   MAX_CHART_SERIES,
@@ -204,6 +218,12 @@ export interface CapabilitiesReport {
       d3array: typeof D3_ARRAY_VERSION;
       d3scale: typeof D3_SCALE_VERSION;
       d3shape: typeof D3_SHAPE_VERSION;
+      availability: EngineAvailability;
+    }>;
+    readonly geometry: Readonly<{
+      emitter: typeof GEOMETRY_EMITTER_VERSION;
+      eval: typeof GEOMETRY_EVAL_VERSION;
+      epsilon: typeof GEOMETRY_EPSILON;
       availability: EngineAvailability;
     }>;
     readonly fonts: readonly {
@@ -415,6 +435,15 @@ export async function buildCapabilities(
           maxBarCategories: MAX_BAR_CATEGORIES,
           maxLabelChars: MAX_LABEL_CHARS,
         },
+        geometry: {
+          maxDeclarations: MAX_GEOMETRY_DECLARATIONS,
+          maxPolygonVertices: MAX_POLYGON_VERTICES,
+          maxEqualMarkSegments: MAX_EQUAL_MARK_SEGMENTS,
+          maxEqualMarkGroups: MAX_EQUAL_MARK_GROUPS,
+          maxLabelChars: MAX_GEOMETRY_LABEL_CHARS,
+          maxCoordinateMagnitude: MAX_COORDINATE_MAGNITUDE,
+          maxDimensionPx: MAX_GEOMETRY_DIMENSION_PX,
+        },
       },
       serve: { bind: "127.0.0.1", port: { min: 0, max: 65535, default: 0 } },
     },
@@ -443,6 +472,12 @@ export async function buildCapabilities(
         d3array: D3_ARRAY_VERSION,
         d3scale: D3_SCALE_VERSION,
         d3shape: D3_SHAPE_VERSION,
+        availability: bundled,
+      },
+      geometry: {
+        emitter: GEOMETRY_EMITTER_VERSION,
+        eval: GEOMETRY_EVAL_VERSION,
+        epsilon: GEOMETRY_EPSILON,
         availability: bundled,
       },
       fonts: [

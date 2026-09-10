@@ -22,6 +22,7 @@ import type {
   BlockRendererContext,
   CalloutBlock,
   ChartBlock,
+  GeometryBlock,
   CompileOptions,
   CompileResult,
   Compiler,
@@ -495,6 +496,13 @@ function collectRenderText(blocks: readonly AzeBlock[], out: string[]): void {
           if (entry.kind === "bars") {
             for (const bar of entry.bars) out.push(bar.category);
           }
+        }
+        break;
+      case "geometry":
+        if (block.id !== undefined) out.push(block.id);
+        for (const entry of block.declarations) {
+          if (entry.name !== undefined) out.push(entry.name);
+          if (entry.label !== undefined) out.push(entry.label);
         }
         break;
     }
@@ -1249,6 +1257,10 @@ interface PluginAdapterResolution {
     block: ChartBlock,
     context: BlockRendererContext,
   ) => string;
+  readonly renderGeometry?: (
+    block: GeometryBlock,
+    context: BlockRendererContext,
+  ) => string;
 }
 
 function checkPluginAdapters(
@@ -1272,11 +1284,15 @@ function checkPluginAdapters(
   let renderChart:
     | ((block: ChartBlock, context: BlockRendererContext) => string)
     | undefined;
+  let renderGeometry:
+    | ((block: GeometryBlock, context: BlockRendererContext) => string)
+    | undefined;
   for (const entry of [
     { blockType: "callout", pluginVersion: "1.0.0" },
     { blockType: "table", pluginVersion: "2.0.0" },
     { blockType: "plot", pluginVersion: "1.0.0" },
     { blockType: "chart", pluginVersion: "1.0.0" },
+    { blockType: "geometry", pluginVersion: "1.0.0" },
   ] as const) {
     const entryType: string = entry.blockType;
     const blocks = pluginBlocks(document, entry.blockType);
@@ -1440,6 +1456,18 @@ function checkPluginAdapters(
         }
         return result;
       };
+    } else if (entry.blockType === "geometry") {
+      const render = chosen.render as (
+        block: GeometryBlock,
+        context: BlockRendererContext,
+      ) => string | Promise<string>;
+      renderGeometry = (block, context) => {
+        const result = render(block, context);
+        if (typeof result !== "string") {
+          throw new BlockRendererSyncError(chosen.descriptor.id, "geometry");
+        }
+        return result;
+      };
     } else {
       throw new CompilerConfigurationError(
         "AZE_CONFIG_ADAPTER_BLOCK_TYPE",
@@ -1453,6 +1481,7 @@ function checkPluginAdapters(
     ...(renderTable === undefined ? {} : { renderTable }),
     ...(renderPlot === undefined ? {} : { renderPlot }),
     ...(renderChart === undefined ? {} : { renderChart }),
+    ...(renderGeometry === undefined ? {} : { renderGeometry }),
   };
 }
 

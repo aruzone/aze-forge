@@ -322,6 +322,32 @@ export const ACCEPTANCE_ENTRIES: readonly AcceptanceEntry[] = Object.freeze([
     ["#51", "#58"],
   ),
   acceptanceEntry(
+    "P0-GEO-001",
+    "p0",
+    "geometry",
+    "A native geometry Block",
+    "it is compiled",
+    [
+      "primitives, bounded constructions, and characteristic-point branch picks resolve in authored backward-only order with canonical exact decimals",
+      "it renders deterministic browser-free SVG with computed measurements distinct from authored labels and an accessible title and description",
+    ],
+    "automated",
+    ["#51", "#59"],
+  ),
+  acceptanceEntry(
+    "P0-GEO-002",
+    "p0",
+    "geometry",
+    "Invalid geometry declarations and contradictory constraints",
+    "they are compiled",
+    [
+      "forward references, ambiguous branches, out-of-range picks, degenerate inputs, and contradictory constraints diagnose with stable codes and item ranges",
+      "out-of-bounds resolutions and unused invisible guides warn without failing",
+    ],
+    "automated",
+    ["#51", "#59"],
+  ),
+  acceptanceEntry(
     "P0-OUT-001",
     "p0",
     "artifact",

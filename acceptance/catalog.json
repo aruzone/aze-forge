@@ -390,6 +390,40 @@
       ]
     },
     {
+      "id": "P0-GEO-001",
+      "gate": "p0",
+      "area": "geometry",
+      "given": "A native geometry Block",
+      "when": "it is compiled",
+      "then": [
+        "primitives, bounded constructions, and characteristic-point branch picks resolve in authored backward-only order with canonical exact decimals",
+        "it renders deterministic browser-free SVG with computed measurements distinct from authored labels and an accessible title and description"
+      ],
+      "evidence": "automated",
+      "required": true,
+      "contracts": [
+        "#51",
+        "#59"
+      ]
+    },
+    {
+      "id": "P0-GEO-002",
+      "gate": "p0",
+      "area": "geometry",
+      "given": "Invalid geometry declarations and contradictory constraints",
+      "when": "they are compiled",
+      "then": [
+        "forward references, ambiguous branches, out-of-range picks, degenerate inputs, and contradictory constraints diagnose with stable codes and item ranges",
+        "out-of-bounds resolutions and unused invisible guides warn without failing"
+      ],
+      "evidence": "automated",
+      "required": true,
+      "contracts": [
+        "#51",
+        "#59"
+      ]
+    },
+    {
       "id": "P0-OUT-001",
       "gate": "p0",
       "area": "artifact",

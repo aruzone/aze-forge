@@ -46,6 +46,8 @@ const SUITE_EVIDENCE = [
   ["P0-PLT-001", "test/plot.test.mjs"],
   ["P0-PLT-002", "test/plot.test.mjs"],
   ["P0-CHT-001", "test/plot.test.mjs"],
+  ["P0-GEO-001", "test/geometry.test.mjs"],
+  ["P0-GEO-002", "test/geometry.test.mjs"],
   ["P0-MMD-001", "test/mermaid.test.mjs"],
   ["P0-OUT-001", "test/acceptance.test.mjs"],
   ["P0-OUT-002", "test/acceptance.test.mjs"],
@@ -115,7 +117,7 @@ test("acceptance catalog is canonical and coverage rejects missing or unknown ID
   const onDisk = JSON.parse(await readFile(new URL("../acceptance/catalog.json", import.meta.url), "utf8"));
   assert.deepEqual(onDisk, JSON.parse(JSON.stringify(canonical)));
   assert.equal(canonical.catalog.id, "azeforge.acceptance/v1");
-  assert.equal(canonical.entries.filter((item) => item.gate === "p0").length, 35);
+  assert.equal(canonical.entries.filter((item) => item.gate === "p0").length, 37);
 
   const declared = SUITE_EVIDENCE.map(([id]) => id);
   assert.deepEqual(checkAcceptanceCoverage(declared), { missing: [], unknown: [] });

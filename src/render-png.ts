@@ -6,6 +6,7 @@ import { calloutHtmlBlockRenderer } from "./callout.js";
 import { derivationHtmlBlockRenderer } from "./derivation.js";
 import { equationHtmlBlockRenderer } from "./equation.js";
 import { chartHtmlBlockRenderer, plotHtmlBlockRenderer } from "./plot.js";
+import { geometryHtmlBlockRenderer } from "./geometry.js";
 
 import { assetManifestHash } from "./assets.js";
 import { artifactBytesHash, canonicalJson, sha256 } from "./hash.js";
@@ -65,6 +66,7 @@ export const pngBlockRenderers: readonly AnyBlockRenderer[] = Object.freeze([
   pngBlockRenderer(tableHtmlBlockRenderer),
   pngBlockRenderer(plotHtmlBlockRenderer),
   pngBlockRenderer(chartHtmlBlockRenderer),
+  pngBlockRenderer(geometryHtmlBlockRenderer),
 ]);
 
 export interface PngBrowserCapability {

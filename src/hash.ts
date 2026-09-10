@@ -302,6 +302,19 @@ export function documentContentHash(document: AzeDocument): ContentHash {
       if (block.title !== undefined) projected.title = block.title.map(projectInlineNode);
       return projected;
     }
+    if (block.kind === "geometry") {
+      const projected: Record<string, JsonValue> = {
+        kind: block.kind,
+        pluginVersion: block.pluginVersion,
+        width: block.width,
+        height: block.height,
+        declarations: block.declarations.map((entry) => ({ ...entry }) as unknown as JsonValue),
+      };
+      if (block.id !== undefined) projected.id = block.id;
+      if (block.number !== undefined) projected.number = block.number;
+      if (block.bounds !== undefined) projected.bounds = { ...block.bounds } as unknown as JsonValue;
+      return projected;
+    }
     if (block.kind === "invalid") {
       return { kind: block.kind, raw: block.raw };
     }
