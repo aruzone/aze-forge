@@ -28,4 +28,4 @@ RUN useradd -m -s /bin/bash runner \
  && cp -r /root/.cache/puppeteer/. /home/runner/.cache/puppeteer/ \
  && chown -R runner:runner /home/runner /repo
 USER runner
-CMD ["bash", "-lc", "sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 2>/dev/null || true; node -e \"if (process.arch !== 'x64') throw new Error('Canonical evidence requires x64')\"; npm run test:canonical-suite --silent; npm run test:canonical --silent"]
+CMD ["bash", "-lc", "sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 2>/dev/null || true; node -e \"if (process.arch !== 'x64') throw new Error('Canonical evidence requires x64')\"; echo '--- test:canonical-suite'; npm run test:canonical-suite --silent; echo '--- test:canonical (live progress; minutes under emulation)'; npm run acceptance"]
