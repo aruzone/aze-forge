@@ -162,6 +162,34 @@ test("isotope-labeled chiral structure validates and preserves facts", async () 
   assert.equal(block.labels[0].text, "(S)");
 });
 
+test("quoted attachment labels render without their source delimiters", async () => {
+  const compiled = await compile(bodySource(
+    "- atom: c1\n  element: C\n  at: [0.0, 0.0]\n- atom: a1\n  attach: \"*\"\n  at: [1.0, 0.0]\n- bond:\n  from: c1\n  to: a1\n  order: 1",
+    "structure",
+  ));
+  assert.deepEqual(compiled.diagnostics, []);
+  assert.equal(compiled.document.blocks[0].atoms[1].attach, "*");
+  const html = new TextDecoder().decode(compiled.artifact.bytes);
+  assert.ok(html.includes('>*</text>'));
+  assert.ok(!html.includes("&quot;"));
+});
+
+test("quoted empty attachment labels fail validation", async () => {
+  const compiled = await compile(bodySource(
+    "- atom: a1\n  attach: \"\"\n  at: [0.0, 0.0]",
+    "structure",
+  ));
+  assert.ok(compiled.diagnostics.some((diagnostic) => diagnostic.code === "azeforge.chemistry.structure#chem-structure-syntax"));
+});
+
+test("malformed quoted attachment labels fail validation", async () => {
+  const compiled = await compile(bodySource(
+    "- atom: a1\n  attach: \"\\q\"\n  at: [0.0, 0.0]",
+    "structure",
+  ));
+  assert.ok(compiled.diagnostics.some((diagnostic) => diagnostic.code === "azeforge.chemistry.structure#chem-structure-syntax"));
+});
+
 test("attachment atom rejects charge and isotope facts", async () => {
   const src = bodySource(
     "- atom: c1\n  element: C\n  at: [0.0, 0.0]\n- atom: a1\n  attach: \"*\"\n  charge: 1\n  at: [1.0, 0.0]",
@@ -258,11 +286,10 @@ test("chemistry emitter renders wedge as a filled polygon", async () => {
   const html = new TextDecoder().decode(compiled.artifact.bytes);
   assert.ok(html.includes("<polygon"));
 });
-
 test("capabilities advertise chemistry engines and ceilings", async () => {
   const report = await buildCapabilities();
   assert.ok(report.engines.chemistry);
-  assert.equal(report.engines.chemistry.emitter, "1.0.0");
+  assert.equal(report.engines.chemistry.emitter, "1.0.1");
   // Bundled probe engines report the same availability as geometry: both
   // follow the optional-dependency probe seam (browser availability today).
   assert.equal(report.engines.chemistry.availability, report.engines.geometry.availability);

@@ -914,6 +914,17 @@ function splitRecords(
   return records;
 }
 
+function decodeQuotedText(value: string): string | undefined {
+  if (!value.startsWith("\"") || !value.endsWith("\"")) return value;
+  try {
+    const decoded: unknown = JSON.parse(value);
+    return typeof decoded === "string" ? decoded : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+
 function parseAtValue(value: string): { x: string; y: string } | undefined {
   const match = /^\[\s*(.+?)\s*,\s*(.+?)\s*\]$/.exec(value);
   if (match === null) return undefined;
@@ -1044,12 +1055,13 @@ export function validateStructureBlock(options: {
         }
         symbol = element.value;
       } else {
-        if ((attach as RawField).value === "") {
-          diagnostics.push(diag(STRUCTURE_NAMESPACE, "chem-structure-syntax", `Structure atom "${record.name}" attach label must not be empty.`, lineRange((attach as RawField).line), sourceName));
+        const decodedAttachment = decodeQuotedText((attach as RawField).value);
+        if (decodedAttachment === undefined || decodedAttachment === "") {
+          diagnostics.push(diag(STRUCTURE_NAMESPACE, "chem-structure-syntax", `Structure atom "${record.name}" attach label must be non-empty text.`, lineRange((attach as RawField).line), sourceName));
           failed = true;
           continue;
         }
-        attachText = (attach as RawField).value;
+        attachText = decodedAttachment;
       }
       const isAttachment = attachText !== undefined;
       let charge: number | undefined;
@@ -1206,13 +1218,19 @@ export function validateStructureBlock(options: {
     }
     const text = fields.get("text");
     const atField = fields.get("at");
-    if (text === undefined || text.value === "") {
+    if (text === undefined) {
       diagnostics.push(diag(STRUCTURE_NAMESPACE, "chem-structure-syntax", 'Structure label requires "text:".', lineRange(record.openerLine), sourceName));
       failed = true;
       continue;
     }
-    if (text.value.length > MAX_STRUCTURE_LABEL_CHARS) {
-      diagnostics.push(limitExceeded(STRUCTURE_NAMESPACE, "label text", text.value.length, MAX_STRUCTURE_LABEL_CHARS, lineRange(text.line), sourceName));
+    const labelText = decodeQuotedText(text.value);
+    if (labelText === undefined || labelText === "") {
+      diagnostics.push(diag(STRUCTURE_NAMESPACE, "chem-structure-syntax", 'Structure label requires "text:".', lineRange(record.openerLine), sourceName));
+      failed = true;
+      continue;
+    }
+    if (labelText.length > MAX_STRUCTURE_LABEL_CHARS) {
+      diagnostics.push(limitExceeded(STRUCTURE_NAMESPACE, "label text", labelText.length, MAX_STRUCTURE_LABEL_CHARS, lineRange(text.line), sourceName));
       failed = true;
       continue;
     }
@@ -1227,7 +1245,7 @@ export function validateStructureBlock(options: {
       failed = true;
       continue;
     }
-    labels.push({ text: text.value, x: at.x, y: at.y });
+    labels.push({ text: labelText, x: at.x, y: at.y });
   }
   if (failed) return { diagnostics };
   if (atoms.length > MAX_STRUCTURE_ATOMS) {
@@ -1443,7 +1461,7 @@ export function renderStructureFragment(block: StructureBlock, _context: BlockRe
     });
   }
   const parts: string[] = [];
-  const stroke = "#1a1a1a";
+  const stroke = "currentColor";
   const offsetParallel = (ax: number, ay: number, bx: number, by: number, distance: number): [number, number, number, number] => {
     const dx = bx - ax;
     const dy = by - ay;
@@ -1505,23 +1523,23 @@ export function renderStructureFragment(block: StructureBlock, _context: BlockRe
     const x = quantize(placedAtom.x);
     const y = quantize(placedAtom.y);
     const text = atom.element ?? atom.attach ?? "";
-    const isotope = atom.isotope === undefined ? "" : `<tspan baseline-shift="super" font-size="8">${atom.isotope}</tspan>`;
+    const isotope = atom.isotope === undefined ? "" : `<tspan baseline-shift="super" font-size="10">${atom.isotope}</tspan>`;
     const charge = atom.charge === undefined || atom.charge === 0
       ? ""
       : atom.charge === 1
-        ? `<tspan baseline-shift="super" font-size="8">+</tspan>`
+        ? `<tspan baseline-shift="super" font-size="10">+</tspan>`
         : atom.charge === -1
-          ? `<tspan baseline-shift="super" font-size="8">−</tspan>`
+          ? `<tspan baseline-shift="super" font-size="10">−</tspan>`
           : atom.charge > 0
-            ? `<tspan baseline-shift="super" font-size="8">${atom.charge}+</tspan>`
-            : `<tspan baseline-shift="super" font-size="8">${Math.abs(atom.charge)}−</tspan>`;
+            ? `<tspan baseline-shift="super" font-size="10">${atom.charge}+</tspan>`
+            : `<tspan baseline-shift="super" font-size="10">${Math.abs(atom.charge)}−</tspan>`;
     const stereoMark = atom.stereo === "unspecified" ? `<title>stereochemistry explicitly unspecified</title>` : "";
-    parts.push(`<text x="${x}" y="${y}" text-anchor="middle" dominant-baseline="central" font-size="13" fill="${stroke}">${stereoMark}${isotope}${escapeXml(text)}${charge}</text>`);
+    parts.push(`<text x="${x}" y="${y}" text-anchor="middle" dominant-baseline="central" font-size="16" fill="${stroke}" stroke="Canvas" stroke-width="4" paint-order="stroke" stroke-linejoin="round">${stereoMark}${isotope}${escapeXml(text)}${charge}</text>`);
   }
   for (const label of block.labels ?? []) {
     const x = width / 2 + (Number(label.x) - centerX) * scale;
     const y = height / 2 - (Number(label.y) - centerY) * scale;
-    parts.push(`<text x="${quantize(x)}" y="${quantize(y)}" text-anchor="middle" font-size="12" font-style="italic" fill="#444444">${escapeXml(label.text)}</text>`);
+    parts.push(`<text x="${quantize(x)}" y="${quantize(y)}" text-anchor="middle" font-size="14" font-style="italic" fill="currentColor" stroke="Canvas" stroke-width="3" paint-order="stroke" stroke-linejoin="round">${escapeXml(label.text)}</text>`);
   }
   const figureId = stableFigureId("aze-structure", structureContentSeed(block));
   const title = `Chemical structure${block.id === undefined ? "" : ` ${block.id}`} with ${block.atoms.length} atoms and ${block.bonds.length} bonds`;
@@ -1598,7 +1616,7 @@ export const structurePlugin: AzeBlockPlugin = Object.freeze({
 export const FORMULA_HTML_BLOCK_RENDERER_ID = "azeforge.formula.html/v1" as const;
 export const REACTION_HTML_BLOCK_RENDERER_ID = "azeforge.reaction.html/v1" as const;
 export const STRUCTURE_HTML_BLOCK_RENDERER_ID = "azeforge.structure.html/v1" as const;
-export const CHEMISTRY_HTML_BLOCK_RENDERER_VERSION = "1.0.0" as const;
+export const CHEMISTRY_HTML_BLOCK_RENDERER_VERSION = "1.0.1" as const;
 
 export const formulaHtmlBlockRenderer: AzeBlockRenderer<FormulaBlock> = Object.freeze({
   descriptor: Object.freeze({
