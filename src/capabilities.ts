@@ -3,6 +3,12 @@ import { access, constants as fsConstants } from "node:fs/promises";
 import { CAPABILITIES_SCHEMA_ID, CAPABILITIES_SCHEMA_VERSION } from "./capabilities-json.js";
 import { DEFAULT_DIAGNOSTIC_LIMITS } from "./diagnostics.js";
 import {
+  MAX_CIRCUIT_ANNOTATIONS,
+  MAX_CIRCUIT_COMPONENTS,
+  MAX_CIRCUIT_NODES,
+  MAX_CIRCUIT_RELATIONS,
+} from "./circuit.js";
+import {
   MAX_EQUATION_SOURCE_LENGTH,
   MAX_EQUATION_TEX_LENGTH,
 } from "./equation.js";
@@ -476,6 +482,12 @@ export async function buildCapabilities(
           maxStructureWidth: MAX_STRUCTURE_WIDTH,
           maxStructureHeight: MAX_STRUCTURE_HEIGHT,
           maxStructureLabelChars: MAX_STRUCTURE_LABEL_CHARS,
+        },
+        circuit: {
+          maxComponents: MAX_CIRCUIT_COMPONENTS,
+          maxNodes: MAX_CIRCUIT_NODES,
+          maxRelations: MAX_CIRCUIT_RELATIONS,
+          maxAnnotations: MAX_CIRCUIT_ANNOTATIONS,
         },
       },
       serve: { bind: "127.0.0.1", port: { min: 0, max: 65535, default: 0 } },

@@ -402,5 +402,5 @@ test("PDF capabilities describe the paged browser profile", () => {
   const pdfBlocks = getBuiltInRegistry().blockRenderers.filter(
     ({ descriptor }) => descriptor.rendererId === "pdf",
   );
-  assert.equal(pdfBlocks.length, 11);
+  assert.equal(pdfBlocks.length, 12);
 });

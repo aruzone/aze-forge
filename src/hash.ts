@@ -138,6 +138,23 @@ export function documentContentHash(document: AzeDocument): ContentHash {
   if (document.metadata.outputs !== undefined) metadata.outputs = document.metadata.outputs;
 
   function projectBlock(block: ParsedBlock | AzeBlock): JsonValue {
+    if (block.kind === "circuit") {
+      const projected: Record<string, JsonValue> = {
+        kind: block.kind,
+        pluginVersion: block.pluginVersion,
+        title: block.title as unknown as JsonValue,
+        flow: block.flow,
+        symbolConvention: block.symbolConvention,
+        nodes: block.nodes.map(({ range: _range, ...node }) => node as unknown as JsonValue),
+        components: block.components.map(({ range: _range, ...component }) => component as unknown as JsonValue),
+        relations: block.relations.map(({ range: _range, ...relation }) => relation as unknown as JsonValue),
+        annotations: block.annotations.map(({ range: _range, ...annotation }) => annotation as unknown as JsonValue),
+      };
+      if (block.id !== undefined) projected.id = block.id;
+      if (block.number !== undefined) projected.number = block.number;
+      if (block.description !== undefined) projected.description = block.description as unknown as JsonValue;
+      return projected;
+    }
     if (block.kind === "equation") {
       const projected: Record<string, JsonValue> = {
         kind: block.kind,

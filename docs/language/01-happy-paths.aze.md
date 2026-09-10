@@ -2,6 +2,7 @@
 azemark: 2
 title: AzeMark alpha happy-path sampler
 author: AzeForge Proto
+x-circuit-symbol-convention: iec
 ---
 
 # Happy-path sampler
@@ -222,124 +223,139 @@ timeline:
 
 // Circuit: clocked-logic acceptance circuit.
 
-:::: circuit
+::::: circuit
 id: clocked-logic
 number: true
 title: Clocked logic acceptance circuit
 ----
 - kind: node
-  ref: DIN
+  ref: din
 - kind: node
-  ref: EN
+  ref: en
 - kind: node
-  ref: CLK
+  ref: clk
 - kind: node
-  ref: U1-OUT
+  ref: u1-out
 - kind: node
-  ref: FF1-Q
+  ref: ff1-q
 - kind: node
-  ref: FF2-Q
+  ref: ff2-q
 - kind: node
-  ref: D2
+  ref: d2
 - kind: node
-  ref: D3
+  ref: d3
 - kind: node
-  ref: S0
+  ref: s0
 - kind: node
-  ref: SEL
+  ref: s1
+- kind: node
+  ref: sel
 - kind: digital-input
+  ref: DIN
   name: DIN
 - kind: digital-input
+  ref: EN
   name: EN
 - kind: digital-input
+  ref: CLK
   name: CLK
 - kind: digital-input
+  ref: D2
   name: D2
 - kind: digital-input
+  ref: D3
   name: D3
 - kind: digital-input
+  ref: S0
   name: S0
+- kind: digital-input
+  ref: S1
+  name: S1
 - kind: digital-output
+  ref: SEL
   name: SEL
 - kind: and
-  name: U1
+  ref: U1
   inputs: 2
 - kind: d-flip-flop
-  name: FF1
+  ref: FF1
 - kind: d-flip-flop
-  name: FF2
+  ref: FF2
 - kind: mux-4to1
-  name: M1
+  ref: M1
 - kind: connect
   terminal: DIN.out
-  node: DIN
+  node: din
 - kind: connect
   terminal: EN.out
-  node: EN
-- kind: connect
-  terminal: U1.in1
-  node: DIN
-- kind: connect
-  terminal: U1.in2
-  node: EN
-- kind: connect
-  terminal: U1.out
-  node: U1-OUT
-- kind: connect
-  terminal: FF1.d
-  node: U1-OUT
-- kind: connect
-  terminal: FF1.clk
-  node: CLK
-- kind: connect
-  terminal: FF1.q
-  node: FF1-Q
-- kind: connect
-  terminal: FF2.d
-  node: FF1-Q
-- kind: connect
-  terminal: FF2.clk
-  node: CLK
-- kind: connect
-  terminal: FF2.q
-  node: FF2-Q
-- kind: connect
-  terminal: M1.d0
-  node: FF1-Q
-- kind: connect
-  terminal: M1.d1
-  node: FF2-Q
-- kind: connect
-  terminal: M1.d2
-  node: D2
-- kind: connect
-  terminal: M1.d3
-  node: D3
-- kind: connect
-  terminal: M1.s0
-  node: S0
-- kind: connect
-  terminal: M1.s1
-  node: S0
-- kind: connect
-  terminal: M1.out
-  node: SEL
-- kind: connect
-  terminal: SEL.in
-  node: SEL
+  node: en
 - kind: connect
   terminal: CLK.out
-  node: CLK
+  node: clk
 - kind: connect
   terminal: D2.out
-  node: D2
+  node: d2
 - kind: connect
   terminal: D3.out
-  node: D3
+  node: d3
 - kind: connect
   terminal: S0.out
-  node: S0
-::::
+  node: s0
+- kind: connect
+  terminal: S1.out
+  node: s1
+- kind: connect
+  terminal: U1.in1
+  node: din
+- kind: connect
+  terminal: U1.in2
+  node: en
+- kind: connect
+  terminal: U1.out
+  node: u1-out
+- kind: connect
+  terminal: FF1.d
+  node: u1-out
+- kind: connect
+  terminal: FF1.clk
+  node: clk
+- kind: connect
+  terminal: FF1.q
+  node: ff1-q
+- kind: connect
+  terminal: FF2.d
+  node: ff1-q
+- kind: connect
+  terminal: FF2.clk
+  node: clk
+- kind: connect
+  terminal: FF2.q
+  node: ff2-q
+- kind: connect
+  terminal: M1.d0
+  node: ff1-q
+- kind: connect
+  terminal: M1.d1
+  node: ff2-q
+- kind: connect
+  terminal: M1.d2
+  node: d2
+- kind: connect
+  terminal: M1.d3
+  node: d3
+- kind: connect
+  terminal: M1.s0
+  node: s0
+- kind: connect
+  terminal: M1.s1
+  node: s1
+- kind: connect
+  terminal: M1.out
+  node: sel
+- kind: connect
+  terminal: SEL.in
+  node: sel
+:::::
 
 // Digital timing: clocked bus transaction.
 

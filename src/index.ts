@@ -44,6 +44,7 @@ export type {
   AzeDocument,
   AzeBlock,
   ParsedBlock,
+  CircuitBlock,
   ContentHash,
   Sha256Hash,
   AssetManifestEntry,

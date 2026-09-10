@@ -26,6 +26,7 @@ import type {
   FormulaBlock,
   ReactionBlock,
   StructureBlock,
+  CircuitBlock,
   CompileOptions,
   CompileResult,
   Compiler,
@@ -524,6 +525,20 @@ function collectRenderText(blocks: readonly AzeBlock[], out: string[]): void {
           if (atom.attach !== undefined) out.push(atom.attach);
         }
         for (const label of block.labels ?? []) out.push(label.text);
+        break;
+      case "circuit":
+        if (block.id !== undefined) out.push(block.id);
+        for (const run of block.title) {
+          out.push(run.kind === "quantity" ? `${run.coefficient} ${run.prefix}${run.unit}` : run.value);
+        }
+        for (const component of block.components) {
+          for (const text of [component.name, component.value]) {
+            if (text === undefined) continue;
+            for (const run of text) {
+              out.push(run.kind === "quantity" ? `${run.coefficient} ${run.prefix}${run.unit}` : run.value);
+            }
+          }
+        }
         break;
     }
   }
@@ -1293,6 +1308,10 @@ interface PluginAdapterResolution {
     block: StructureBlock,
     context: BlockRendererContext,
   ) => string;
+  readonly renderCircuit?: (
+    block: CircuitBlock,
+    context: BlockRendererContext,
+  ) => string;
 }
 
 function checkPluginAdapters(
@@ -1328,6 +1347,9 @@ function checkPluginAdapters(
   let renderStructure:
     | ((block: StructureBlock, context: BlockRendererContext) => string)
     | undefined;
+  let renderCircuit:
+    | ((block: CircuitBlock, context: BlockRendererContext) => string)
+    | undefined;
   for (const entry of [
     { blockType: "callout", pluginVersion: "1.0.0" },
     { blockType: "table", pluginVersion: "2.0.0" },
@@ -1337,6 +1359,7 @@ function checkPluginAdapters(
     { blockType: "formula", pluginVersion: "1.0.0" },
     { blockType: "reaction", pluginVersion: "1.0.0" },
     { blockType: "structure", pluginVersion: "1.0.0" },
+    { blockType: "circuit", pluginVersion: "1.0.0" },
   ] as const) {
     const entryType: string = entry.blockType;
     const blocks = pluginBlocks(document, entry.blockType);
@@ -1548,6 +1571,18 @@ function checkPluginAdapters(
         }
         return result;
       };
+    } else if (entry.blockType === "circuit") {
+      const render = chosen.render as (
+        block: CircuitBlock,
+        context: BlockRendererContext,
+      ) => string | Promise<string>;
+      renderCircuit = (block, context) => {
+        const result = render(block, context);
+        if (typeof result !== "string") {
+          throw new BlockRendererSyncError(chosen.descriptor.id, "circuit");
+        }
+        return result;
+      };
     } else {
       throw new CompilerConfigurationError(
         "AZE_CONFIG_ADAPTER_BLOCK_TYPE",
@@ -1565,6 +1600,7 @@ function checkPluginAdapters(
     ...(renderFormula === undefined ? {} : { renderFormula }),
     ...(renderReaction === undefined ? {} : { renderReaction }),
     ...(renderStructure === undefined ? {} : { renderStructure }),
+    ...(renderCircuit === undefined ? {} : { renderCircuit }),
   };
 }
 
@@ -1644,8 +1680,13 @@ export function createCompiler(options: CompilerOptions = {}): Compiler {
     parse(source: string, parseOptions: ParseOptions = {}): ParseResult {
       return limitParseResult(
         parseSource(source, {
-          ...parseOptions,
+          ...(parseOptions.sourceName === undefined
+            ? {}
+            : { sourceName: parseOptions.sourceName }),
           plugins: parseOptions.plugins ?? registry.plugins,
+          ...(parseOptions.allowRawLatex === undefined
+            ? {}
+            : { allowRawLatex: parseOptions.allowRawLatex }),
         }),
         diagnosticLimits,
       );
@@ -1962,6 +2003,9 @@ export function createCompiler(options: CompilerOptions = {}): Compiler {
           ...(pluginPreflight.renderStructure === undefined
             ? {}
             : { renderStructure: pluginPreflight.renderStructure }),
+          ...(pluginPreflight.renderCircuit === undefined
+            ? {}
+            : { renderCircuit: pluginPreflight.renderCircuit }),
         };
         const renderArguments = [
           imageResolution.document,
