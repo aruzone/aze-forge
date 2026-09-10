@@ -348,6 +348,33 @@ export const ACCEPTANCE_ENTRIES: readonly AcceptanceEntry[] = Object.freeze([
     ["#51", "#59"],
   ),
   acceptanceEntry(
+    "P0-CHE-001",
+    "p0",
+    "chemistry",
+    "Native formula, reaction, and structure Blocks",
+    "they are compiled",
+    [
+      "formulas parse a case-sensitive deterministic expression grammar with isotope, charge, subscript, group, and adduct digit resolution into a semantic tree",
+      "reactions parse one species line with the closed three-token arrow and registered state labels, plus an opt-in balance: check over the author's own declarations",
+      "structures accept flat atom/bond/label records with mandatory authored coordinates and admitted wedge/hash stereo and attachment points",
+    ],
+    "automated",
+    ["#51", "#64"],
+  ),
+  acceptanceEntry(
+    "P0-CHE-002",
+    "p0",
+    "chemistry",
+    "Invalid or information-diminishing chemistry declarations",
+    "they are compiled or normalized",
+    [
+      "unknown elements, malformed syntax, unbalanced reactions, and unknowable attachment-atom facts diagnose with stable sub-ranged codes",
+      "unspecified stereochemistry stays unspecified, specified enantiomers remain distinct, and isotopic distinctions survive normalization without invention or loss",
+    ],
+    "automated",
+    ["#51", "#64"],
+  ),
+  acceptanceEntry(
     "P0-OUT-001",
     "p0",
     "artifact",

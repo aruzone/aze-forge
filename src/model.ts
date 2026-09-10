@@ -356,6 +356,94 @@ export interface GeometryDeclaration {
   readonly third?: string;
 }
 
+export interface ChemistryFormulaPart {
+  readonly kind: "element" | "group";
+  readonly symbol?: string;
+  readonly parts?: readonly ChemistryFormulaPart[];
+  readonly count: number;
+}
+
+export interface ChemistryFormulaUnit {
+  readonly multiplier: number;
+  readonly isotope?: number;
+  readonly parts: readonly ChemistryFormulaPart[];
+}
+
+export interface FormulaBlock {
+  readonly kind: "formula";
+  readonly range: SourceRange;
+  readonly id?: string;
+  readonly pluginVersion: string;
+  readonly number?: boolean;
+  readonly expression: string;
+  readonly units: readonly ChemistryFormulaUnit[];
+  readonly charge: number;
+  readonly chargeSpecified: boolean;
+  readonly electron: boolean;
+}
+
+export interface ReactionSpecies {
+  readonly coefficient?: number;
+  readonly unspecifiedCoefficient: boolean;
+  readonly expression: string;
+  readonly state?: "s" | "l" | "g" | "aq";
+  readonly units: readonly ChemistryFormulaUnit[];
+  readonly charge: number;
+  readonly chargeSpecified: boolean;
+  readonly electron: boolean;
+}
+
+export interface ReactionBlock {
+  readonly kind: "reaction";
+  readonly range: SourceRange;
+  readonly id?: string;
+  readonly pluginVersion: string;
+  readonly number?: boolean;
+  readonly above?: string;
+  readonly below?: string;
+  readonly balance: "none" | "check";
+  readonly arrow: "->" | "<-" | "<->";
+  readonly reactants: readonly ReactionSpecies[];
+  readonly products: readonly ReactionSpecies[];
+}
+
+export interface ChemistryAtom {
+  readonly name: string;
+  readonly element?: string;
+  readonly attach?: string;
+  readonly charge?: number;
+  readonly isotope?: number;
+  readonly x: string;
+  readonly y: string;
+  readonly stereo?: "unspecified";
+}
+
+export interface ChemistryBond {
+  readonly from: string;
+  readonly to: string;
+  readonly order: "1" | "2" | "3" | "aromatic";
+  readonly stereo?: "wedge" | "hash";
+}
+
+export interface ChemistryLabel {
+  readonly text: string;
+  readonly x: string;
+  readonly y: string;
+}
+
+export interface StructureBlock {
+  readonly kind: "structure";
+  readonly range: SourceRange;
+  readonly id?: string;
+  readonly pluginVersion: string;
+  readonly number?: boolean;
+  readonly width: number;
+  readonly height: number;
+  readonly atoms: readonly ChemistryAtom[];
+  readonly bonds: readonly ChemistryBond[];
+  readonly labels?: readonly ChemistryLabel[];
+}
+
 export interface GeometryBlock {
   readonly kind: "geometry";
   readonly range: SourceRange;
@@ -383,6 +471,9 @@ export type ParsedBlock =
   | PlotBlock
   | ChartBlock
   | GeometryBlock
+  | FormulaBlock
+  | ReactionBlock
+  | StructureBlock
   | InvalidBlock;
 
 export type AzeBlock =
@@ -399,7 +490,10 @@ export type AzeBlock =
   | DerivationBlock
   | PlotBlock
   | ChartBlock
-  | GeometryBlock;
+  | GeometryBlock
+  | FormulaBlock
+  | ReactionBlock
+  | StructureBlock;
 export type ArtifactFormat = "html" | "svg" | "png" | "pdf";
 
 export interface DocumentMetadata {
@@ -669,6 +763,9 @@ export type AnyBlockRenderer =
   | AzeBlockRenderer<PlotBlock>
   | AzeBlockRenderer<ChartBlock>
   | AzeBlockRenderer<GeometryBlock>
+  | AzeBlockRenderer<FormulaBlock>
+  | AzeBlockRenderer<ReactionBlock>
+  | AzeBlockRenderer<StructureBlock>
   | MermaidBlockRenderer;
 export type BlockRenderer = AnyBlockRenderer;
 export interface CompilerPolicy {

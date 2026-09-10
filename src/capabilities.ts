@@ -24,6 +24,7 @@ import {
   GEOMETRY_EPSILON,
   GEOMETRY_EVAL_VERSION,
 } from "./geometry-schemas.js";
+import { CHEMISTRY_EMITTER_VERSION } from "./chemistry-schemas.js";
 import {
   MAX_COORDINATE_MAGNITUDE,
   MAX_EQUAL_MARK_GROUPS,
@@ -33,6 +34,20 @@ import {
   MAX_GEOMETRY_LABEL_CHARS,
   MAX_POLYGON_VERTICES,
 } from "./geometry.js";
+import {
+  MAX_FORMULA_CHARGE,
+  MAX_FORMULA_EXPRESSION_CHARS,
+  MAX_GROUP_NESTING,
+  MAX_ISOTOPE_MASS,
+  MAX_REACTION_CONDITION_CHARS,
+  MAX_REACTION_SPECIES,
+  MAX_REACTION_SPECIES_CHARS,
+  MAX_STRUCTURE_ATOMS,
+  MAX_STRUCTURE_HEIGHT,
+  MAX_STRUCTURE_LABEL_CHARS,
+  MAX_STRUCTURE_WIDTH,
+  MAX_SUBSCRIPT,
+} from "./chemistry.js";
 import {
   MAX_BAR_CATEGORIES,
   MAX_BINS,
@@ -224,6 +239,10 @@ export interface CapabilitiesReport {
       emitter: typeof GEOMETRY_EMITTER_VERSION;
       eval: typeof GEOMETRY_EVAL_VERSION;
       epsilon: typeof GEOMETRY_EPSILON;
+      availability: EngineAvailability;
+    }>;
+    readonly chemistry: Readonly<{
+      emitter: typeof CHEMISTRY_EMITTER_VERSION;
       availability: EngineAvailability;
     }>;
     readonly fonts: readonly {
@@ -444,6 +463,20 @@ export async function buildCapabilities(
           maxCoordinateMagnitude: MAX_COORDINATE_MAGNITUDE,
           maxDimensionPx: MAX_GEOMETRY_DIMENSION_PX,
         },
+        chemistry: {
+          maxFormulaExpressionChars: MAX_FORMULA_EXPRESSION_CHARS,
+          maxFormulaCharge: MAX_FORMULA_CHARGE,
+          maxSubscript: MAX_SUBSCRIPT,
+          maxGroupNesting: MAX_GROUP_NESTING,
+          maxIsotopeMass: MAX_ISOTOPE_MASS,
+          maxReactionSpecies: MAX_REACTION_SPECIES,
+          maxReactionSpeciesChars: MAX_REACTION_SPECIES_CHARS,
+          maxReactionConditionChars: MAX_REACTION_CONDITION_CHARS,
+          maxStructureAtoms: MAX_STRUCTURE_ATOMS,
+          maxStructureWidth: MAX_STRUCTURE_WIDTH,
+          maxStructureHeight: MAX_STRUCTURE_HEIGHT,
+          maxStructureLabelChars: MAX_STRUCTURE_LABEL_CHARS,
+        },
       },
       serve: { bind: "127.0.0.1", port: { min: 0, max: 65535, default: 0 } },
     },
@@ -478,6 +511,10 @@ export async function buildCapabilities(
         emitter: GEOMETRY_EMITTER_VERSION,
         eval: GEOMETRY_EVAL_VERSION,
         epsilon: GEOMETRY_EPSILON,
+        availability: bundled,
+      },
+      chemistry: {
+        emitter: CHEMISTRY_EMITTER_VERSION,
         availability: bundled,
       },
       fonts: [

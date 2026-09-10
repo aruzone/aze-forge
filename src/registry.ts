@@ -17,6 +17,14 @@ import {
 import { chartHtmlBlockRenderer, chartPlugin, plotHtmlBlockRenderer, plotPlugin } from "./plot.js";
 import { geometryHtmlBlockRenderer, geometryPlugin } from "./geometry.js";
 import {
+  formulaHtmlBlockRenderer,
+  formulaPlugin,
+  reactionHtmlBlockRenderer,
+  reactionPlugin,
+  structureHtmlBlockRenderer,
+  structurePlugin,
+} from "./chemistry.js";
+import {
   svgBlockRenderers,
   svgRendererDescriptor,
 } from "./render-svg.js";
@@ -63,6 +71,9 @@ export function getBuiltInRegistry(): ResolvedRegistry {
       plotPlugin,
       chartPlugin,
       geometryPlugin,
+      formulaPlugin,
+      reactionPlugin,
+      structurePlugin,
     ]),
     blockRenderers: Object.freeze([
       equationHtmlBlockRenderer,
@@ -73,6 +84,9 @@ export function getBuiltInRegistry(): ResolvedRegistry {
       plotHtmlBlockRenderer,
       chartHtmlBlockRenderer,
       geometryHtmlBlockRenderer,
+      formulaHtmlBlockRenderer,
+      reactionHtmlBlockRenderer,
+      structureHtmlBlockRenderer,
       ...svgBlockRenderers,
       ...pngBlockRenderers,
       ...pdfBlockRenderers,

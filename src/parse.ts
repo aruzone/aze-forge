@@ -23,6 +23,16 @@ import {
 import { MERMAID_PLUGIN_TYPE } from "./mermaid-schemas.js";
 import { GEOMETRY_PLUGIN_TYPE } from "./geometry-schemas.js";
 import { geometryPlugin, validateGeometryBlock, type GeometryInputLine } from "./geometry.js";
+import { FORMULA_PLUGIN_TYPE, REACTION_PLUGIN_TYPE, STRUCTURE_PLUGIN_TYPE } from "./chemistry-schemas.js";
+import {
+  formulaPlugin,
+  reactionPlugin,
+  structurePlugin,
+  validateFormulaBlock,
+  validateReactionBlock,
+  validateStructureBlock,
+  type ChemistryInputLine,
+} from "./chemistry.js";
 import { CHART_PLUGIN_TYPE, PLOT_PLUGIN_TYPE } from "./plot-schemas.js";
 import { EMPTY_DOCUMENT_DEFAULTS, chartPlugin, parseDocumentDefaults, plotPlugin, validateChartBlock, validatePlotBlock, type PlotBlockDefaults, type PlotDocumentDefaults, type PlotInputLine } from "./plot.js";
 import type {
@@ -2142,6 +2152,47 @@ function parseGeometryEnvelope(
 }
 
 
+function parseChemistryEnvelope(
+  source: string,
+  lines: readonly SourceLine[],
+  openIndex: number,
+  closingIndex: number,
+  first: SourceLine,
+  last: SourceLine,
+  options: ParseOptions,
+  diagnostics: Diagnostic[],
+  pluginType: string,
+  validate: (options: {
+    readonly headerLines: readonly ChemistryInputLine[];
+    readonly bodyLines: readonly ChemistryInputLine[];
+    readonly blockRange: SourceRange;
+    readonly sourceName: string | undefined;
+  }) => { readonly block?: ParsedBlock; readonly diagnostics: readonly Diagnostic[] },
+): ParsedBlock {
+  const blockRange = rangeFromLines(first, last);
+  const startIndex = diagnostics.length;
+  const finishInvalid = (): ParsedBlock =>
+    invalidBlockFor(source, first, last, startIndex, diagnostics, pluginType);
+  const { bodyStart, separatorFound } = splitHeaderEntries(lines, openIndex, closingIndex);
+  if (!separatorFound) {
+    missingSeparatorDiagnostic(lines, openIndex, closingIndex, first, options, diagnostics);
+    return finishInvalid();
+  }
+  const toInput = (line: SourceLine): ChemistryInputLine => ({
+    text: lineText(line),
+    range: rangeFromLines(line, line),
+  });
+  const validated = validate({
+    headerLines: lines.slice(openIndex + 1, bodyStart - 1).map(toInput),
+    bodyLines: lines.slice(bodyStart, closingIndex).map(toInput),
+    blockRange,
+    sourceName: options.sourceName,
+  });
+  diagnostics.push(...validated.diagnostics);
+  if (validated.block !== undefined) return validated.block;
+  return finishInvalid();
+}
+
 function parseBlocks(
   source: string,
   lines: readonly SourceLine[],
@@ -2397,6 +2448,69 @@ function parseBlocks(
             last,
             options,
             diagnostics,
+          ),
+        );
+        continue;
+      }
+      if (
+        closed &&
+        originalType === FORMULA_PLUGIN_TYPE &&
+        activeTypes.includes(FORMULA_PLUGIN_TYPE)
+      ) {
+        blocks.push(
+          parseChemistryEnvelope(
+            source,
+            lines,
+            openIndex,
+            closingIndex,
+            first,
+            last,
+            options,
+            diagnostics,
+            FORMULA_PLUGIN_TYPE,
+            validateFormulaBlock,
+          ),
+        );
+        continue;
+      }
+      if (
+        closed &&
+        originalType === REACTION_PLUGIN_TYPE &&
+        activeTypes.includes(REACTION_PLUGIN_TYPE)
+      ) {
+        blocks.push(
+          parseChemistryEnvelope(
+            source,
+            lines,
+            openIndex,
+            closingIndex,
+            first,
+            last,
+            options,
+            diagnostics,
+            REACTION_PLUGIN_TYPE,
+            validateReactionBlock,
+          ),
+        );
+        continue;
+      }
+      if (
+        closed &&
+        originalType === STRUCTURE_PLUGIN_TYPE &&
+        activeTypes.includes(STRUCTURE_PLUGIN_TYPE)
+      ) {
+        blocks.push(
+          parseChemistryEnvelope(
+            source,
+            lines,
+            openIndex,
+            closingIndex,
+            first,
+            last,
+            options,
+            diagnostics,
+            STRUCTURE_PLUGIN_TYPE,
+            validateStructureBlock,
           ),
         );
         continue;
@@ -2841,6 +2955,9 @@ export function parseSource(source: string, options: ParseOptions = {}): ParseRe
     plotPlugin,
     chartPlugin,
     geometryPlugin,
+    formulaPlugin,
+    reactionPlugin,
+    structurePlugin,
   ];
   const activeTypes = [...new Set(activePlugins.map((plugin) => plugin.descriptor.type))].sort();
   const blocks = parseBlocks(

@@ -424,6 +424,41 @@
       ]
     },
     {
+      "id": "P0-CHE-001",
+      "gate": "p0",
+      "area": "chemistry",
+      "given": "Native formula, reaction, and structure Blocks",
+      "when": "they are compiled",
+      "then": [
+        "formulas parse a case-sensitive deterministic expression grammar with isotope, charge, subscript, group, and adduct digit resolution into a semantic tree",
+        "reactions parse one species line with the closed three-token arrow and registered state labels, plus an opt-in balance: check over the author's own declarations",
+        "structures accept flat atom/bond/label records with mandatory authored coordinates and admitted wedge/hash stereo and attachment points"
+      ],
+      "evidence": "automated",
+      "required": true,
+      "contracts": [
+        "#51",
+        "#64"
+      ]
+    },
+    {
+      "id": "P0-CHE-002",
+      "gate": "p0",
+      "area": "chemistry",
+      "given": "Invalid or information-diminishing chemistry declarations",
+      "when": "they are compiled or normalized",
+      "then": [
+        "unknown elements, malformed syntax, unbalanced reactions, and unknowable attachment-atom facts diagnose with stable sub-ranged codes",
+        "unspecified stereochemistry stays unspecified, specified enantiomers remain distinct, and isotopic distinctions survive normalization without invention or loss"
+      ],
+      "evidence": "automated",
+      "required": true,
+      "contracts": [
+        "#51",
+        "#64"
+      ]
+    },
+    {
       "id": "P0-OUT-001",
       "gate": "p0",
       "area": "artifact",

@@ -23,6 +23,9 @@ import type {
   CalloutBlock,
   ChartBlock,
   GeometryBlock,
+  FormulaBlock,
+  ReactionBlock,
+  StructureBlock,
   CompileOptions,
   CompileResult,
   Compiler,
@@ -504,6 +507,23 @@ function collectRenderText(blocks: readonly AzeBlock[], out: string[]): void {
           if (entry.name !== undefined) out.push(entry.name);
           if (entry.label !== undefined) out.push(entry.label);
         }
+        break;
+      case "formula":
+        if (block.id !== undefined) out.push(block.id);
+        out.push(block.expression);
+        break;
+      case "reaction":
+        if (block.id !== undefined) out.push(block.id);
+        for (const entry of block.reactants) out.push(entry.expression);
+        for (const entry of block.products) out.push(entry.expression);
+        break;
+      case "structure":
+        if (block.id !== undefined) out.push(block.id);
+        for (const atom of block.atoms) {
+          if (atom.element !== undefined) out.push(atom.element);
+          if (atom.attach !== undefined) out.push(atom.attach);
+        }
+        for (const label of block.labels ?? []) out.push(label.text);
         break;
     }
   }
@@ -1261,6 +1281,18 @@ interface PluginAdapterResolution {
     block: GeometryBlock,
     context: BlockRendererContext,
   ) => string;
+  readonly renderFormula?: (
+    block: FormulaBlock,
+    context: BlockRendererContext,
+  ) => string;
+  readonly renderReaction?: (
+    block: ReactionBlock,
+    context: BlockRendererContext,
+  ) => string;
+  readonly renderStructure?: (
+    block: StructureBlock,
+    context: BlockRendererContext,
+  ) => string;
 }
 
 function checkPluginAdapters(
@@ -1287,12 +1319,24 @@ function checkPluginAdapters(
   let renderGeometry:
     | ((block: GeometryBlock, context: BlockRendererContext) => string)
     | undefined;
+  let renderFormula:
+    | ((block: FormulaBlock, context: BlockRendererContext) => string)
+    | undefined;
+  let renderReaction:
+    | ((block: ReactionBlock, context: BlockRendererContext) => string)
+    | undefined;
+  let renderStructure:
+    | ((block: StructureBlock, context: BlockRendererContext) => string)
+    | undefined;
   for (const entry of [
     { blockType: "callout", pluginVersion: "1.0.0" },
     { blockType: "table", pluginVersion: "2.0.0" },
     { blockType: "plot", pluginVersion: "1.0.0" },
     { blockType: "chart", pluginVersion: "1.0.0" },
     { blockType: "geometry", pluginVersion: "1.0.0" },
+    { blockType: "formula", pluginVersion: "1.0.0" },
+    { blockType: "reaction", pluginVersion: "1.0.0" },
+    { blockType: "structure", pluginVersion: "1.0.0" },
   ] as const) {
     const entryType: string = entry.blockType;
     const blocks = pluginBlocks(document, entry.blockType);
@@ -1468,6 +1512,42 @@ function checkPluginAdapters(
         }
         return result;
       };
+    } else if (entry.blockType === "formula") {
+      const render = chosen.render as (
+        block: FormulaBlock,
+        context: BlockRendererContext,
+      ) => string | Promise<string>;
+      renderFormula = (block, context) => {
+        const result = render(block, context);
+        if (typeof result !== "string") {
+          throw new BlockRendererSyncError(chosen.descriptor.id, "formula");
+        }
+        return result;
+      };
+    } else if (entry.blockType === "reaction") {
+      const render = chosen.render as (
+        block: ReactionBlock,
+        context: BlockRendererContext,
+      ) => string | Promise<string>;
+      renderReaction = (block, context) => {
+        const result = render(block, context);
+        if (typeof result !== "string") {
+          throw new BlockRendererSyncError(chosen.descriptor.id, "reaction");
+        }
+        return result;
+      };
+    } else if (entry.blockType === "structure") {
+      const render = chosen.render as (
+        block: StructureBlock,
+        context: BlockRendererContext,
+      ) => string | Promise<string>;
+      renderStructure = (block, context) => {
+        const result = render(block, context);
+        if (typeof result !== "string") {
+          throw new BlockRendererSyncError(chosen.descriptor.id, "structure");
+        }
+        return result;
+      };
     } else {
       throw new CompilerConfigurationError(
         "AZE_CONFIG_ADAPTER_BLOCK_TYPE",
@@ -1482,6 +1562,9 @@ function checkPluginAdapters(
     ...(renderPlot === undefined ? {} : { renderPlot }),
     ...(renderChart === undefined ? {} : { renderChart }),
     ...(renderGeometry === undefined ? {} : { renderGeometry }),
+    ...(renderFormula === undefined ? {} : { renderFormula }),
+    ...(renderReaction === undefined ? {} : { renderReaction }),
+    ...(renderStructure === undefined ? {} : { renderStructure }),
   };
 }
 
@@ -1867,6 +1950,18 @@ export function createCompiler(options: CompilerOptions = {}): Compiler {
           ...(pluginPreflight.renderChart === undefined
             ? {}
             : { renderChart: pluginPreflight.renderChart }),
+          ...(pluginPreflight.renderGeometry === undefined
+            ? {}
+            : { renderGeometry: pluginPreflight.renderGeometry }),
+          ...(pluginPreflight.renderFormula === undefined
+            ? {}
+            : { renderFormula: pluginPreflight.renderFormula }),
+          ...(pluginPreflight.renderReaction === undefined
+            ? {}
+            : { renderReaction: pluginPreflight.renderReaction }),
+          ...(pluginPreflight.renderStructure === undefined
+            ? {}
+            : { renderStructure: pluginPreflight.renderStructure }),
         };
         const renderArguments = [
           imageResolution.document,

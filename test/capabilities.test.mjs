@@ -73,17 +73,17 @@ test("capabilities --json enumerates the P0 contract in canonical order", async 
   );
   assert.deepEqual(
     payload.plugins.map(({ type }) => type),
-    ["callout", "chart", "derivation", "equation", "geometry", "mermaid", "plot", "table"],
+    ["callout", "chart", "derivation", "equation", "formula", "geometry", "mermaid", "plot", "reaction", "structure", "table"],
   );
   assert.deepEqual(
     payload.plugins.map(({ version }) => version),
-    ["1.0.0", "1.0.0", "1.0.0", "2.0.0", "1.0.0", "1.0.0", "1.0.0", "2.0.0"],
+    ["1.0.0", "1.0.0", "1.0.0", "2.0.0", "1.0.0", "1.0.0", "1.0.0", "1.0.0", "1.0.0", "1.0.0", "2.0.0"],
   );
   assert.deepEqual(
     payload.renderers.map(({ id }) => id),
     ["html", "pdf", "png", "svg"],
   );
-  assert.equal(payload.blockRenderers.length, 32);
+  assert.equal(payload.blockRenderers.length, 44);
   assert.deepEqual(
     payload.themes.map(({ id }) => id),
     ["academic", "dark-presentation", "default"],

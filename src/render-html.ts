@@ -5,6 +5,12 @@ import { KATEX_VERSION } from "./equation-schemas.js";
 import { MERMAID_VERSION } from "./mermaid-schemas.js";
 import { plotDependencyClosure, renderChartFragment, renderPlotFragment } from "./plot.js";
 import { geometryDependencyClosure, renderGeometryFragment } from "./geometry.js";
+import {
+  chemistryDependencyClosure,
+  renderFormulaFragment,
+  renderReactionFragment,
+  renderStructureFragment,
+} from "./chemistry.js";
 import type { EmbeddedFontFace } from "./font.js";
 import { artifactBytesHash, canonicalJson, sha256 } from "./hash.js";
 import { escapeHtml, renderInlineHtml } from "./html-fragment.js";
@@ -18,6 +24,9 @@ import type {
   CalloutBlock,
   ChartBlock,
   GeometryBlock,
+  FormulaBlock,
+  ReactionBlock,
+  StructureBlock,
   ContentHash,
   DerivationBlock,
   EquationBlock,
@@ -65,6 +74,18 @@ export interface HtmlPluginRenderers {
     block: GeometryBlock,
     context: BlockRendererContext,
   ) => string;
+  readonly renderFormula?: (
+    block: FormulaBlock,
+    context: BlockRendererContext,
+  ) => string;
+  readonly renderReaction?: (
+    block: ReactionBlock,
+    context: BlockRendererContext,
+  ) => string;
+  readonly renderStructure?: (
+    block: StructureBlock,
+    context: BlockRendererContext,
+  ) => string;
 }
 
 interface RenderContext {
@@ -90,6 +111,18 @@ interface RenderContext {
   ) => string;
   readonly renderGeometry: (
     block: GeometryBlock,
+    context: BlockRendererContext,
+  ) => string;
+  readonly renderFormula: (
+    block: FormulaBlock,
+    context: BlockRendererContext,
+  ) => string;
+  readonly renderReaction: (
+    block: ReactionBlock,
+    context: BlockRendererContext,
+  ) => string;
+  readonly renderStructure: (
+    block: StructureBlock,
     context: BlockRendererContext,
   ) => string;
 }
@@ -171,6 +204,21 @@ function renderBlock(block: AzeBlock, context: RenderContext): string {
         ...(context.sourceName === undefined ? {} : { sourceName: context.sourceName }),
         renderBlocks: (children) => renderBlocks(children, context),
       });
+    case "formula":
+      return context.renderFormula(block, {
+        ...(context.sourceName === undefined ? {} : { sourceName: context.sourceName }),
+        renderBlocks: (children) => renderBlocks(children, context),
+      });
+    case "reaction":
+      return context.renderReaction(block, {
+        ...(context.sourceName === undefined ? {} : { sourceName: context.sourceName }),
+        renderBlocks: (children) => renderBlocks(children, context),
+      });
+    case "structure":
+      return context.renderStructure(block, {
+        ...(context.sourceName === undefined ? {} : { sourceName: context.sourceName }),
+        renderBlocks: (children) => renderBlocks(children, context),
+      });
 }
 }
 
@@ -222,6 +270,12 @@ export function createHtmlLayout(
     pluginRenderers.renderChart ?? ((block: ChartBlock, context: BlockRendererContext): string => renderChartFragment(block, context));
   const renderGeometry =
     pluginRenderers.renderGeometry ?? ((block: GeometryBlock, context: BlockRendererContext): string => renderGeometryFragment(block, context));
+  const renderFormula =
+    pluginRenderers.renderFormula ?? ((block: FormulaBlock, context: BlockRendererContext): string => renderFormulaFragment(block, context));
+  const renderReaction =
+    pluginRenderers.renderReaction ?? ((block: ReactionBlock, context: BlockRendererContext): string => renderReactionFragment(block, context));
+  const renderStructure =
+    pluginRenderers.renderStructure ?? ((block: StructureBlock, context: BlockRendererContext): string => renderStructureFragment(block, context));
   const context: RenderContext = {
     equationFragments,
     derivationFragments,
@@ -230,12 +284,15 @@ export function createHtmlLayout(
     renderPlot,
     renderChart,
     renderGeometry,
+    renderFormula,
+    renderReaction,
+    renderStructure,
     renderTable,
   };
   return {
     title: escapeHtml(documentTitle(document)),
     description: "AzeForge whole-Document Artifact",
-    css: `${embeddedFontCss(fontFaces)}${themeCss(theme)}${getKatexCss()}.aze-equation{margin:1em 0;text-align:center}.aze-equation[data-align="left"]{text-align:left}.aze-equation[data-align="right"]{text-align:right}.aze-derivation{margin:1em 0}.aze-derivation ol{list-style:none;padding:0;margin:0}.aze-derivation li{display:block;text-align:center;margin:.35em 0}.aze-derivation[data-align="left"] li{text-align:left}.aze-derivation[data-align="right"] li{text-align:right}.aze-derivation .aze-derivation-annotation{display:block;font-style:italic;color:#666;font-size:.9em}.aze-mermaid{margin:1em 0}.aze-mermaid svg{display:block;max-width:100%;max-height:520px;width:auto;height:auto;margin:0 auto}.aze-plot{margin:1em 0}.aze-plot svg{display:block;max-width:100%;height:auto;margin:0 auto}.aze-chart{margin:1em 0}.aze-chart svg{display:block;max-width:100%;height:auto;margin:0 auto}.aze-geometry{margin:1em 0}.aze-geometry svg{display:block;max-width:100%;height:auto;margin:0 auto}`,
+    css: `${embeddedFontCss(fontFaces)}${themeCss(theme)}${getKatexCss()}.aze-equation{margin:1em 0;text-align:center}.aze-equation[data-align="left"]{text-align:left}.aze-equation[data-align="right"]{text-align:right}.aze-derivation{margin:1em 0}.aze-derivation ol{list-style:none;padding:0;margin:0}.aze-derivation li{display:block;text-align:center;margin:.35em 0}.aze-derivation[data-align="left"] li{text-align:left}.aze-derivation[data-align="right"] li{text-align:right}.aze-derivation .aze-derivation-annotation{display:block;font-style:italic;color:#666;font-size:.9em}.aze-mermaid{margin:1em 0}.aze-mermaid svg{display:block;max-width:100%;max-height:520px;width:auto;height:auto;margin:0 auto}.aze-plot{margin:1em 0}.aze-plot svg{display:block;max-width:100%;height:auto;margin:0 auto}.aze-chart{margin:1em 0}.aze-chart svg{display:block;max-width:100%;height:auto;margin:0 auto}.aze-geometry{margin:1em 0}.aze-geometry svg{display:block;max-width:100%;height:auto;margin:0 auto}.aze-formula{margin:1em 0;text-align:center}.aze-formula .aze-formula-expression{font-size:1.05em}.aze-reaction{margin:1em 0;text-align:center}.aze-reaction .aze-reaction-arrow{font-size:1.1em}.aze-reaction .aze-reaction-conditions{display:inline-block;font-size:.85em;font-style:italic;color:#666}.aze-structure{margin:1em 0}.aze-structure svg{display:block;max-width:100%;height:auto;margin:0 auto}`,
     body: `<main><article>${renderBlocks(document.blocks, context)}</article></main>`,
     fingerprintDependencies: {
       theme: theme as unknown as JsonValue,
@@ -252,6 +309,9 @@ export function createHtmlLayout(
         : {}),
       ...(document.blocks.some((block) => block.kind === "geometry")
         ? { geometry: geometryDependencyClosure() }
+        : {}),
+      ...(document.blocks.some((block) => block.kind === "formula" || block.kind === "reaction" || block.kind === "structure")
+        ? { chemistry: chemistryDependencyClosure() }
         : {}),
       prose: {
         serializer: "azeforge-prose/v1",

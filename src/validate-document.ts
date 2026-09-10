@@ -428,6 +428,83 @@ function isParsedBlock(value: unknown): value is ParsedBlock {
       (value.number === undefined || typeof value.number === "boolean")
     );
   }
+  if (value.kind === "formula") {
+    return (
+      hasOnlyKeys(value, [
+        "kind",
+        "range",
+        "id",
+        "pluginVersion",
+        "number",
+        "expression",
+        "units",
+        "charge",
+        "chargeSpecified",
+        "electron",
+      ]) &&
+      isSourceRange(value.range) &&
+      (value.id === undefined || typeof value.id === "string") &&
+      value.pluginVersion === "1.0.0" &&
+      typeof value.expression === "string" &&
+      Array.isArray(value.units) &&
+      typeof value.charge === "number" &&
+      typeof value.chargeSpecified === "boolean" &&
+      typeof value.electron === "boolean" &&
+      (value.number === undefined || typeof value.number === "boolean")
+    );
+  }
+  if (value.kind === "reaction") {
+    return (
+      hasOnlyKeys(value, [
+        "kind",
+        "range",
+        "id",
+        "pluginVersion",
+        "number",
+        "above",
+        "below",
+        "balance",
+        "arrow",
+        "reactants",
+        "products",
+      ]) &&
+      isSourceRange(value.range) &&
+      (value.id === undefined || typeof value.id === "string") &&
+      value.pluginVersion === "1.0.0" &&
+      (value.above === undefined || typeof value.above === "string") &&
+      (value.below === undefined || typeof value.below === "string") &&
+      (value.balance === "none" || value.balance === "check") &&
+      (value.arrow === "->" || value.arrow === "<-" || value.arrow === "<->") &&
+      Array.isArray(value.reactants) &&
+      Array.isArray(value.products) &&
+      (value.number === undefined || typeof value.number === "boolean")
+    );
+  }
+  if (value.kind === "structure") {
+    return (
+      hasOnlyKeys(value, [
+        "kind",
+        "range",
+        "id",
+        "pluginVersion",
+        "number",
+        "width",
+        "height",
+        "atoms",
+        "bonds",
+        "labels",
+      ]) &&
+      isSourceRange(value.range) &&
+      (value.id === undefined || typeof value.id === "string") &&
+      value.pluginVersion === "1.0.0" &&
+      typeof value.width === "number" &&
+      typeof value.height === "number" &&
+      Array.isArray(value.atoms) &&
+      Array.isArray(value.bonds) &&
+      (value.labels === undefined || Array.isArray(value.labels)) &&
+      (value.number === undefined || typeof value.number === "boolean")
+    );
+  }
   if (value.kind === "invalid") {
     return (
       hasOnlyKeys(value, [

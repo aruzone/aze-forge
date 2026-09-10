@@ -7,6 +7,11 @@ import { derivationHtmlBlockRenderer } from "./derivation.js";
 import { equationHtmlBlockRenderer } from "./equation.js";
 import { chartHtmlBlockRenderer, plotHtmlBlockRenderer } from "./plot.js";
 import { geometryHtmlBlockRenderer } from "./geometry.js";
+import {
+  formulaHtmlBlockRenderer,
+  reactionHtmlBlockRenderer,
+  structureHtmlBlockRenderer,
+} from "./chemistry.js";
 
 import { assetManifestHash } from "./assets.js";
 import { artifactBytesHash, canonicalJson, sha256 } from "./hash.js";
@@ -64,6 +69,9 @@ export const svgBlockRenderers: readonly AnyBlockRenderer[] = Object.freeze([
   svgBlockRenderer(plotHtmlBlockRenderer),
   svgBlockRenderer(chartHtmlBlockRenderer),
   svgBlockRenderer(geometryHtmlBlockRenderer),
+  svgBlockRenderer(formulaHtmlBlockRenderer),
+  svgBlockRenderer(reactionHtmlBlockRenderer),
+  svgBlockRenderer(structureHtmlBlockRenderer),
 ]);
 
 export interface SvgBrowserCapability {
