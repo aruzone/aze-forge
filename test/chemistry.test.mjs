@@ -306,10 +306,22 @@ test("wedge occupies only the stereocenter end of its bond", async () => {
   assert.ok(distance(tip, base) < distance(tip, atoms[1]) * 0.75);
 });
 
+test("hash stereo renders straight parallel crossbars", async () => {
+  const compiled = await compile(bodySource("- atom: c1\n  element: C\n  at: [0.0, 0.0]\n- atom: c2\n  element: C\n  at: [0.0, 1.4]\n- bond:\n  from: c1\n  to: c2\n  order: 1\n  stereo: hash", "structure"));
+  const html = new TextDecoder().decode(compiled.artifact.bytes);
+  const bars = [...html.matchAll(/<line x1="([^"]+)" y1="([^"]+)" x2="([^"]+)" y2="([^"]+)"/g)].map((match) => ({
+    y1: Number(match[2]),
+    y2: Number(match[4]),
+  }));
+  assert.ok(bars.length >= 3);
+  assert.ok(bars.every((bar) => bar.y1 === bar.y2));
+});
+
+
 test("capabilities advertise chemistry engines and ceilings", async () => {
   const report = await buildCapabilities();
   assert.ok(report.engines.chemistry);
-  assert.equal(report.engines.chemistry.emitter, "1.0.2");
+  assert.equal(report.engines.chemistry.emitter, "1.0.3");
   // Bundled probe engines report the same availability as geometry: both
   // follow the optional-dependency probe seam (browser availability today).
   assert.equal(report.engines.chemistry.availability, report.engines.geometry.availability);

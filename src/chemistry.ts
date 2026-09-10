@@ -1490,18 +1490,18 @@ export function renderStructureFragment(block: StructureBlock, _context: BlockRe
       continue;
     }
     if (bond.stereo === "hash") {
-      // Parallel bars from the from atom toward the to atom.
+      // Perpendicular bars widen away from the stereocenter as a conventional hashed wedge.
       const dx = to.x - from.x;
       const dy = to.y - from.y;
       const len = Math.hypot(dx, dy) || 1;
-      const ux = dx / len;
-      const uy = dy / len;
-      const px = (-uy) * 4;
-      const py = ux * 4;
-      for (let bar = 0; bar < 3; bar += 1) {
-        const t0 = 0.25 + bar * 0.25;
-        const t1 = 0.35 + bar * 0.25;
-        parts.push(`<line x1="${quantize(from.x + dx * t0 + px * (1 - t0))}" y1="${quantize(from.y + dy * t0 + py * (1 - t0))}" x2="${quantize(from.x + dx * t1 - px * (1 - t1))}" y2="${quantize(from.y + dy * t1 - py * (1 - t1))}" stroke="${stroke}" stroke-width="2"/>`);
+      const px = -dy / len;
+      const py = dx / len;
+      for (let bar = 0; bar < 5; bar += 1) {
+        const t = 0.2 + bar * 0.15;
+        const halfWidth = 1 + t * 5;
+        const centerX = from.x + dx * t;
+        const centerY = from.y + dy * t;
+        parts.push(`<line x1="${quantize(centerX + px * halfWidth)}" y1="${quantize(centerY + py * halfWidth)}" x2="${quantize(centerX - px * halfWidth)}" y2="${quantize(centerY - py * halfWidth)}" stroke="${stroke}" stroke-width="2"/>`);
       }
       continue;
     }
@@ -1619,7 +1619,7 @@ export const structurePlugin: AzeBlockPlugin = Object.freeze({
 export const FORMULA_HTML_BLOCK_RENDERER_ID = "azeforge.formula.html/v1" as const;
 export const REACTION_HTML_BLOCK_RENDERER_ID = "azeforge.reaction.html/v1" as const;
 export const STRUCTURE_HTML_BLOCK_RENDERER_ID = "azeforge.structure.html/v1" as const;
-export const CHEMISTRY_HTML_BLOCK_RENDERER_VERSION = "1.0.2" as const;
+export const CHEMISTRY_HTML_BLOCK_RENDERER_VERSION = "1.0.3" as const;
 
 export const formulaHtmlBlockRenderer: AzeBlockRenderer<FormulaBlock> = Object.freeze({
   descriptor: Object.freeze({
