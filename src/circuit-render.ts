@@ -80,6 +80,37 @@ function portOffsets(component: CircuitComponent): readonly Port[] {
   }
 }
 
+function terminalBoundaries(component: CircuitComponent, convention: CircuitBlock["symbolConvention"], ports: readonly Port[]): readonly Port[] {
+  const side = (terminal: string, x: number, y = 0): Port => ({ terminal, x, y });
+  const inputBoundary = (port: Port): Port => {
+    if (convention === "iec" || component.kind === "and" || component.kind === "nand") return { ...port, x: -48 };
+    const t = (port.y + 26) / 52;
+    const x = (component.kind === "xor" || component.kind === "xnor" ? -52 : -48) + (component.kind === "xor" || component.kind === "xnor" ? 40 : 52) * t * (1 - t);
+    return { ...port, x };
+  };
+  switch (component.kind) {
+    case "and": case "or": case "nand": case "nor": case "xor": case "xnor":
+      return ports.map((port) => port.terminal.startsWith("in") ? inputBoundary(port) : { ...port, x: component.kind === "nand" || component.kind === "nor" || component.kind === "xnor" ? 58 : 48 });
+    case "not": return [side("in", -48), side("out", 58)];
+    case "buffer": return [side("in", -48), side("out", 48)];
+    case "mux-2to1": case "mux-4to1":
+      return ports.map((port) => port.terminal.startsWith("d") ? { ...port, x: -48 } : port.terminal.startsWith("s") ? { ...port, y: 26 } : { ...port, x: 48 });
+    case "d-flip-flop":
+      return ports.map((port) => port.terminal === "q" ? { ...port, x: 48 } : { ...port, x: -48 });
+    case "op-amp": return [side("nonInverting", -42, -14), side("inverting", -42, 14), side("output", 48), side("positiveSupply", 0, -14.933333333333334), side("negativeSupply", 0, 14.933333333333334)];
+    case "dependent-source": return [side("positive", 0, -26), side("negative", 0, 26), side("controlPositive", -12, -14), side("controlNegative", -12, 14)];
+    case "bjt": return [side("collector", 0, -26), side("base", -26), side("emitter", 0, 26)];
+    case "mosfet": return [side("drain", 0, -22), side("gate", -26), side("source", 0, 22)];
+    case "voltage-source": case "current-source": return [side("positive", 0, -25), side("negative", 0, 25)];
+    case "digital-input": return [side("out", 28)];
+    case "digital-output": return [side("in", -28)];
+    case "resistor": case "inductor": return [side(component.terminals[0]!, -32), side(component.terminals[1]!, 32)];
+    case "capacitor": return [side(component.terminals[0]!, -8), side(component.terminals[1]!, 8)];
+    case "diode": case "led": return [side(component.terminals[0]!, -24), side(component.terminals[1]!, 28)];
+    case "switch": return [side(component.terminals[0]!, -25), side(component.terminals[1]!, 25)];
+  }
+}
+
 function body(component: CircuitComponent, convention: CircuitBlock["symbolConvention"]): string {
   const kind = component.kind;
   const inverted = kind === "nand" || kind === "nor" || kind === "xnor";
@@ -119,11 +150,15 @@ function body(component: CircuitComponent, convention: CircuitBlock["symbolConve
 function componentShape(component: CircuitComponent, convention: CircuitBlock["symbolConvention"], position: Point, svgId: string): { readonly markup: string; readonly ports: readonly Port[] } {
   const degrees = rotation(component.orientation);
   const localPorts = portOffsets(component);
+  const localBoundaries = terminalBoundaries(component, convention, localPorts);
   const ports = localPorts.map((port) => {
     const offset = rotate(port, degrees);
     return { terminal: port.terminal, x: position.x + offset.x, y: position.y + offset.y };
   });
-  const stubs = localPorts.map((port) => `<path id="${svgId}-port-${safeId(component.ref)}-${safeId(port.terminal)}" d="M${q(port.x * 0.73)} ${q(port.y * 0.73)}L${q(port.x)} ${q(port.y)}" class="aze-circuit-terminal"/>`).join("");
+  const stubs = localPorts.map((port, index) => {
+    const boundary = localBoundaries[index]!;
+    return `<path id="${svgId}-port-${safeId(component.ref)}-${safeId(port.terminal)}" d="M${q(boundary.x)} ${q(boundary.y)}L${q(port.x)} ${q(port.y)}" class="aze-circuit-terminal"/>`;
+  }).join("");
   const label = component.name ?? component.value;
   const transform = degrees === 0 ? `translate(${q(position.x)} ${q(position.y)})` : `translate(${q(position.x)} ${q(position.y)}) rotate(${degrees})`;
   return { ports, markup: `<g id="${svgId}-component-${safeId(component.ref)}" class="aze-circuit-component" aria-label="${escapeXml(`${component.ref}: ${component.kind}`)}" stroke="currentColor" fill="none" stroke-width="1.5" transform="${transform}">${stubs}${body(component, convention)}${textElement(component.ref, 0, -39, 11)}${label === undefined ? "" : textRuns(label, 0, 46)}</g>` };

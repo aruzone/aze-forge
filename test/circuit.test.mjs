@@ -283,6 +283,10 @@ test("Circuit identity is stable, includes its convention, and renders terminal 
   const digitalSvgText = Buffer.from(digitalSvg.artifact.bytes).toString("utf8");
   assert.match(svgText, /class="aze-circuit-terminal"/);
   assert.match(svgText, /id="aze-circuit-[^"]+-port-V1-positive"/);
+  assert.match(svgText, /id="aze-circuit-[^"]+-port-R1-a" d="M-32 0L-66 0"/);
+  assert.match(svgText, /id="aze-circuit-[^"]+-port-R1-b" d="M32 0L66 0"/);
+  assert.match(svgText, /id="aze-circuit-[^"]+-port-C1-a" d="M-8 0L-66 0"/);
+  assert.match(svgText, /id="aze-circuit-[^"]+-port-C1-b" d="M8 0L66 0"/);
   assert.match(digitalSvgText, /id="aze-circuit-[^"]+-port-FF-d"/);
   assert.match(digitalSvgText, /id="aze-circuit-[^"]+-port-M4-s1"/);
   assert.match(digitalSvgText, />&amp;<\/text>/);
