@@ -18,7 +18,7 @@ export const STRUCTURE_BODY_SYNTAX_ID = "azeforge.structure/v1" as const;
 export const STRUCTURE_BODY_SYNTAX_VERSION = "1.0.0" as const;
 
 /** Project-owned SVG emitter version (contract §7, plot/geometry emission reuse). */
-export const CHEMISTRY_EMITTER_VERSION = "1.0.1" as const;
+export const CHEMISTRY_EMITTER_VERSION = "1.0.2" as const;
 
 export const formulaSourceSchema: JsonValue = Object.freeze({
   $schema: "https://json-schema.org/draft/2020-12/schema",

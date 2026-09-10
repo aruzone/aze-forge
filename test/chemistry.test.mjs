@@ -286,10 +286,30 @@ test("chemistry emitter renders wedge as a filled polygon", async () => {
   const html = new TextDecoder().decode(compiled.artifact.bytes);
   assert.ok(html.includes("<polygon"));
 });
+
+test("wedge occupies only the stereocenter end of its bond", async () => {
+  const compiled = await compile(bodySource("- atom: c1\n  element: C\n  at: [0.0, 0.0]\n- atom: c2\n  element: C\n  at: [0.0, 1.4]\n- bond:\n  from: c1\n  to: c2\n  order: 1\n  stereo: wedge", "structure"));
+  const html = new TextDecoder().decode(compiled.artifact.bytes);
+  const polygon = /<polygon points="([^"]+)"/.exec(html);
+  const atoms = [...html.matchAll(/<text x="([^"]+)" y="([^"]+)"/g)].map((match) => ({
+    x: Number(match[1]),
+    y: Number(match[2]),
+  }));
+  assert.ok(polygon);
+  assert.equal(atoms.length, 2);
+  const [tip, leftBase, rightBase] = polygon[1].split(" ").map((point) => point.split(",").map(Number));
+  const base = {
+    x: (leftBase[0] + rightBase[0]) / 2,
+    y: (leftBase[1] + rightBase[1]) / 2,
+  };
+  const distance = (a, b) => Math.hypot(a[0] - b.x, a[1] - b.y);
+  assert.ok(distance(tip, base) < distance(tip, atoms[1]) * 0.75);
+});
+
 test("capabilities advertise chemistry engines and ceilings", async () => {
   const report = await buildCapabilities();
   assert.ok(report.engines.chemistry);
-  assert.equal(report.engines.chemistry.emitter, "1.0.1");
+  assert.equal(report.engines.chemistry.emitter, "1.0.2");
   // Bundled probe engines report the same availability as geometry: both
   // follow the optional-dependency probe seam (browser availability today).
   assert.equal(report.engines.chemistry.availability, report.engines.geometry.availability);

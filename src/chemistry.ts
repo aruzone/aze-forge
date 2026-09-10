@@ -1477,13 +1477,16 @@ export function renderStructureFragment(block: StructureBlock, _context: BlockRe
     const bx = quantize(to.x);
     const by = quantize(to.y);
     if (bond.stereo === "wedge") {
-      // Filled triangle narrow at the from atom (the stereocenter).
+      // A short tapered wedge marks the stereocenter without obscuring its bonded atom.
       const dx = to.x - from.x;
       const dy = to.y - from.y;
       const len = Math.hypot(dx, dy) || 1;
+      const wedgeEnd = 0.7;
+      const endX = from.x + dx * wedgeEnd;
+      const endY = from.y + dy * wedgeEnd;
       const px = (-dy / len) * 5;
       const py = (dx / len) * 5;
-      parts.push(`<polygon points="${ax},${ay} ${quantize(to.x + px)},${quantize(to.y + py)} ${quantize(to.x - px)},${quantize(to.y - py)}" fill="${stroke}"/>`);
+      parts.push(`<line x1="${quantize(endX)}" y1="${quantize(endY)}" x2="${bx}" y2="${by}" stroke="${stroke}" stroke-width="1.5"/><polygon points="${ax},${ay} ${quantize(endX + px)},${quantize(endY + py)} ${quantize(endX - px)},${quantize(endY - py)}" fill="${stroke}"/>`);
       continue;
     }
     if (bond.stereo === "hash") {
@@ -1616,7 +1619,7 @@ export const structurePlugin: AzeBlockPlugin = Object.freeze({
 export const FORMULA_HTML_BLOCK_RENDERER_ID = "azeforge.formula.html/v1" as const;
 export const REACTION_HTML_BLOCK_RENDERER_ID = "azeforge.reaction.html/v1" as const;
 export const STRUCTURE_HTML_BLOCK_RENDERER_ID = "azeforge.structure.html/v1" as const;
-export const CHEMISTRY_HTML_BLOCK_RENDERER_VERSION = "1.0.1" as const;
+export const CHEMISTRY_HTML_BLOCK_RENDERER_VERSION = "1.0.2" as const;
 
 export const formulaHtmlBlockRenderer: AzeBlockRenderer<FormulaBlock> = Object.freeze({
   descriptor: Object.freeze({
