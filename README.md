@@ -21,6 +21,20 @@ no build chain, no runtime dependencies in your output.
 - **Diagrams included.** Mermaid flowcharts, GFM-style tables, and callouts
   are first-class Blocks rendered through a pinned browser engine.
 
+## AzeForge currently covers these broad rendering categories:
+
+| Category | Representative native plugins |
+| --- | --- |
+| Mathematics | `equation`, `derivation` |
+| Technical content | `callout`, `table` |
+| Diagrams and geometry | `mermaid`, `geometry` |
+| Data graphics | `plot`, `chart` |
+| Chemistry | `formula`, `reaction`, `structure` |
+| Analog and digital circuits | `circuit` |
+
+See the [native plugin family tree](docs/native-plugin-family-tree.md) for the
+full catalog and family relationships.
+
 ## Install
 
 ```bash
