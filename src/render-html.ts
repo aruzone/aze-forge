@@ -15,6 +15,10 @@ import { renderCircuitFragment } from "./circuit-render.js";
 import type { EmbeddedFontFace } from "./font.js";
 import { renderTimingFragment, timingDependencyClosure } from "./timing-render.js";
 import { diagramLabelTypography } from "./diagram-layout.js";
+import {
+  modelsDependencyClosure,
+} from "./models-render.js";
+import { modelsLabelTypography } from "./models-layout.js";
 import { artifactBytesHash, canonicalJson, sha256 } from "./hash.js";
 import { escapeHtml, renderInlineHtml } from "./html-fragment.js";
 import { inlineTextValue } from "./markdown.js";
@@ -100,6 +104,7 @@ export interface HtmlPluginRenderers {
     block: TimingBlock,
     context: BlockRendererContext,
   ) => string;
+  readonly modelsFragments?: ReadonlyMap<AzeBlock, string>;
 }
 
 interface RenderContext {
@@ -148,6 +153,7 @@ interface RenderContext {
     block: TimingBlock,
     context: BlockRendererContext,
   ) => string;
+  readonly modelsFragments: ReadonlyMap<AzeBlock, string>;
 }
 
 export function documentTitle(document: AzeDocument): string {
@@ -252,6 +258,11 @@ function renderBlock(block: AzeBlock, context: RenderContext): string {
         ...(context.sourceName === undefined ? {} : { sourceName: context.sourceName }),
         renderBlocks: (children) => renderBlocks(children, context),
       });
+    case "sequence":
+    case "state":
+    case "entity":
+    case "class":
+      return context.modelsFragments.get(block) ?? `<figure class="aze-${block.kind}"></figure>`;
     case "structure":
       return context.renderStructure(block, {
         ...(context.sourceName === undefined ? {} : { sourceName: context.sourceName }),
@@ -306,6 +317,88 @@ function diagramCss(theme: Theme): string {
   ].join("");
 }
 
+/**
+ * Software- and data-model CSS. Every size, line height and dash pattern
+ * comes from the same `modelsLabelTypography(theme)` and the same `models`
+ * tokens the layout measured with, so a Theme change re-lays-out a figure and
+ * repaints it in lockstep. Distinctions never rest on colour alone: messages
+ * differ by arrowhead and dash, interfaces by a dashed header, abstract
+ * classes by italic names, static members by an underline, and aggregation by
+ * a hollow diamond.
+ */
+function modelsCss(theme: Theme): string {
+  const tokens = theme.models;
+  const typography = modelsLabelTypography(theme);
+  const label = `font-family:"${tokens.labelFontFamily}";fill:currentColor`;
+  const stroke = `fill:none;stroke:${tokens.messageStroke};stroke-width:${tokens.messageStrokeWidthPx}px`;
+  const marker = `fill:none;stroke:${tokens.messageStroke};stroke-width:${tokens.messageStrokeWidthPx}px`;
+  return [
+    ".aze-sequence,.aze-state,.aze-entity,.aze-class{margin:1em 0}",
+    ".aze-sequence svg,.aze-state svg,.aze-entity svg,.aze-class svg{display:block;max-width:100%;height:auto;margin:0 auto}",
+    `.aze-models-label{${label};font-size:${typography.labelFontSizePx}px;dominant-baseline:middle}`,
+    `.aze-models-member{font-size:${typography.memberFontSizePx}px}`,
+    `.aze-models-caption{font-size:${typography.captionFontSizePx}px}`,
+    `.aze-models-marker{font-size:${typography.markerFontSizePx}px}`,
+    `.aze-models-box{fill:${tokens.boxFill};stroke:${tokens.boxStroke};stroke-width:${tokens.boxStrokeWidthPx}px;stroke-linejoin:round}`,
+    `.aze-models-header{fill:${tokens.headerFill};stroke:${tokens.boxStroke};stroke-width:${tokens.boxStrokeWidthPx}px;stroke-linejoin:round}`,
+    `.aze-models-divider{stroke:${tokens.dividerStroke};stroke-width:${tokens.dividerStrokeWidthPx}px}`,
+    `.aze-models-header,.aze-state-shape,.aze-entity-box,.aze-class-box{rx:${tokens.boxCornerRadiusPx}px}`,
+    `.aze-sequence-participant{rx:0}`,
+    `.aze-sequence-actor{fill:none;stroke:${tokens.boxStroke};stroke-width:${tokens.boxStrokeWidthPx}px;stroke-linejoin:round}`,
+    `.aze-sequence-actor-head{fill:${tokens.boxFill}}`,
+    `.aze-sequence-lifeline{fill:none;stroke:${tokens.lifelineStroke};stroke-width:${tokens.lifelineStrokeWidthPx}px;stroke-dasharray:${tokens.lifelineDash}}`,
+    `.aze-sequence-activation{fill:${tokens.activationFill};stroke:${tokens.activationStroke};stroke-width:${tokens.boxStrokeWidthPx}px}`,
+    `.aze-sequence-message{${stroke}}`,
+    `.aze-sequence-message-return{stroke-dasharray:6 4}`,
+    `.aze-sequence-self-message{stroke-linejoin:round}`,
+    `.aze-sequence-arrow{fill:${tokens.arrowFill};stroke:none}`,
+    `.aze-sequence-arrow-async{fill:none;stroke:${tokens.messageStroke};stroke-width:${tokens.messageStrokeWidthPx}px}`,
+    `.aze-sequence-note{fill:${tokens.noteFill};stroke:${tokens.noteStroke};stroke-width:${tokens.boxStrokeWidthPx}px;stroke-linejoin:round;rx:${tokens.boxCornerRadiusPx}px}`,
+    `.aze-sequence-fragment{fill:none;stroke:${tokens.fragmentStroke};stroke-width:${tokens.fragmentStrokeWidthPx}px;stroke-dasharray:${tokens.fragmentDash}}`,
+    `.aze-sequence-fragment-tab{fill:${tokens.fragmentLabelFill};stroke:${tokens.fragmentStroke};stroke-width:${tokens.fragmentStrokeWidthPx}px}`,
+    `.aze-sequence-fragment-division{stroke:${tokens.fragmentStroke};stroke-width:${tokens.fragmentStrokeWidthPx}px;stroke-dasharray:${tokens.fragmentDash}}`,
+    `.aze-state-shape{fill:${tokens.boxFill};stroke:${tokens.boxStroke};stroke-width:${tokens.boxStrokeWidthPx}px;stroke-linejoin:round}`,
+    `.aze-state-composite-title{fill:${tokens.headerFill};stroke:${tokens.boxStroke};stroke-width:${tokens.boxStrokeWidthPx}px;stroke-linejoin:round}`,
+    `.aze-state-divider{stroke:${tokens.dividerStroke};stroke-width:${tokens.dividerStrokeWidthPx}px}`,
+    `.aze-state-transition{${stroke}}`,
+    `.aze-state-arrow{fill:${tokens.arrowFill};stroke:none}`,
+    `.aze-state-initial{fill:${tokens.markerInk};stroke:${tokens.markerInk};stroke-width:${tokens.boxStrokeWidthPx}px}`,
+    `.aze-state-final{fill:none;stroke:${tokens.markerInk};stroke-width:${tokens.boxStrokeWidthPx}px}`,
+    `.aze-state-final-inner{fill:${tokens.markerInk};stroke:none}`,
+    `.aze-entity-box{fill:${tokens.boxFill};stroke:${tokens.boxStroke};stroke-width:${tokens.boxStrokeWidthPx}px;stroke-linejoin:round}`,
+    `.aze-entity-header{fill:${tokens.headerFill};stroke:${tokens.boxStroke};stroke-width:${tokens.boxStrokeWidthPx}px;stroke-linejoin:round}`,
+    `.aze-entity-divider{stroke:${tokens.dividerStroke};stroke-width:${tokens.dividerStrokeWidthPx}px}`,
+    `.aze-entity-relationship{${stroke}}`,
+    `.aze-entity-diamond{${marker}}`,
+    `.aze-entity-attribute{fill:currentColor}`,
+    `.aze-entity-optional{font-style:italic}`,
+    `.aze-entity-key{fill:${tokens.markerInk};font-weight:700}`,
+    `.aze-entity-cardinality{fill:${tokens.markerInk}}`,
+    `.aze-entity-role{fill:${tokens.markerInk}}`,
+    `.aze-entity-relationship-label{fill:currentColor}`,
+    `.aze-class-box{fill:${tokens.boxFill};stroke:${tokens.boxStroke};stroke-width:${tokens.boxStrokeWidthPx}px;stroke-linejoin:round}`,
+    `.aze-class-header{fill:${tokens.headerFill};stroke:${tokens.boxStroke};stroke-width:${tokens.boxStrokeWidthPx}px;stroke-linejoin:round}`,
+    `.aze-class-header-interface{fill:${tokens.boxFill};stroke-dasharray:5 3}`,
+    `.aze-class-divider{stroke:${tokens.dividerStroke};stroke-width:${tokens.dividerStrokeWidthPx}px}`,
+    `.aze-class-marker{fill:${tokens.markerInk};font-weight:600}`,
+    `.aze-class-member{fill:currentColor}`,
+    `.aze-class-visibility{fill:${tokens.markerInk}}`,
+    `.aze-class-static{text-decoration:underline}`,
+    `.aze-class-abstract{font-style:italic}`,
+    `.aze-class-stereotype{fill:${tokens.markerInk}}`,
+    `.aze-class-relationship{${stroke}}`,
+    `.aze-class-relationship-implementation{stroke-dasharray:6 4}`,
+    `.aze-class-arrow{fill:${tokens.arrowFill};stroke:none}`,
+    `.aze-class-arrow-hollow{fill:${tokens.boxFill};stroke:${tokens.messageStroke};stroke-width:${tokens.messageStrokeWidthPx}px}`,
+    `.aze-class-diamond{${marker}}`,
+    `.aze-class-diamond-filled{fill:${tokens.markerInk}}`,
+    `.aze-class-diamond-hollow{fill:${tokens.boxFill}}`,
+    `.aze-class-multiplicity{fill:${tokens.markerInk}}`,
+    `.aze-class-relationship-label{fill:currentColor}`,
+    `.aze-cardinality-label,.aze-role-label,.aze-multiplicity-label{fill:${tokens.markerInk}}`,
+  ].join("");
+}
+
 function themeCss(theme: Theme): string {
   const { colors, geometry, typography } = theme;
   const colorScheme = theme.colorScheme;
@@ -331,6 +424,7 @@ export function createHtmlLayout(
   mermaidDependencyClosure: JsonValue = { mermaid: MERMAID_VERSION },
   diagramFragments: ReadonlyMap<DiagramBlock, string> = new Map(),
   diagramDependencyClosure: JsonValue = {},
+  modelsFragments: ReadonlyMap<AzeBlock, string> = new Map(),
   pluginRenderers: HtmlPluginRenderers = {},
 ): HtmlLayout {
   const renderCallout =
@@ -367,12 +461,13 @@ export function createHtmlLayout(
     renderStructure,
     renderCircuit,
     renderTiming,
+    modelsFragments,
     renderTable,
   };
   return {
     title: escapeHtml(documentTitle(document)),
     description: "AzeForge whole-Document Artifact",
-    css: `${embeddedFontCss(fontFaces)}${themeCss(theme)}${diagramCss(theme)}${getKatexCss()}.aze-equation{margin:1em 0;text-align:center}.aze-equation[data-align="left"]{text-align:left}.aze-equation[data-align="right"]{text-align:right}.aze-derivation{margin:1em 0}.aze-derivation ol{list-style:none;padding:0;margin:0}.aze-derivation li{display:block;text-align:center;margin:.35em 0}.aze-derivation[data-align="left"] li{text-align:left}.aze-derivation[data-align="right"] li{text-align:right}.aze-derivation .aze-derivation-annotation{display:block;font-style:italic;color:#666;font-size:.9em}.aze-mermaid{margin:1em 0}.aze-mermaid svg{display:block;max-width:100%;max-height:520px;width:auto;height:auto;margin:0 auto}.aze-plot{margin:1em 0}.aze-plot svg{display:block;max-width:100%;height:auto;margin:0 auto}.aze-chart{margin:1em 0}.aze-chart svg{display:block;max-width:100%;height:auto;margin:0 auto}.aze-geometry{margin:1em 0}.aze-geometry svg{display:block;max-width:100%;height:auto;margin:0 auto}.aze-circuit{margin:1em 0;color:inherit}.aze-circuit svg{display:block;max-width:100%;height:auto}.aze-timing{margin:1em 0;color:inherit}.aze-timing svg{display:block;max-width:100%;height:auto;margin:0 auto}.aze-formula{margin:1em 0;text-align:center}.aze-formula .aze-formula-expression{font-size:1.05em}.aze-reaction{margin:1em 0;text-align:center}.aze-reaction .aze-reaction-arrow{font-size:1.1em}.aze-reaction .aze-reaction-conditions{display:inline-block;font-size:.85em;font-style:italic;color:#666}.aze-structure{margin:1em 0}.aze-structure svg{display:block;max-width:100%;height:auto;margin:0 auto}`,
+    css: `${embeddedFontCss(fontFaces)}${themeCss(theme)}${diagramCss(theme)}${modelsCss(theme)}${getKatexCss()}.aze-equation{margin:1em 0;text-align:center}.aze-equation[data-align="left"]{text-align:left}.aze-equation[data-align="right"]{text-align:right}.aze-derivation{margin:1em 0}.aze-derivation ol{list-style:none;padding:0;margin:0}.aze-derivation li{display:block;text-align:center;margin:.35em 0}.aze-derivation[data-align="left"] li{text-align:left}.aze-derivation[data-align="right"] li{text-align:right}.aze-derivation .aze-derivation-annotation{display:block;font-style:italic;color:#666;font-size:.9em}.aze-mermaid{margin:1em 0}.aze-mermaid svg{display:block;max-width:100%;max-height:520px;width:auto;height:auto;margin:0 auto}.aze-plot{margin:1em 0}.aze-plot svg{display:block;max-width:100%;height:auto;margin:0 auto}.aze-chart{margin:1em 0}.aze-chart svg{display:block;max-width:100%;height:auto;margin:0 auto}.aze-geometry{margin:1em 0}.aze-geometry svg{display:block;max-width:100%;height:auto;margin:0 auto}.aze-circuit{margin:1em 0;color:inherit}.aze-circuit svg{display:block;max-width:100%;height:auto}.aze-timing{margin:1em 0;color:inherit}.aze-timing svg{display:block;max-width:100%;height:auto;margin:0 auto}.aze-formula{margin:1em 0;text-align:center}.aze-formula .aze-formula-expression{font-size:1.05em}.aze-reaction{margin:1em 0;text-align:center}.aze-reaction .aze-reaction-arrow{font-size:1.1em}.aze-reaction .aze-reaction-conditions{display:inline-block;font-size:.85em;font-style:italic;color:#666}.aze-structure{margin:1em 0}.aze-structure svg{display:block;max-width:100%;height:auto;margin:0 auto}`,
     body: `<main><article>${renderBlocks(document.blocks, context)}</article></main>`,
     fingerprintDependencies: {
       theme: theme as unknown as JsonValue,
@@ -399,6 +494,11 @@ export function createHtmlLayout(
       ...(document.blocks.some((block) => block.kind === "timing")
         ? { timing: timingDependencyClosure() }
         : {}),
+      ...(document.blocks.some((block) =>
+        ["sequence", "state", "entity", "class"].includes(block.kind),
+      )
+        ? { models: modelsDependencyClosure() }
+        : {}),
       prose: {
         serializer: "azeforge-prose/v1",
         callout: "1.0.0",
@@ -420,6 +520,7 @@ export async function renderHtml(
   mermaidDependencyClosure: JsonValue = { mermaid: MERMAID_VERSION },
   diagramFragments: ReadonlyMap<DiagramBlock, string> = new Map(),
   diagramDependencyClosure: JsonValue = {},
+  modelsFragments: ReadonlyMap<AzeBlock, string> = new Map(),
   pluginRenderers: HtmlPluginRenderers = {},
   assetManifest: readonly AssetManifestEntry[] = [],
 ): Promise<Artifact> {
@@ -434,6 +535,7 @@ export async function renderHtml(
     mermaidDependencyClosure,
     diagramFragments,
     diagramDependencyClosure,
+    modelsFragments,
     pluginRenderers,
   );
   const rendererFingerprint = sha256(

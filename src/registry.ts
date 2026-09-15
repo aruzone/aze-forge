@@ -28,8 +28,15 @@ import { circuitPlugin } from "./circuit.js";
 import { circuitHtmlBlockRenderer } from "./circuit-render.js";
 import { timingPlugin } from "./timing.js";
 import { diagramPlugin } from "./diagram.js";
+import { classPlugin, entityPlugin, sequencePlugin, statePlugin } from "./models.js";
 import { timingHtmlBlockRenderer } from "./timing-render.js";
 import { diagramHtmlBlockRenderer } from "./diagram-render.js";
+import {
+  classHtmlBlockRenderer,
+  entityHtmlBlockRenderer,
+  sequenceHtmlBlockRenderer,
+  stateHtmlBlockRenderer,
+} from "./models-render.js";
 import {
   svgBlockRenderers,
   svgRendererDescriptor,
@@ -83,6 +90,10 @@ export function getBuiltInRegistry(): ResolvedRegistry {
       circuitPlugin,
       timingPlugin,
       diagramPlugin,
+      sequencePlugin,
+      statePlugin,
+      entityPlugin,
+      classPlugin,
     ]),
     blockRenderers: Object.freeze([
       equationHtmlBlockRenderer,
@@ -99,6 +110,10 @@ export function getBuiltInRegistry(): ResolvedRegistry {
       circuitHtmlBlockRenderer,
       timingHtmlBlockRenderer,
       diagramHtmlBlockRenderer,
+      sequenceHtmlBlockRenderer,
+      stateHtmlBlockRenderer,
+      entityHtmlBlockRenderer,
+      classHtmlBlockRenderer,
       ...svgBlockRenderers,
       ...pngBlockRenderers,
       ...pdfBlockRenderers,

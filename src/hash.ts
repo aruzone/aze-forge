@@ -12,7 +12,11 @@ import type {
   Inline,
   JsonValue,
   ParsedBlock,
+  SequenceMessage,
+  SequenceTimelineItem,
   Sha256Hash,
+  StateScopedItem,
+  StateTransition,
   TableData,
   TimingInterval,
   TypedTableData,
@@ -175,6 +179,18 @@ export function documentContentHash(document: AzeDocument): ContentHash {
   if (document.metadata.outputs !== undefined) metadata.outputs = document.metadata.outputs;
 
   function projectBlock(block: ParsedBlock | AzeBlock): JsonValue {
+    /** The shared header fields every numberable Block contributes to identity. */
+    const commonProjection = (value: {
+      readonly id?: string;
+      readonly number?: boolean;
+      readonly title?: string;
+      readonly description?: string;
+    }): Record<string, JsonValue> => ({
+      ...(value.id === undefined ? {} : { id: value.id }),
+      ...(value.number === undefined ? {} : { number: value.number }),
+      ...(value.title === undefined ? {} : { title: value.title }),
+      ...(value.description === undefined ? {} : { description: value.description }),
+    });
     if (block.kind === "timing") {
       // Parsed semantics only: states, lengths, text, widths, scale/unit/phase,
       // authored order. Anchors contribute their resolved signal and boundary;
@@ -280,6 +296,161 @@ export function documentContentHash(document: AzeDocument): ContentHash {
         projected.description = block.description as unknown as JsonValue;
       }
       return projected;
+    }
+    if (block.kind === "sequence") {
+      // Parsed semantics only: participant order and kinds, the timeline in
+      // authored order at every nesting depth, every authored text field,
+      // fragment structure and division order, and the resolved defaults.
+      const message = (item: SequenceMessage): JsonValue => ({
+        kind: item.kind,
+        form: item.form,
+        from: item.from,
+        to: item.to,
+        activate: item.activate,
+        deactivate: item.deactivate,
+        ...(item.text === undefined ? {} : { text: item.text }),
+      });
+      const timeline = (items: readonly SequenceTimelineItem[]): JsonValue =>
+        items.map((item): JsonValue => {
+          if (item.kind === "message") return message(item);
+          if (item.kind === "note") return { kind: item.kind, over: [...item.over], text: item.text };
+          if (item.kind === "loop") {
+            return {
+              kind: item.kind,
+              ...(item.condition === undefined ? {} : { condition: item.condition }),
+              body: timeline(item.body),
+            };
+          }
+          return {
+            kind: item.kind,
+            divisions: item.divisions.map((division) => ({
+              ...(division.condition === undefined ? {} : { condition: division.condition }),
+              body: timeline(division.body),
+            })),
+          };
+        });
+      return {
+        kind: block.kind,
+        pluginVersion: block.pluginVersion,
+        participants: block.participants.map((participant) => ({
+          name: participant.name,
+          kind: participant.kind,
+          ...(participant.label === undefined ? {} : { label: participant.label }),
+        })),
+        timeline: timeline(block.timeline),
+        ...commonProjection(block),
+      };
+    }
+    if (block.kind === "state") {
+      const items = (entries: readonly (StateScopedItem | StateTransition)[]): JsonValue =>
+        entries.map((item): JsonValue => {
+          if (item.kind === "transition") {
+            return {
+              kind: item.kind,
+              from: item.from,
+              to: item.to,
+              ...(item.trigger === undefined ? {} : { trigger: item.trigger }),
+              ...(item.guard === undefined ? {} : { guard: item.guard }),
+              ...(item.action === undefined ? {} : { action: item.action }),
+            };
+          }
+          if (item.kind === "state") {
+            return {
+              kind: item.kind,
+              name: item.name,
+              ...(item.label === undefined ? {} : { label: item.label }),
+              states: items(item.states),
+            };
+          }
+          return { kind: item.kind, name: item.name };
+        });
+      return { kind: block.kind, pluginVersion: block.pluginVersion, items: items(block.items), ...commonProjection(block) };
+    }
+    if (block.kind === "entity") {
+      const items = block.items.map((item): JsonValue => {
+        if (item.kind === "relationship") {
+          return {
+            kind: item.kind,
+            ...(item.label === undefined ? {} : { label: item.label }),
+            first: {
+              entity: item.first.entity,
+              cardinality: item.first.cardinality,
+              ...(item.first.role === undefined ? {} : { role: item.first.role }),
+            },
+            second: {
+              entity: item.second.entity,
+              cardinality: item.second.cardinality,
+              ...(item.second.role === undefined ? {} : { role: item.second.role }),
+            },
+          };
+        }
+        return {
+          kind: item.kind,
+          name: item.name,
+          ...(item.label === undefined ? {} : { label: item.label }),
+          ...(item.attributes === undefined
+            ? {}
+            : {
+                attributes: item.attributes.map((attribute) => ({
+                  name: attribute.name,
+                  ...(attribute.type === undefined ? {} : { type: attribute.type }),
+                  ...(attribute.keys === undefined ? {} : { keys: [...attribute.keys] }),
+                  optional: attribute.optional,
+                  ...(attribute.reference === undefined
+                    ? {}
+                    : {
+                        reference: {
+                          entity: attribute.reference.entity,
+                          attribute: attribute.reference.attribute,
+                        },
+                      }),
+                })),
+              }),
+        };
+      });
+      return { kind: block.kind, pluginVersion: block.pluginVersion, items, ...commonProjection(block) };
+    }
+    if (block.kind === "class") {
+      const items = block.items.map((item): JsonValue => {
+        if (item.kind === "relationship") {
+          return {
+            kind: item.kind,
+            form: item.form,
+            from: item.from,
+            to: item.to,
+            ...(item.label === undefined ? {} : { label: item.label }),
+            ...(item.fromMultiplicity === undefined ? {} : { fromMultiplicity: item.fromMultiplicity }),
+            ...(item.toMultiplicity === undefined ? {} : { toMultiplicity: item.toMultiplicity }),
+          };
+        }
+        return {
+          kind: item.kind,
+          name: item.name,
+          ...(item.label === undefined ? {} : { label: item.label }),
+          ...(item.abstract === undefined ? {} : { abstract: item.abstract }),
+          attributes: (item.attributes ?? []).map((attribute) => ({
+            name: attribute.name,
+            ...(attribute.type === undefined ? {} : { type: attribute.type }),
+            ...(attribute.visibility === undefined ? {} : { visibility: attribute.visibility }),
+            static: attribute.static,
+          })),
+          operations: item.operations.map((operation) => ({
+            name: operation.name,
+            ...(operation.visibility === undefined ? {} : { visibility: operation.visibility }),
+            static: operation.static,
+            ...(operation.parameters === undefined
+              ? {}
+              : {
+                  parameters: operation.parameters.map((parameter) => ({
+                    name: parameter.name,
+                    ...(parameter.type === undefined ? {} : { type: parameter.type }),
+                  })),
+                }),
+            ...(operation.returnType === undefined ? {} : { returnType: operation.returnType }),
+          })),
+        };
+      });
+      return { kind: block.kind, pluginVersion: block.pluginVersion, items, ...commonProjection(block) };
     }
     if (block.kind === "circuit") {
       const projected: Record<string, JsonValue> = {

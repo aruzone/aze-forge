@@ -30,6 +30,13 @@ import type {
   CircuitBlock,
   DiagramBlock,
   TimingBlock,
+  SequenceBlock,
+  StateBlock,
+  EntityBlock,
+  ClassBlock,
+  SequenceTimelineItem,
+  StateScopedItem,
+  StateTransition,
   CompileOptions,
   CompileResult,
   Compiler,
@@ -73,6 +80,7 @@ import { MERMAID_PLUGIN_TYPE } from "./mermaid-schemas.js";
 import { DIAGRAM_PLUGIN_TYPE } from "./diagram-schemas.js";
 import { DiagramRenderError, diagramDependencyClosure } from "./diagram-render.js";
 import { DiagramLayoutError } from "./diagram-layout.js";
+import { ModelsRenderError } from "./models-render.js";
 import { isTypedTableData } from "./table.js";
 import { DERIVATION_PLUGIN_TYPE } from "./derivation-schemas.js";
 import { FragmentSecurityError } from "./html-fragment.js";
@@ -614,6 +622,107 @@ function collectRenderText(blocks: readonly AzeBlock[], out: string[]): void {
           }
         }
         for (const signal of block.signals) out.push(signal.ref);
+        break;
+      }
+
+      case "sequence": {
+        if (block.id !== undefined) out.push(block.id);
+        if (block.title !== undefined) out.push(block.title);
+        if (block.description !== undefined) out.push(block.description);
+        for (const participant of block.participants) {
+          out.push(participant.name);
+          if (participant.label !== undefined) out.push(participant.label);
+        }
+        const timelineText = (items: readonly SequenceTimelineItem[]): void => {
+          for (const item of items) {
+            if (item.kind === "message") {
+              if (item.text !== undefined) out.push(item.text);
+              continue;
+            }
+            if (item.kind === "note") {
+              out.push(item.text);
+              continue;
+            }
+            if (item.kind === "loop") {
+              if (item.condition !== undefined) out.push(item.condition);
+              timelineText(item.body);
+              continue;
+            }
+            for (const division of item.divisions) {
+              if (division.condition !== undefined) out.push(division.condition);
+              timelineText(division.body);
+            }
+          }
+        };
+        timelineText(block.timeline);
+        break;
+      }
+      case "state": {
+        if (block.id !== undefined) out.push(block.id);
+        if (block.title !== undefined) out.push(block.title);
+        if (block.description !== undefined) out.push(block.description);
+        const stateText = (items: readonly (StateScopedItem | StateTransition)[]): void => {
+          for (const item of items) {
+            if (item.kind === "transition") {
+              if (item.trigger !== undefined) out.push(item.trigger);
+              if (item.guard !== undefined) out.push(item.guard);
+              if (item.action !== undefined) out.push(item.action);
+              continue;
+            }
+            out.push(item.name);
+            if (item.kind === "state") {
+              if (item.label !== undefined) out.push(item.label);
+              stateText(item.states);
+            }
+          }
+        };
+        stateText(block.items);
+        break;
+      }
+      case "entity": {
+        if (block.id !== undefined) out.push(block.id);
+        if (block.title !== undefined) out.push(block.title);
+        if (block.description !== undefined) out.push(block.description);
+        for (const item of block.items) {
+          if (item.kind === "relationship") {
+            if (item.label !== undefined) out.push(item.label);
+            if (item.first.role !== undefined) out.push(item.first.role);
+            if (item.second.role !== undefined) out.push(item.second.role);
+            continue;
+          }
+          out.push(item.name);
+          if (item.label !== undefined) out.push(item.label);
+          for (const attribute of item.attributes ?? []) {
+            out.push(attribute.name);
+            if (attribute.type !== undefined) out.push(attribute.type);
+          }
+        }
+        break;
+      }
+      case "class": {
+        if (block.id !== undefined) out.push(block.id);
+        if (block.title !== undefined) out.push(block.title);
+        if (block.description !== undefined) out.push(block.description);
+        for (const item of block.items) {
+          if (item.kind === "relationship") {
+            if (item.label !== undefined) out.push(item.label);
+            continue;
+          }
+          out.push(item.name);
+          if (item.label !== undefined) out.push(item.label);
+          for (const attribute of item.attributes ?? []) {
+            out.push(attribute.name);
+            if (attribute.type !== undefined) out.push(attribute.type);
+          }
+          for (const operation of item.operations) {
+            out.push(operation.name);
+            if (operation.returnType !== undefined) out.push(operation.returnType);
+            for (const parameter of operation.parameters ?? []) {
+              out.push(parameter.name);
+              if (parameter.type !== undefined) out.push(parameter.type);
+            }
+          }
+        }
         break;
       }
     }
@@ -1345,6 +1454,214 @@ async function renderMermaidFragments(
           ),
         );
       }
+    }
+  }
+  return { fragments, diagnostics };
+}
+
+interface ModelTarget {
+  readonly kind: "sequence" | "state" | "entity" | "class";
+  readonly block: SequenceBlock | StateBlock | EntityBlock | ClassBlock;
+}
+
+const MODEL_KINDS = ["sequence", "state", "entity", "class"] as const;
+
+function modelTargets(document: AzeDocument): readonly ModelTarget[] {
+  const targets: ModelTarget[] = [];
+  walkBlocks(document.blocks, (block) => {
+    if (
+      block.kind === "sequence" ||
+      block.kind === "state" ||
+      block.kind === "entity" ||
+      block.kind === "class"
+    ) {
+      targets.push({ kind: block.kind, block });
+    }
+  });
+  return targets;
+}
+
+/**
+ * Model fragments are produced ahead of HTML assembly so each figure receives
+ * its per-kind positional ordinal and this Document's Theme: the emitter sizes
+ * every box through the Advance metric, so layout and paint must agree on one
+ * Theme. A failure here publishes no Artifact.
+ */
+async function renderModelsFragments(
+  document: AzeDocument,
+  rendererId: string,
+  registry: ResolvedRegistry,
+  policy: CompilerPolicy,
+  sourceName: string | undefined,
+  theme: Theme,
+): Promise<{
+  readonly fragments: ReadonlyMap<AzeBlock, string>;
+  readonly diagnostics: readonly Diagnostic[];
+}> {
+  const targets = modelTargets(document);
+  if (targets.length === 0) {
+    return { fragments: new Map(), diagnostics: [] };
+  }
+  const rendererName = rendererId.toUpperCase();
+  const renderer = registry.renderers.find((entry) => entry.id === rendererId);
+  if (renderer === undefined) {
+    return {
+      fragments: new Map(),
+      diagnostics: [
+        groupedAdapterDiagnostic(
+          "azeforge.renderer#adapter-missing",
+          `No ${rendererName} Renderer is registered for model Blocks.`,
+          targets,
+          sourceName,
+          { blockType: "models", rendererId },
+          `Register the built-in ${rendererName} Renderer.`,
+          "models",
+        ),
+      ],
+    };
+  }
+  if (policy.disabledRendererIds?.includes(renderer.id) === true) {
+    return {
+      fragments: new Map(),
+      diagnostics: [
+        groupedAdapterDiagnostic(
+          "azeforge.renderer#adapter-disabled",
+          `${rendererName} Renderer "${renderer.id}" is disabled by host policy.`,
+          targets,
+          sourceName,
+          { rendererId: renderer.id },
+          "Enable the Renderer in Compiler policy.",
+          "models",
+        ),
+      ],
+    };
+  }
+  const fragments = new Map<AzeBlock, string>();
+  const diagnostics: Diagnostic[] = [];
+  for (const kind of MODEL_KINDS) {
+    const kindTargets = targets.filter((target) => target.kind === kind);
+    if (kindTargets.length === 0) continue;
+    const candidates = registry.blockRenderers.filter(
+      (entry) => entry.descriptor.blockType === kind && entry.descriptor.rendererId === rendererId,
+    );
+    if (candidates.length === 0) {
+      diagnostics.push(
+        groupedAdapterDiagnostic(
+          "azeforge.renderer#adapter-missing",
+          `No Block renderer is registered for ${kind} Blocks.`,
+          kindTargets,
+          sourceName,
+          { blockType: kind, rendererId },
+          `Register the built-in ${kind} ${rendererName} Block renderer.`,
+          kind,
+        ),
+      );
+      continue;
+    }
+    const compatible = candidates.filter(
+      (entry) =>
+        kindTargets.every((target) =>
+          satisfiesSemverRange(target.block.pluginVersion, entry.descriptor.pluginVersionRange),
+        ) && satisfiesSemverRange(renderer.version, entry.descriptor.rendererVersionRange),
+    );
+    if (compatible.length === 0) {
+      diagnostics.push(
+        groupedAdapterDiagnostic(
+          "azeforge.renderer#adapter-incompatible",
+          `The registered ${kind} Block renderer is incompatible with this Document.`,
+          kindTargets,
+          sourceName,
+          {
+            blockType: kind,
+            adapterIds: candidates.map((entry) => entry.descriptor.id),
+          },
+          "Register a Block renderer whose plugin and renderer ranges match.",
+          kind,
+        ),
+      );
+      continue;
+    }
+    if (compatible.length > 1) {
+      diagnostics.push(
+        groupedAdapterDiagnostic(
+          "azeforge.renderer#adapter-ambiguous",
+          `More than one ${kind} Block renderer matches this Document.`,
+          kindTargets,
+          sourceName,
+          { blockType: kind, adapterIds: compatible.map((entry) => entry.descriptor.id) },
+          "Register exactly one matching Block renderer.",
+          kind,
+        ),
+      );
+      continue;
+    }
+    const chosen = compatible[0]!;
+    if (policy.disabledBlockRendererIds?.includes(chosen.descriptor.id) === true) {
+      diagnostics.push(
+        groupedAdapterDiagnostic(
+          "azeforge.renderer#adapter-disabled",
+          `Block renderer "${chosen.descriptor.id}" is disabled by host policy.`,
+          kindTargets,
+          sourceName,
+          { adapterId: chosen.descriptor.id },
+          "Enable the Block renderer in Compiler policy.",
+          kind,
+        ),
+      );
+      continue;
+    }
+    const render = chosen.render as (
+      block: SequenceBlock | StateBlock | EntityBlock | ClassBlock,
+      context: Readonly<{ sourceName?: string; ordinal?: number; theme?: Theme }>,
+    ) => string | Promise<string>;
+    let ordinal = 0;
+    for (const target of kindTargets) {
+      const location =
+        sourceName === undefined ? { range: target.block.range } : { source: sourceName, range: target.block.range };
+      try {
+        const markup = render(target.block, {
+          ...(sourceName === undefined ? {} : { sourceName }),
+          ordinal,
+          theme,
+        });
+        if (typeof markup !== "string") {
+          throw new BlockRendererSyncError(chosen.descriptor.id, kind);
+        }
+        fragments.set(target.block, markup);
+      } catch (error) {
+        if (error instanceof ModelsRenderError) {
+          diagnostics.push(
+            createDiagnostic(error.code, "error", error.message, {
+              location,
+              data: { adapterId: chosen.descriptor.id, blockType: kind },
+              suggestion: error.remedy,
+            }),
+          );
+        } else if (error instanceof BlockRendererSyncError) {
+          diagnostics.push(
+            createDiagnostic(
+              "azeforge.renderer#adapter-sync",
+              "error",
+              `Block renderer "${error.adapterId}" must be synchronous.`,
+              {
+                location,
+                data: { adapterId: error.adapterId, blockType: kind },
+                suggestion: "Register a synchronous Block renderer.",
+              },
+            ),
+          );
+        } else {
+          diagnostics.push(
+            createDiagnostic(
+              "azeforge.renderer#unexpected-failure",
+              "error",
+              `The ${kind} Block renderer failed unexpectedly.`,
+              { location, data: { adapterId: chosen.descriptor.id, blockType: kind } },
+            ),
+          );
+        }
+      }
+      ordinal += 1;
     }
   }
   return { fragments, diagnostics };
@@ -2248,6 +2565,14 @@ export function createCompiler(options: CompilerOptions = {}): Compiler {
           renderTimeoutMs,
           theme,
         );
+        const modelsPreflight = await renderModelsFragments(
+          validation.document,
+          selectedRenderer.id,
+          registry,
+          policy,
+          compileOptions.sourceName,
+          theme,
+        );
         const pluginPreflight = checkPluginAdapters(
           validation.document,
           selectedRenderer.id,
@@ -2260,6 +2585,7 @@ export function createCompiler(options: CompilerOptions = {}): Compiler {
           ...derivationPreflight.diagnostics,
           ...mermaidPreflight.diagnostics,
           ...diagramPreflight.diagnostics,
+          ...modelsPreflight.diagnostics,
           ...pluginPreflight.diagnostics,
         ];
         if (preflightDiagnostics.length > 0) {
@@ -2352,6 +2678,7 @@ export function createCompiler(options: CompilerOptions = {}): Compiler {
           mermaidDependencyClosure(),
           diagramPreflight.fragments,
           diagramDependencyClosure(),
+          modelsPreflight.fragments,
           pluginRenderers,
         ] as const;
         const htmlLayout = createHtmlLayout(
@@ -2364,6 +2691,8 @@ export function createCompiler(options: CompilerOptions = {}): Compiler {
           renderArguments[7],
           renderArguments[8],
           renderArguments[9],
+          renderArguments[10],
+          renderArguments[11],
         );
         const artifact =
           compileOptions.format === "html"
@@ -2430,6 +2759,17 @@ export function createCompiler(options: CompilerOptions = {}): Compiler {
                       : { location: { source: compileOptions.sourceName } }),
                   },
                 )
+              : error instanceof ModelsRenderError
+                ? createDiagnostic(error.code, "error", error.message, {
+                    data: {
+                      adapterId: selectedRenderer.id,
+                      blockType: "models",
+                    },
+                    suggestion: error.remedy,
+                    ...(compileOptions.sourceName === undefined
+                      ? {}
+                      : { location: { source: compileOptions.sourceName } }),
+                  })
               : error instanceof MermaidBrowserUnavailableError
                 ? createDiagnostic(
                     "azeforge.renderer#browser-unavailable",

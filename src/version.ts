@@ -38,6 +38,20 @@ import {
   diagramDataSchema,
   diagramSourceSchema,
 } from "./diagram-schemas.js";
+import {
+  CLASS_PLUGIN_VERSION,
+  ENTITY_PLUGIN_VERSION,
+  SEQUENCE_PLUGIN_VERSION,
+  STATE_PLUGIN_VERSION,
+  classDataSchema,
+  classSourceSchema,
+  entityDataSchema,
+  entitySourceSchema,
+  sequenceDataSchema,
+  sequenceSourceSchema,
+  stateDataSchema,
+  stateSourceSchema,
+} from "./models-schemas.js";
 import type { JsonValue } from "./model.js";
 import {
   FORMULA_PLUGIN_VERSION,
@@ -110,6 +124,14 @@ export function publicSchemaVersions(): readonly VersionedSchema[] {
     { id: schemaId(timingDataSchema), version: TIMING_PLUGIN_VERSION },
     { id: schemaId(diagramSourceSchema), version: DIAGRAM_PLUGIN_VERSION },
     { id: schemaId(diagramDataSchema), version: DIAGRAM_PLUGIN_VERSION },
+    { id: schemaId(sequenceSourceSchema), version: SEQUENCE_PLUGIN_VERSION },
+    { id: schemaId(sequenceDataSchema), version: SEQUENCE_PLUGIN_VERSION },
+    { id: schemaId(stateSourceSchema), version: STATE_PLUGIN_VERSION },
+    { id: schemaId(stateDataSchema), version: STATE_PLUGIN_VERSION },
+    { id: schemaId(entitySourceSchema), version: ENTITY_PLUGIN_VERSION },
+    { id: schemaId(entityDataSchema), version: ENTITY_PLUGIN_VERSION },
+    { id: schemaId(classSourceSchema), version: CLASS_PLUGIN_VERSION },
+    { id: schemaId(classDataSchema), version: CLASS_PLUGIN_VERSION },
   ]);
 }
 

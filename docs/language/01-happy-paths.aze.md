@@ -221,6 +221,107 @@ timeline:
     text: redirect home
 ::::
 
+// Software / data models: order lifecycle states.
+
+:::: state
+id: happy-state
+number: true
+----
+- kind: initial
+  name: entry
+- kind: state
+  name: Draft
+  label: Draft order
+- kind: state
+  name: Shipped
+- kind: final
+  name: Completed
+- kind: transition
+  from: entry
+  to: Draft
+- kind: transition
+  from: Draft
+  to: Shipped
+  trigger: settlement confirmed
+  action: create shipment
+- kind: transition
+  from: Shipped
+  to: Completed
+  trigger: delivered
+::::
+
+// Software / data models: order/customer schema.
+
+:::: entity
+id: happy-entity
+number: true
+----
+- kind: entity
+  name: Customer
+  attributes:
+    - name: id
+      type: uuid
+      keys:
+        - primary
+    - name: email
+      type: text
+      keys:
+        - unique
+- kind: entity
+  name: Order
+  attributes:
+    - name: id
+      type: uuid
+      keys:
+        - primary
+    - name: customer_id
+      type: uuid
+      keys:
+        - foreign
+      references:
+        entity: Customer
+        attribute: id
+- kind: relationship
+  label: places
+  first:
+    entity: Customer
+    cardinality: one
+  second:
+    entity: Order
+    cardinality: one-or-many
+::::
+
+// Software / data models: payment class hierarchy.
+
+:::: class
+id: happy-class
+number: true
+----
+- kind: interface
+  name: PaymentGateway
+  operations:
+    - name: authorize
+      parameters:
+        - name: amount
+          type: Money
+        - name: source
+          type: Account
+      return-type: Authorization
+- kind: class
+  name: StripeGateway
+  operations:
+    - name: authorize
+      visibility: public
+      parameters:
+        - name: amount
+          type: Money
+      return-type: Authorization
+- kind: relationship
+  form: implementation
+  from: StripeGateway
+  to: PaymentGateway
+::::
+
 // Circuit: clocked-logic acceptance circuit.
 
 ::::: circuit

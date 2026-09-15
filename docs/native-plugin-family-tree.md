@@ -39,6 +39,7 @@ A native capability uses controlled AzeMark declarations, retains its domain mea
   - State machines with initial and final states, authored transition guards and actions, and nested states
   - Entity relationships with attributes, keys, optionality, and cardinality
   - Bounded class diagrams with attributes, operations, inheritance, association, aggregation, composition, and multiplicity
+  - [Implemented with the native Models family](https://github.com/aruzone/aze-forge/issues/77). The detailed contract is in [issue #61](https://github.com/aruzone/aze-forge/issues/61#issuecomment-5580464259).
 - Circuits
   - Instructional analog schematics with explicit terminal-to-node bindings
     - Resistors, capacitors, inductors, sources, diodes and LEDs, switches, dependent sources, op-amps, BJTs, and MOSFETs

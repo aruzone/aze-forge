@@ -15,6 +15,12 @@ import {
 import { circuitHtmlBlockRenderer } from "./circuit-render.js";
 import { timingHtmlBlockRenderer } from "./timing-render.js";
 import { diagramHtmlBlockRenderer } from "./diagram-render.js";
+import {
+  classHtmlBlockRenderer,
+  entityHtmlBlockRenderer,
+  sequenceHtmlBlockRenderer,
+  stateHtmlBlockRenderer,
+} from "./models-render.js";
 
 import { assetManifestHash } from "./assets.js";
 import { artifactBytesHash, canonicalJson, sha256 } from "./hash.js";
@@ -78,6 +84,10 @@ export const svgBlockRenderers: readonly AnyBlockRenderer[] = Object.freeze([
   svgBlockRenderer(circuitHtmlBlockRenderer),
   svgBlockRenderer(timingHtmlBlockRenderer),
   svgBlockRenderer(diagramHtmlBlockRenderer),
+  svgBlockRenderer(sequenceHtmlBlockRenderer),
+  svgBlockRenderer(stateHtmlBlockRenderer),
+  svgBlockRenderer(entityHtmlBlockRenderer),
+  svgBlockRenderer(classHtmlBlockRenderer),
 ]);
 
 export interface SvgBrowserCapability {

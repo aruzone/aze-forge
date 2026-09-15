@@ -41,6 +41,23 @@ import { TIMING_PLUGIN_TYPE } from "./timing-schemas.js";
 import { timingPlugin, validateTimingBlock, type TimingInputLine } from "./timing.js";
 import { DIAGRAM_PLUGIN_TYPE } from "./diagram-schemas.js";
 import { diagramPlugin, validateDiagramBlock, type DiagramInputLine } from "./diagram.js";
+import {
+  CLASS_PLUGIN_TYPE,
+  ENTITY_PLUGIN_TYPE,
+  SEQUENCE_PLUGIN_TYPE,
+  STATE_PLUGIN_TYPE,
+} from "./models-schemas.js";
+import {
+  classPlugin,
+  entityPlugin,
+  sequencePlugin,
+  statePlugin,
+  validateClassBlock,
+  validateEntityBlock,
+  validateSequenceBlock,
+  validateStateBlock,
+  type ModelsInputLine,
+} from "./models.js";
 import type {
   ArtifactFormat,
   CalloutBlock,
@@ -2221,6 +2238,44 @@ function parseTimingEnvelope(
 }
 
 
+function parseModelsEnvelope(
+  source: string,
+  lines: readonly SourceLine[],
+  openIndex: number,
+  closingIndex: number,
+  first: SourceLine,
+  last: SourceLine,
+  options: ParseOptions,
+  diagnostics: Diagnostic[],
+  pluginType: string,
+  validate: (envelope: {
+    readonly headerLines: readonly ModelsInputLine[];
+    readonly bodyLines: readonly ModelsInputLine[];
+    readonly blockRange: SourceRange;
+    readonly sourceName?: string;
+  }) => { readonly block?: ParsedBlock; readonly diagnostics: readonly Diagnostic[] },
+): ParsedBlock {
+  const blockRange = rangeFromLines(first, last);
+  const startIndex = diagnostics.length;
+  const { bodyStart, separatorFound } = splitHeaderEntries(lines, openIndex, closingIndex);
+  if (!separatorFound) {
+    missingSeparatorDiagnostic(lines, openIndex, closingIndex, first, options, diagnostics);
+    return invalidBlockFor(source, first, last, startIndex, diagnostics, pluginType);
+  }
+  const toInput = (line: SourceLine): ModelsInputLine => ({
+    text: lineText(line),
+    range: rangeFromLines(line, line),
+  });
+  const validated = validate({
+    headerLines: lines.slice(openIndex + 1, bodyStart - 1).map(toInput),
+    bodyLines: lines.slice(bodyStart, closingIndex).map(toInput),
+    blockRange,
+    ...(options.sourceName === undefined ? {} : { sourceName: options.sourceName }),
+  });
+  diagnostics.push(...validated.diagnostics);
+  return validated.block ?? invalidBlockFor(source, first, last, startIndex, diagnostics, pluginType);
+}
+
 function parseDiagramEnvelope(
   source: string,
   lines: readonly SourceLine[],
@@ -2537,6 +2592,33 @@ function parseBlocks(
       }
       if (closed && originalType === TIMING_PLUGIN_TYPE && activeTypes.includes(TIMING_PLUGIN_TYPE)) {
         blocks.push(parseTimingEnvelope(source, lines, openIndex, closingIndex, first, last, options, diagnostics));
+        continue;
+      }
+      const modelsDirective =
+        originalType === SEQUENCE_PLUGIN_TYPE
+          ? { type: SEQUENCE_PLUGIN_TYPE, validate: validateSequenceBlock }
+          : originalType === STATE_PLUGIN_TYPE
+            ? { type: STATE_PLUGIN_TYPE, validate: validateStateBlock }
+            : originalType === ENTITY_PLUGIN_TYPE
+              ? { type: ENTITY_PLUGIN_TYPE, validate: validateEntityBlock }
+              : originalType === CLASS_PLUGIN_TYPE
+                ? { type: CLASS_PLUGIN_TYPE, validate: validateClassBlock }
+                : undefined;
+      if (closed && modelsDirective !== undefined && activeTypes.includes(modelsDirective.type)) {
+        blocks.push(
+          parseModelsEnvelope(
+            source,
+            lines,
+            openIndex,
+            closingIndex,
+            first,
+            last,
+            options,
+            diagnostics,
+            modelsDirective.type,
+            modelsDirective.validate,
+          ),
+        );
         continue;
       }
       if (closed && originalType === DIAGRAM_PLUGIN_TYPE && activeTypes.includes(DIAGRAM_PLUGIN_TYPE)) {
@@ -3083,6 +3165,10 @@ export function parseSource(source: string, options: ParseOptions = {}): ParseRe
     circuitPlugin,
     timingPlugin,
     diagramPlugin,
+    sequencePlugin,
+    statePlugin,
+    entityPlugin,
+    classPlugin,
     structurePlugin,
   ];
   const activeTypes = [...new Set(activePlugins.map((plugin) => plugin.descriptor.type))].sort();

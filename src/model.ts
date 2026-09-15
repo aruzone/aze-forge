@@ -617,6 +617,210 @@ export interface DiagramBlock {
   readonly declarations: readonly DiagramDeclaration[];
 }
 
+/* ------------------------------------------------------------------ *
+ * Native software and data models (contract: issue #61)
+ * ------------------------------------------------------------------ */
+
+/**
+ * Authored text in this family is literal: never parsed as code, an
+ * expression or a type, never executed, never compared against anything
+ * computed. It is preserved exactly after envelope decoding and enters
+ * contentHash verbatim.
+ */
+export type ModelsText = string;
+
+/** One closed word enum, shared verbatim by ER ends and class associations. */
+export type Cardinality = "one" | "zero-or-one" | "many" | "one-or-many";
+
+export type SequenceParticipantKind = "participant" | "actor";
+export interface SequenceParticipant {
+  readonly name: string;
+  readonly kind: SequenceParticipantKind;
+  readonly label?: ModelsText;
+  readonly range: SourceRange;
+}
+
+export type SequenceMessageForm = "sync" | "async" | "return";
+export interface SequenceMessage {
+  readonly kind: "message";
+  readonly form: SequenceMessageForm;
+  readonly from: string;
+  readonly to: string;
+  readonly text?: ModelsText;
+  readonly activate: boolean;
+  readonly deactivate: boolean;
+  readonly range: SourceRange;
+}
+
+/** A note spans its authored `over:` participants; one or two only. */
+export interface SequenceNote {
+  readonly kind: "note";
+  readonly over: readonly string[];
+  readonly text: ModelsText;
+  readonly range: SourceRange;
+}
+
+/** One ordered `alt` division; an omitted `condition:` is unspecified. */
+export interface SequenceDivision {
+  readonly condition?: ModelsText;
+  readonly body: readonly SequenceTimelineItem[];
+  readonly range: SourceRange;
+}
+
+export interface SequenceAlt {
+  readonly kind: "alt";
+  readonly divisions: readonly SequenceDivision[];
+  readonly range: SourceRange;
+}
+
+export interface SequenceLoop {
+  readonly kind: "loop";
+  readonly condition?: ModelsText;
+  readonly body: readonly SequenceTimelineItem[];
+  readonly range: SourceRange;
+}
+
+export type SequenceTimelineItem = SequenceMessage | SequenceAlt | SequenceLoop | SequenceNote;
+
+export interface SequenceBlock {
+  readonly kind: "sequence"; readonly pluginVersion: "1.0.0"; readonly range: SourceRange;
+  readonly id?: string; readonly number?: boolean;
+  readonly title?: ModelsText; readonly description?: ModelsText;
+  /** Authored lane order is left-to-right order; resolved kind carries the default. */
+  readonly participants: readonly SequenceParticipant[];
+  readonly timeline: readonly SequenceTimelineItem[];
+}
+
+export interface StatePseudoState {
+  readonly kind: "initial" | "final";
+  readonly name: string;
+  readonly range: SourceRange;
+}
+
+export interface CompositeState {
+  readonly kind: "state";
+  readonly name: string;
+  readonly label?: ModelsText;
+  /** Nested scope; only states and pseudo-states live here. */
+  readonly states: readonly StateScopedItem[];
+  readonly range: SourceRange;
+}
+
+export type StateScopedItem = CompositeState | StatePseudoState;
+
+export interface StateTransition {
+  readonly kind: "transition";
+  readonly from: string;
+  readonly to: string;
+  readonly trigger?: ModelsText;
+  readonly guard?: ModelsText;
+  readonly action?: ModelsText;
+  readonly range: SourceRange;
+}
+
+export interface StateBlock {
+  readonly kind: "state"; readonly pluginVersion: "1.0.0"; readonly range: SourceRange;
+  readonly id?: string; readonly number?: boolean;
+  readonly title?: ModelsText; readonly description?: ModelsText;
+  /** One flat ordered collection: states, pseudo-states and transitions. */
+  readonly items: readonly (StateScopedItem | StateTransition)[];
+}
+
+export type EntityKey = "primary" | "foreign" | "unique";
+export interface EntityReference {
+  readonly entity: string;
+  readonly attribute: string;
+}
+export interface EntityAttribute {
+  readonly name: string;
+  readonly type?: ModelsText;
+  /** Omission is meaning: a written-but-empty `keys:` is not the same value. */
+  readonly keys?: readonly EntityKey[];
+  readonly optional: boolean;
+  readonly reference?: EntityReference;
+  readonly range: SourceRange;
+}
+export interface EntityEntity {
+  readonly kind: "entity";
+  readonly name: string;
+  readonly label?: ModelsText;
+  /** Omission is meaning: an entity named but not yet detailed has none. */
+  readonly attributes?: readonly EntityAttribute[];
+  readonly range: SourceRange;
+}
+/** Each end states how many instances of its own entity participate. */
+export interface EntityRelationshipEnd {
+  readonly entity: string;
+  readonly cardinality: Cardinality;
+  readonly role?: ModelsText;
+  readonly range: SourceRange;
+}
+export interface EntityRelationship {
+  readonly kind: "relationship";
+  readonly label?: ModelsText;
+  readonly first: EntityRelationshipEnd;
+  readonly second: EntityRelationshipEnd;
+  readonly range: SourceRange;
+}
+export interface EntityBlock {
+  readonly kind: "entity"; readonly pluginVersion: "1.0.0"; readonly range: SourceRange;
+  readonly id?: string; readonly number?: boolean;
+  readonly title?: ModelsText; readonly description?: ModelsText;
+  readonly items: readonly (EntityEntity | EntityRelationship)[];
+}
+
+export type ClassVisibility = "public" | "private" | "protected" | "package";
+export interface ClassAttribute {
+  readonly name: string;
+  readonly type?: ModelsText;
+  readonly visibility?: ClassVisibility;
+  readonly static: boolean;
+  readonly range: SourceRange;
+}
+export interface ClassParameter {
+  readonly name: string;
+  readonly type?: ModelsText;
+  readonly range: SourceRange;
+}
+export interface ClassOperation {
+  readonly name: string;
+  readonly visibility?: ClassVisibility;
+  readonly static: boolean;
+  /** Omitted, never defaulted: an unspecified parameter list is not an empty one. */
+  readonly parameters?: readonly ClassParameter[];
+  readonly returnType?: ModelsText;
+  readonly range: SourceRange;
+}
+export interface ClassClassifier {
+  readonly kind: "class" | "interface";
+  readonly name: string;
+  readonly label?: ModelsText;
+  /** Only a class carries the flag; an interface is implicitly abstract. */
+  readonly abstract?: boolean;
+  /** An interface is an operation contract and declares no attributes. */
+  readonly attributes?: readonly ClassAttribute[];
+  readonly operations: readonly ClassOperation[];
+  readonly range: SourceRange;
+}
+export type ClassRelationshipForm =
+  | "inheritance" | "implementation" | "association" | "aggregation" | "composition";
+export interface ClassRelationship {
+  readonly kind: "relationship";
+  readonly form: ClassRelationshipForm;
+  readonly from: string;
+  readonly to: string;
+  readonly label?: ModelsText;
+  readonly fromMultiplicity?: Cardinality;
+  readonly toMultiplicity?: Cardinality;
+  readonly range: SourceRange;
+}
+export interface ClassBlock {
+  readonly kind: "class"; readonly pluginVersion: "1.0.0"; readonly range: SourceRange;
+  readonly id?: string; readonly number?: boolean;
+  readonly title?: ModelsText; readonly description?: ModelsText;
+  readonly items: readonly (ClassClassifier | ClassRelationship)[];
+}
+
 export type ParsedBlock =
   | HeadingBlock
   | ParagraphBlock
@@ -637,6 +841,10 @@ export type ParsedBlock =
   | StructureBlock
   | TimingBlock
   | DiagramBlock
+  | SequenceBlock
+  | StateBlock
+  | EntityBlock
+  | ClassBlock
   | CircuitBlock
   | InvalidBlock;
 
@@ -659,6 +867,10 @@ export type AzeBlock =
   | ReactionBlock
   | TimingBlock
   | DiagramBlock
+  | SequenceBlock
+  | StateBlock
+  | EntityBlock
+  | ClassBlock
   | CircuitBlock
   | StructureBlock;
 export type ArtifactFormat = "html" | "svg" | "png" | "pdf";
@@ -798,6 +1010,53 @@ export interface Theme {
     portSizePx: number;
     labelFontFamily: "Inter";
     minimumLabelFontSizePx: number;
+  }>;
+  /**
+   * Software- and data-model tokens (contract: issue #61 §11). The label and
+   * member typography sets are layout inputs measured through the Advance
+   * metric, so a Theme change re-lays-out the four directive kinds. Every box
+   * sizes to its content: there is no authored dimension field to scale.
+   */
+  readonly models: Readonly<{
+    boxFill: string;
+    boxStroke: string;
+    boxStrokeWidthPx: number;
+    boxCornerRadiusPx: number;
+    headerFill: string;
+    dividerStroke: string;
+    dividerStrokeWidthPx: number;
+    labelFontFamily: "Inter";
+    labelFontSizePx: number;
+    labelLineHeightPx: number;
+    memberFontSizePx: number;
+    memberLineHeightPx: number;
+    captionFontSizePx: number;
+    markerFontSizePx: number;
+    markerInk: string;
+    paddingXPx: number;
+    paddingYPx: number;
+    columnGapPx: number;
+    wrapWidthPx: number;
+    lifelineStroke: string;
+    lifelineStrokeWidthPx: number;
+    lifelineDash: string;
+    activationFill: string;
+    activationStroke: string;
+    activationWidthPx: number;
+    messageStroke: string;
+    messageStrokeWidthPx: number;
+    arrowFill: string;
+    selfMessageWidthPx: number;
+    noteFill: string;
+    noteStroke: string;
+    fragmentStroke: string;
+    fragmentStrokeWidthPx: number;
+    fragmentDash: string;
+    fragmentLabelFill: string;
+    rankGapPx: number;
+    rowGapPx: number;
+    diamondSizePx: number;
+    minimumFontSizePx: number;
   }>;
 }
 
@@ -977,6 +1236,10 @@ export type AnyBlockRenderer =
   | AzeBlockRenderer<StructureBlock>
   | AzeBlockRenderer<CircuitBlock>
   | AzeBlockRenderer<TimingBlock>
+  | AzeBlockRenderer<SequenceBlock>
+  | AzeBlockRenderer<StateBlock>
+  | AzeBlockRenderer<EntityBlock>
+  | AzeBlockRenderer<ClassBlock>
   | DiagramBlockRenderer
   | MermaidBlockRenderer;
 export type BlockRenderer = AnyBlockRenderer;

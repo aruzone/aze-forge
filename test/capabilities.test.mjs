@@ -4,6 +4,9 @@ import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 
+import { buildCapabilities, serializeCapabilities } from "../dist/capabilities.js";
+import { capabilitiesJsonSchema } from "../dist/capabilities-json.js";
+
 const CLI_PATH = fileURLToPath(new URL("../dist/cli.js", import.meta.url));
 const ROOT = fileURLToPath(new URL("../", import.meta.url));
 const EXPECTED_RUNTIME = {
@@ -73,17 +76,17 @@ test("capabilities --json enumerates the P0 contract in canonical order", async 
   );
   assert.deepEqual(
     payload.plugins.map(({ type }) => type),
-    ["callout", "chart", "circuit", "derivation", "diagram", "equation", "formula", "geometry", "mermaid", "plot", "reaction", "structure", "table", "timing"],
+    ["callout", "chart", "circuit", "class", "derivation", "diagram", "entity", "equation", "formula", "geometry", "mermaid", "plot", "reaction", "sequence", "state", "structure", "table", "timing"],
   );
   assert.deepEqual(
     payload.plugins.map(({ version }) => version),
-    ["1.0.0", "1.0.0", "1.0.0", "1.0.0", "1.0.0", "2.0.0", "1.0.0", "1.0.0", "1.0.0", "1.0.0", "1.0.0", "1.0.0", "2.0.0", "1.0.0"],
+    ["1.0.0", "1.0.0", "1.0.0", "1.0.0", "1.0.0", "1.0.0", "1.0.0", "2.0.0", "1.0.0", "1.0.0", "1.0.0", "1.0.0", "1.0.0", "1.0.0", "1.0.0", "1.0.0", "2.0.0", "1.0.0"],
   );
   assert.deepEqual(
     payload.renderers.map(({ id }) => id),
     ["html", "pdf", "png", "svg"],
   );
-  assert.equal(payload.blockRenderers.length, 56);
+  assert.equal(payload.blockRenderers.length, 72);
   assert.deepEqual(
     payload.themes.map(({ id }) => id),
     ["academic", "dark-presentation", "default"],
@@ -114,6 +117,44 @@ test("capabilities --json enumerates the P0 contract in canonical order", async 
     "@fontsource/inter@5.3.0",
     "@fontsource/jetbrains-mono@5.2.8",
   ]);
+  assert.equal(payload.engines.models.availability, "unknown");
+  assert.equal(payload.engines.models.layout, "models-layout/v1");
+  assert.equal(payload.engines.models.wrap, "models-wrap/v1");
+  assert.equal(payload.engines.models.emitter, "1.0.0");
+  assert.equal(payload.engines.models.advanceMetric, "1.0.0");
+  assert.deepEqual(payload.engines.models.directiveTypes, ["sequence", "state", "entity", "class"]);
+  assert.deepEqual(payload.limits.blocks.models, {
+    sequence: {
+      maxParticipants: 12,
+      maxTimelineItems: 256,
+      maxFragmentDepth: 4,
+      maxAltDivisions: 8,
+      maxNoteSpan: 2,
+      maxNoteTextChars: 1000,
+      maxNoteTextLines: 20,
+    },
+    state: {
+      maxStates: 64,
+      maxDepth: 3,
+      maxTransitions: 128,
+    },
+    entity: {
+      maxEntities: 32,
+      maxAttributesPerEntity: 64,
+      maxRelationships: 64,
+    },
+    class: {
+      maxClassifiers: 32,
+      maxAttributesPerClass: 64,
+      maxOperationsPerClass: 64,
+      maxParametersPerOperation: 16,
+      maxRelationships: 64,
+    },
+    maxTextChars: 200,
+    maxNameChars: 64,
+    maxWidthPx: 4096,
+    maxHeightPx: 16384,
+  });
   assert.deepEqual(payload.limits.blocks.diagram, {
     maxDeclarations: 512,
     maxNodes: 128,
@@ -160,6 +201,27 @@ test("capabilities --probe reports local availability and stays exit 0", async (
   assert.equal(payload.engines.plot.availability, "available");
   assert.equal(payload.engines.geometry.availability, "available");
   assert.equal(payload.engines.diagram.availability, "available");
+});
+
+test("every reported engine validates against the published capabilities schema", async () => {
+  const payload = JSON.parse(serializeCapabilities(await buildCapabilities()));
+  const engines = capabilitiesJsonSchema.properties.engines;
+  assert.deepEqual(Object.keys(payload.engines).sort(), [...engines.required].sort());
+  for (const [id, entry] of Object.entries(payload.engines)) {
+    const schema = engines.properties[id];
+    assert.ok(schema !== undefined, `engines.${id} needs a schema property`);
+    // `fonts` is an array of records; every other engine is a closed object.
+    if (schema.type !== "object") continue;
+    for (const key of Object.keys(entry)) {
+      assert.ok(
+        schema.properties[key] !== undefined,
+        `engines.${id}.${key} is not allowed by the schema`,
+      );
+    }
+    for (const key of schema.required) {
+      assert.ok(entry[key] !== undefined, `engines.${id}.${key} is required but missing`);
+    }
+  }
 });
 
 test("human version, capabilities, and help use stderr with empty stdout", () => {

@@ -507,3 +507,188 @@ flow: left-to-right
   label: fallback
   direction: undirected
 ::::
+
+## Software and data models
+
+The software and data models family is exercised with two of its four typed
+directives. The login exchange opens an activation bar before an `alt` and
+releases it inside each division, loops a body that opens and closes its own
+bar, and carries a note spanning two lanes. The class hierarchy realizes an
+interface through `implementation`, inherits from an abstract class, composes a
+line item with multiplicities on both ends, and draws one association with no
+arrowhead because navigability was never authored.
+
+:::: sequence
+id: login-exchange
+number: true
+title: Login exchange
+----
+participants:
+  - name: user
+    kind: actor
+    label: User
+  - name: web
+    label: Web app
+  - name: auth
+    label: Auth service
+  - name: store
+    label: User store
+timeline:
+  - kind: message
+    from: user
+    to: web
+    text: Submit credentials
+    activate: true
+  - kind: message
+    from: web
+    to: auth
+    text: Verify session
+    activate: true
+  - kind: loop
+    condition: Retry budget remains
+    body:
+      - kind: message
+        from: auth
+        to: store
+        text: Load user
+        activate: true
+      - kind: message
+        from: store
+        to: auth
+        form: return
+        text: User record
+        deactivate: true
+  - kind: alt
+    divisions:
+      - condition: Credentials valid
+        body:
+          - kind: message
+            from: auth
+            to: web
+            form: return
+            text: Session token
+            deactivate: true
+          - kind: message
+            from: web
+            to: user
+            form: return
+            text: Dashboard
+            deactivate: true
+      - condition: Credentials rejected
+        body:
+          - kind: message
+            from: auth
+            to: web
+            form: return
+            text: Deny
+            deactivate: true
+          - kind: message
+            from: web
+            to: user
+            form: return
+            text: Sign-in page
+            deactivate: true
+  - kind: note
+    over:
+      - auth
+      - store
+    text: |
+      Credentials never reach the user store;
+      the auth service holds the hash.
+::::
+
+:::: class
+id: payment-classes
+number: true
+title: Payment classes
+----
+- kind: interface
+  name: PaymentGateway
+  operations:
+    - name: authorize
+      parameters:
+        - name: amount
+          type: Money
+        - name: source
+          type: Account
+      return-type: Authorization
+    - name: capture
+      parameters:
+        - name: authorization
+          type: Authorization
+      return-type: Receipt
+- kind: class
+  name: StripeGateway
+  attributes:
+    - name: api_key
+      type: string
+      visibility: private
+    - name: default_timeout
+      type: Duration
+      visibility: private
+      static: true
+  operations:
+    - name: authorize
+      visibility: public
+      parameters:
+        - name: amount
+          type: Money
+        - name: source
+          type: Account
+      return-type: Authorization
+    - name: capture
+      visibility: public
+      parameters:
+        - name: authorization
+          type: Authorization
+      return-type: Receipt
+- kind: class
+  name: RefundableOrder
+  abstract: true
+  attributes:
+    - name: refund_window
+      type: Duration
+      visibility: protected
+- kind: class
+  name: Order
+  attributes:
+    - name: id
+      type: OrderId
+      visibility: private
+    - name: lines
+      type: List<LineItem>
+      visibility: private
+  operations:
+    - name: total
+      visibility: public
+      return-type: Money
+- kind: class
+  name: LineItem
+  attributes:
+    - name: sku
+      type: string
+      visibility: private
+    - name: quantity
+      type: integer
+      visibility: private
+- kind: relationship
+  form: implementation
+  from: StripeGateway
+  to: PaymentGateway
+- kind: relationship
+  form: inheritance
+  from: RefundableOrder
+  to: Order
+- kind: relationship
+  form: composition
+  from: Order
+  to: LineItem
+  label: lines
+  from-multiplicity: one
+  to-multiplicity: one-or-many
+- kind: relationship
+  form: association
+  from: StripeGateway
+  to: Order
+  label: charges
+::::

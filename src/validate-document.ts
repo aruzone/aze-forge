@@ -478,6 +478,326 @@ function isTimingBlock(value: Record<string, unknown>): boolean {
   );
 }
 
+const SEQUENCE_PARTICIPANT_KINDS: Readonly<Record<string, true>> = { participant: true, actor: true };
+const SEQUENCE_MESSAGE_FORMS: Readonly<Record<string, true>> = { sync: true, async: true, return: true };
+const CARDINALITY_VALUES: Readonly<Record<string, true>> = {
+  "one": true,
+  "zero-or-one": true,
+  "many": true,
+  "one-or-many": true,
+};
+const ENTITY_KEY_VALUES: Readonly<Record<string, true>> = { primary: true, foreign: true, unique: true };
+const CLASS_VISIBILITY_VALUES: Readonly<Record<string, true>> = {
+  public: true,
+  private: true,
+  protected: true,
+  package: true,
+};
+const CLASS_RELATIONSHIP_FORMS: Readonly<Record<string, true>> = {
+  inheritance: true,
+  implementation: true,
+  association: true,
+  aggregation: true,
+  composition: true,
+};
+
+function isModelsHeader(value: Record<string, unknown>, kind: string, keys: readonly string[]): boolean {
+  return (
+    hasOnlyKeys(value, keys) &&
+    isSourceRange(value.range) &&
+    value.pluginVersion === "1.0.0" &&
+    value.kind === kind &&
+    (value.id === undefined || typeof value.id === "string") &&
+    (value.number === undefined || typeof value.number === "boolean") &&
+    (value.title === undefined || typeof value.title === "string") &&
+    (value.description === undefined || typeof value.description === "string")
+  );
+}
+
+function isSequenceBlock(value: Record<string, unknown>): boolean {
+  return (
+    isModelsHeader(value, "sequence", [
+      "kind",
+      "range",
+      "id",
+      "number",
+      "pluginVersion",
+      "title",
+      "description",
+      "participants",
+      "timeline",
+    ]) &&
+    Array.isArray(value.participants) &&
+    value.participants.every(
+      (participant) =>
+        isObjectRecord(participant) &&
+        hasOnlyKeys(participant, ["name", "kind", "label", "range"]) &&
+        typeof participant.name === "string" &&
+        SEQUENCE_PARTICIPANT_KINDS[participant.kind as string] === true &&
+        (participant.label === undefined || typeof participant.label === "string") &&
+        isSourceRange(participant.range),
+    ) &&
+    Array.isArray(value.timeline) &&
+    value.timeline.every((item) => isSequenceTimelineItem(item))
+  );
+}
+
+function isSequenceTimelineItem(value: unknown): boolean {
+  if (!isObjectRecord(value) || !isSourceRange(value.range)) return false;
+  if (value.kind === "message") {
+    return (
+      hasOnlyKeys(value, ["kind", "form", "from", "to", "text", "activate", "deactivate", "range"]) &&
+      SEQUENCE_MESSAGE_FORMS[value.form as string] === true &&
+      typeof value.from === "string" &&
+      typeof value.to === "string" &&
+      (value.text === undefined || typeof value.text === "string") &&
+      typeof value.activate === "boolean" &&
+      typeof value.deactivate === "boolean"
+    );
+  }
+  if (value.kind === "note") {
+    return (
+      hasOnlyKeys(value, ["kind", "over", "text", "range"]) &&
+      Array.isArray(value.over) &&
+      value.over.every((name) => typeof name === "string") &&
+      typeof value.text === "string"
+    );
+  }
+  if (value.kind === "loop") {
+    return (
+      hasOnlyKeys(value, ["kind", "condition", "body", "range"]) &&
+      (value.condition === undefined || typeof value.condition === "string") &&
+      Array.isArray(value.body) &&
+      value.body.every((item) => isSequenceTimelineItem(item))
+    );
+  }
+  if (value.kind === "alt") {
+    return (
+      hasOnlyKeys(value, ["kind", "divisions", "range"]) &&
+      Array.isArray(value.divisions) &&
+      value.divisions.every(
+        (division) =>
+          isObjectRecord(division) &&
+          hasOnlyKeys(division, ["condition", "body", "range"]) &&
+          (division.condition === undefined || typeof division.condition === "string") &&
+          Array.isArray(division.body) &&
+          division.body.every((item) => isSequenceTimelineItem(item)) &&
+          isSourceRange(division.range),
+      )
+    );
+  }
+  return false;
+}
+
+function isStateScopedItem(value: unknown): boolean {
+  if (!isObjectRecord(value) || !isSourceRange(value.range) || typeof value.name !== "string") return false;
+  if (value.kind === "state") {
+    return (
+      hasOnlyKeys(value, ["kind", "name", "label", "states", "range"]) &&
+      (value.label === undefined || typeof value.label === "string") &&
+      Array.isArray(value.states) &&
+      value.states.every((item) => isStateScopedItem(item))
+    );
+  }
+  return (value.kind === "initial" || value.kind === "final") && hasOnlyKeys(value, ["kind", "name", "range"]);
+}
+
+function isStateBlock(value: Record<string, unknown>): boolean {
+  return (
+    isModelsHeader(value, "state", [
+      "kind",
+      "range",
+      "id",
+      "number",
+      "pluginVersion",
+      "title",
+      "description",
+      "items",
+    ]) &&
+    Array.isArray(value.items) &&
+    value.items.every((item) => {
+      if (isObjectRecord(item) && item.kind === "transition") {
+        return (
+          isSourceRange(item.range) &&
+          hasOnlyKeys(item, ["kind", "from", "to", "trigger", "guard", "action", "range"]) &&
+          typeof item.from === "string" &&
+          typeof item.to === "string" &&
+          (item.trigger === undefined || typeof item.trigger === "string") &&
+          (item.guard === undefined || typeof item.guard === "string") &&
+          (item.action === undefined || typeof item.action === "string")
+        );
+      }
+      return isStateScopedItem(item);
+    })
+  );
+}
+
+function isEntityAttribute(value: unknown): boolean {
+  return (
+    isObjectRecord(value) &&
+    hasOnlyKeys(value, ["name", "type", "keys", "optional", "reference", "range"]) &&
+    typeof value.name === "string" &&
+    (value.type === undefined || typeof value.type === "string") &&
+    (value.keys === undefined ||
+      (Array.isArray(value.keys) && value.keys.every((key) => ENTITY_KEY_VALUES[key as string] === true))) &&
+    typeof value.optional === "boolean" &&
+    (value.reference === undefined ||
+      (isObjectRecord(value.reference) &&
+        hasOnlyKeys(value.reference, ["entity", "attribute"]) &&
+        typeof value.reference.entity === "string" &&
+        typeof value.reference.attribute === "string")) &&
+    isSourceRange(value.range)
+  );
+}
+
+function isEntityRelationshipEnd(value: unknown): boolean {
+  return (
+    isObjectRecord(value) &&
+    hasOnlyKeys(value, ["entity", "cardinality", "role", "range"]) &&
+    typeof value.entity === "string" &&
+    CARDINALITY_VALUES[value.cardinality as string] === true &&
+    (value.role === undefined || typeof value.role === "string") &&
+    isSourceRange(value.range)
+  );
+}
+
+function isEntityBlock(value: Record<string, unknown>): boolean {
+  return (
+    isModelsHeader(value, "entity", [
+      "kind",
+      "range",
+      "id",
+      "number",
+      "pluginVersion",
+      "title",
+      "description",
+      "items",
+    ]) &&
+    Array.isArray(value.items) &&
+    value.items.every((item) => {
+      if (!isObjectRecord(item) || !isSourceRange(item.range)) return false;
+      if (item.kind === "entity") {
+        return (
+          hasOnlyKeys(item, ["kind", "name", "label", "attributes", "range"]) &&
+          typeof item.name === "string" &&
+          (item.label === undefined || typeof item.label === "string") &&
+          (item.attributes === undefined ||
+            (Array.isArray(item.attributes) &&
+              item.attributes.every((attribute) => isEntityAttribute(attribute))))
+        );
+      }
+      if (item.kind !== "relationship") return false;
+      return (
+        hasOnlyKeys(item, ["kind", "label", "first", "second", "range"]) &&
+        (item.label === undefined || typeof item.label === "string") &&
+        isEntityRelationshipEnd(item.first) &&
+        isEntityRelationshipEnd(item.second)
+      );
+    })
+  );
+}
+
+function isClassClassifier(value: Record<string, unknown>): boolean {
+  if (value.kind === "class") {
+    return (
+      hasOnlyKeys(value, ["kind", "name", "label", "abstract", "attributes", "operations", "range"]) &&
+      typeof value.abstract === "boolean" &&
+      Array.isArray(value.attributes)
+    );
+  }
+  if (value.kind === "interface") {
+    return (
+      hasOnlyKeys(value, ["kind", "name", "label", "operations", "range"]) &&
+      Array.isArray(value.operations)
+    );
+  }
+  return false;
+}
+
+function isClassMember(value: unknown): boolean {
+  return (
+    isObjectRecord(value) &&
+    hasOnlyKeys(value, ["name", "type", "visibility", "static", "range"]) &&
+    typeof value.name === "string" &&
+    (value.type === undefined || typeof value.type === "string") &&
+    (value.visibility === undefined || CLASS_VISIBILITY_VALUES[value.visibility as string] === true) &&
+    typeof value.static === "boolean" &&
+    isSourceRange(value.range)
+  );
+}
+
+function isClassOperation(value: unknown): boolean {
+  return (
+    isObjectRecord(value) &&
+    hasOnlyKeys(value, ["name", "visibility", "static", "parameters", "returnType", "range"]) &&
+    typeof value.name === "string" &&
+    (value.visibility === undefined || CLASS_VISIBILITY_VALUES[value.visibility as string] === true) &&
+    typeof value.static === "boolean" &&
+    (value.parameters === undefined ||
+      (Array.isArray(value.parameters) &&
+        value.parameters.every(
+          (parameter) =>
+            isObjectRecord(parameter) &&
+            hasOnlyKeys(parameter, ["name", "type", "range"]) &&
+            typeof parameter.name === "string" &&
+            (parameter.type === undefined || typeof parameter.type === "string") &&
+            isSourceRange(parameter.range),
+        ))) &&
+    (value.returnType === undefined || typeof value.returnType === "string") &&
+    isSourceRange(value.range)
+  );
+}
+
+function isClassBlock(value: Record<string, unknown>): boolean {
+  return (
+    isModelsHeader(value, "class", [
+      "kind",
+      "range",
+      "id",
+      "number",
+      "pluginVersion",
+      "title",
+      "description",
+      "items",
+    ]) &&
+    Array.isArray(value.items) &&
+    value.items.every((item) => {
+      if (!isObjectRecord(item) || !isSourceRange(item.range)) return false;
+      if (item.kind === "relationship") {
+        return (
+          hasOnlyKeys(item, [
+            "kind",
+            "form",
+            "from",
+            "to",
+            "label",
+            "fromMultiplicity",
+            "toMultiplicity",
+            "range",
+          ]) &&
+          CLASS_RELATIONSHIP_FORMS[item.form as string] === true &&
+          typeof item.from === "string" &&
+          typeof item.to === "string" &&
+          (item.label === undefined || typeof item.label === "string") &&
+          (item.fromMultiplicity === undefined || CARDINALITY_VALUES[item.fromMultiplicity as string] === true) &&
+          (item.toMultiplicity === undefined || CARDINALITY_VALUES[item.toMultiplicity as string] === true)
+        );
+      }
+      if (!isClassClassifier(item)) return false;
+      const attributes = item.attributes;
+      const operations = item.operations;
+      return (
+        typeof item.name === "string" &&
+        (item.label === undefined || typeof item.label === "string") &&
+        (attributes === undefined ||
+          (Array.isArray(attributes) && attributes.every((member) => isClassMember(member)))) &&
+        (operations === undefined ||
+          (Array.isArray(operations) && operations.every((operation) => isClassOperation(operation))))
+      );
+    })
+  );
+}
+
 function isParsedBlock(value: unknown): value is ParsedBlock {
   if (!isObjectRecord(value)) return false;
   if (value.kind === "circuit") {
@@ -514,6 +834,18 @@ function isParsedBlock(value: unknown): value is ParsedBlock {
   }
   if (value.kind === "diagram") {
     return isDiagramBlock(value);
+  }
+  if (value.kind === "sequence") {
+    return isSequenceBlock(value);
+  }
+  if (value.kind === "state") {
+    return isStateBlock(value);
+  }
+  if (value.kind === "entity") {
+    return isEntityBlock(value);
+  }
+  if (value.kind === "class") {
+    return isClassBlock(value);
   }
   if (value.kind === "heading") {
     return (

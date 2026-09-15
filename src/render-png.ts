@@ -15,6 +15,12 @@ import {
 import { circuitHtmlBlockRenderer } from "./circuit-render.js";
 import { timingHtmlBlockRenderer } from "./timing-render.js";
 import { diagramHtmlBlockRenderer } from "./diagram-render.js";
+import {
+  classHtmlBlockRenderer,
+  entityHtmlBlockRenderer,
+  sequenceHtmlBlockRenderer,
+  stateHtmlBlockRenderer,
+} from "./models-render.js";
 
 import { assetManifestHash } from "./assets.js";
 import { artifactBytesHash, canonicalJson, sha256 } from "./hash.js";
@@ -81,6 +87,10 @@ export const pngBlockRenderers: readonly AnyBlockRenderer[] = Object.freeze([
   pngBlockRenderer(circuitHtmlBlockRenderer),
   pngBlockRenderer(timingHtmlBlockRenderer),
   pngBlockRenderer(diagramHtmlBlockRenderer),
+  pngBlockRenderer(sequenceHtmlBlockRenderer),
+  pngBlockRenderer(stateHtmlBlockRenderer),
+  pngBlockRenderer(entityHtmlBlockRenderer),
+  pngBlockRenderer(classHtmlBlockRenderer),
 ]);
 
 export interface PngBrowserCapability {

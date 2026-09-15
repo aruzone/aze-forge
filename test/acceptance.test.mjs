@@ -54,6 +54,8 @@ const SUITE_EVIDENCE = [
   ["P0-TIM-002", "test/timing.test.mjs"],
   ["P0-DIA-001", "test/diagram.test.mjs"],
   ["P0-DIA-002", "test/diagram-block.test.mjs"],
+  ["P0-MOD-001", "test/models.test.mjs"],
+  ["P0-MOD-002", "test/models-block.test.mjs"],
   ["P0-MMD-001", "test/mermaid.test.mjs"],
   ["P0-OUT-001", "test/acceptance.test.mjs"],
   ["P0-OUT-002", "test/acceptance.test.mjs"],
@@ -142,6 +144,29 @@ function goldenFailures(html) {
   ]) {
     if (!html.includes(needle)) failures.push(label);
   }
+  // Native Models: the login sequence and the payment class hierarchy reach
+  // HTML as real figures with their authored structure intact.
+  for (const [kind, id, title] of [
+    ["sequence", "login-exchange", "Login exchange"],
+    ["class", "payment-classes", "Payment classes"],
+  ]) {
+    if (!html.includes(`data-${kind}-id="${id}"`)) failures.push(`models-${kind}-figure`);
+    if (!html.includes(`>${title}<`)) failures.push(`models-${kind}-name`);
+  }
+  for (const [needle, label] of [
+    ["aze-sequence-participant", "models-participant"],
+    ["aze-sequence-activation", "models-activation"],
+    ["aze-sequence-fragment", "models-fragment"],
+    ["aze-sequence-note", "models-note"],
+    ["aze-class-box", "models-class-box"],
+    ["aze-class-divider", "models-class-divider"],
+    ["aze-class-diamond", "models-class-diamond"],
+    [">PaymentGateway<", "models-interface-header"],
+    ["api_key", "models-member-name"],
+    ["1. user → web: Submit credentials", "models-timeline-summary"],
+  ]) {
+    if (!html.includes(needle)) failures.push(label);
+  }
   return failures;
 }
 
@@ -162,7 +187,7 @@ test("acceptance catalog is canonical and coverage rejects missing or unknown ID
   const onDisk = JSON.parse(await readFile(new URL("../acceptance/catalog.json", import.meta.url), "utf8"));
   assert.deepEqual(onDisk, JSON.parse(JSON.stringify(canonical)));
   assert.equal(canonical.catalog.id, "azeforge.acceptance/v1");
-  assert.equal(canonical.entries.filter((item) => item.gate === "p0").length, 43);
+  assert.equal(canonical.entries.filter((item) => item.gate === "p0").length, 45);
 
   const declared = SUITE_EVIDENCE.map(([id]) => id);
   assert.deepEqual(checkAcceptanceCoverage(declared), { missing: [], unknown: [] });

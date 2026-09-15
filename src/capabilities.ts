@@ -35,6 +35,30 @@ import {
   MAX_DIAGRAM_TOTAL_LABEL_CODE_POINTS,
 } from "./diagram.js";
 import { TIMING_EMITTER_VERSION } from "./timing-render.js";
+import {
+  MAX_CLASS_ATTRIBUTES,
+  MAX_CLASS_CLASSIFIERS,
+  MAX_CLASS_OPERATIONS,
+  MAX_CLASS_PARAMETERS,
+  MAX_CLASS_RELATIONSHIPS,
+  MAX_ENTITY_ATTRIBUTES,
+  MAX_ENTITY_ENTITIES,
+  MAX_ENTITY_RELATIONSHIPS,
+  MAX_MODELS_NAME_CHARS,
+  MAX_MODELS_TEXT_CHARS,
+  MAX_SEQUENCE_ALT_DIVISIONS,
+  MAX_SEQUENCE_FRAGMENT_DEPTH,
+  MAX_SEQUENCE_NOTE_SPAN,
+  MAX_SEQUENCE_NOTE_TEXT_CHARS,
+  MAX_SEQUENCE_NOTE_TEXT_LINES,
+  MAX_SEQUENCE_PARTICIPANTS,
+  MAX_SEQUENCE_TIMELINE_ITEMS,
+  MAX_STATE_DEPTH,
+  MAX_STATE_STATES,
+  MAX_STATE_TRANSITIONS,
+} from "./models.js";
+import { MODELS_LAYOUT_VERSION, MODELS_WRAP_VERSION } from "./models-layout.js";
+import { MODELS_EMITTER_VERSION, MODELS_MAX_HEIGHT_PX, MODELS_MAX_WIDTH_PX } from "./models-render.js";
 import { ADVANCE_METRIC_SOURCES, ADVANCE_METRIC_VERSION } from "./advance-metric.js";
 import { DIAGRAM_LAYOUT_VERSION, ELKJS_VERSION } from "./diagram-layout.js";
 import { DIAGRAM_EMITTER_VERSION } from "./diagram-render.js";
@@ -293,6 +317,15 @@ export interface CapabilitiesReport {
       metricSource: readonly string[];
       availability: EngineAvailability;
     }>;
+    readonly models: Readonly<{
+      layout: typeof MODELS_LAYOUT_VERSION;
+      wrap: typeof MODELS_WRAP_VERSION;
+      emitter: typeof MODELS_EMITTER_VERSION;
+      advanceMetric: typeof ADVANCE_METRIC_VERSION;
+      metricSource: readonly string[];
+      directiveTypes: readonly string[];
+      availability: EngineAvailability;
+    }>;
     readonly fonts: readonly {
       readonly family: string;
       readonly weights: readonly number[];
@@ -544,6 +577,38 @@ export async function buildCapabilities(
           maxLabelLines: MAX_DIAGRAM_LABEL_LINES,
           maxTotalLabelCodePoints: MAX_DIAGRAM_TOTAL_LABEL_CODE_POINTS,
         },
+        models: {
+          sequence: {
+            maxParticipants: MAX_SEQUENCE_PARTICIPANTS,
+            maxTimelineItems: MAX_SEQUENCE_TIMELINE_ITEMS,
+            maxFragmentDepth: MAX_SEQUENCE_FRAGMENT_DEPTH,
+            maxAltDivisions: MAX_SEQUENCE_ALT_DIVISIONS,
+            maxNoteSpan: MAX_SEQUENCE_NOTE_SPAN,
+            maxNoteTextChars: MAX_SEQUENCE_NOTE_TEXT_CHARS,
+            maxNoteTextLines: MAX_SEQUENCE_NOTE_TEXT_LINES,
+          },
+          state: {
+            maxStates: MAX_STATE_STATES,
+            maxDepth: MAX_STATE_DEPTH,
+            maxTransitions: MAX_STATE_TRANSITIONS,
+          },
+          entity: {
+            maxEntities: MAX_ENTITY_ENTITIES,
+            maxAttributesPerEntity: MAX_ENTITY_ATTRIBUTES,
+            maxRelationships: MAX_ENTITY_RELATIONSHIPS,
+          },
+          class: {
+            maxClassifiers: MAX_CLASS_CLASSIFIERS,
+            maxAttributesPerClass: MAX_CLASS_ATTRIBUTES,
+            maxOperationsPerClass: MAX_CLASS_OPERATIONS,
+            maxParametersPerOperation: MAX_CLASS_PARAMETERS,
+            maxRelationships: MAX_CLASS_RELATIONSHIPS,
+          },
+          maxTextChars: MAX_MODELS_TEXT_CHARS,
+          maxNameChars: MAX_MODELS_NAME_CHARS,
+          maxWidthPx: MODELS_MAX_WIDTH_PX,
+          maxHeightPx: MODELS_MAX_HEIGHT_PX,
+        },
         timing: {
           maxSignals: MAX_TIMING_SIGNALS,
           maxIntervals: MAX_TIMING_INTERVALS,
@@ -607,6 +672,15 @@ export async function buildCapabilities(
         emitter: DIAGRAM_EMITTER_VERSION,
         advanceMetric: ADVANCE_METRIC_VERSION,
         metricSource: ADVANCE_METRIC_SOURCES,
+        availability: bundled,
+      },
+      models: {
+        layout: MODELS_LAYOUT_VERSION,
+        wrap: MODELS_WRAP_VERSION,
+        emitter: MODELS_EMITTER_VERSION,
+        advanceMetric: ADVANCE_METRIC_VERSION,
+        metricSource: ADVANCE_METRIC_SOURCES,
+        directiveTypes: ["sequence", "state", "entity", "class"],
         availability: bundled,
       },
       fonts: [

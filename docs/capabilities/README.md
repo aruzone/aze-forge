@@ -422,6 +422,227 @@ flowchart LR
 ::::
 ```
 
+## Software and data models
+
+### `sequence`
+
+Sequence diagrams author participants and then an ordered timeline of
+messages, `alt` and `loop` fragments, and notes. The two orders are both live —
+participant order is left-to-right lane order, timeline order is time — so
+they are authored as separate `participants:` and `timeline:` sections.
+`from:` and `to:` are always explicit and must name a declared participant;
+`form:` is `sync`, `async`, or `return` and defaults to `sync`, and a `return`
+carries its own authored direction instead of being paired with a preceding
+call. Activations are explicit `activate:` and `deactivate:` flags, balanced
+per scope: every `alt` division must end with the same set of open bars, and a
+`loop` body must be activation-neutral.
+
+```text
+:::: sequence
+id: order-handshake
+number: true
+title: Order handshake
+----
+participants:
+  - name: client
+    kind: actor
+    label: Client
+  - name: api
+    label: API
+timeline:
+  - kind: message
+    from: client
+    to: api
+    text: Submit order
+    activate: true
+  - kind: loop
+    condition: Retry budget remains
+    body:
+      - kind: message
+        from: api
+        to: client
+        form: return
+        text: Retry later
+  - kind: message
+    from: api
+    to: client
+    form: return
+    text: Order id
+    deactivate: true
+::::
+```
+
+Reading order is timeline order: every authored label is real SVG `<text>`,
+while lifelines, arrowheads and activation bars are `aria-hidden` decoration,
+because the relation they express is already in text. A message with `text:`
+omitted renders an unlabeled arrow, and fragment conditions render `[condition]`
+when authored. One warning reports structure without failing a Block: a
+participant declared and never used. An unbalanced activation is an error, and
+the timeline must end with an empty activation stack.
+
+### `state`
+
+State machines author one flat, ordered list of states, initial and final
+pseudo-states, and transitions. A `state` may carry a nested `states:`
+collection holding only states and pseudo-states, and names are flat and unique
+across the whole Block, so a transition references any state at any depth.
+`initial` renders as a filled dot and `final` as a bullseye, and neither shows
+its name — the name exists because transitions reference it. `trigger:`,
+`guard:` and `action:` are three separate authored fields; the renderer composes
+them as `trigger [guard] / action`, and that composition is presentation, never
+Document data.
+
+```text
+:::: state
+id: order-lifecycle
+number: true
+title: Order lifecycle
+----
+- kind: initial
+  name: entry
+- kind: state
+  name: Draft
+  label: Draft order
+- kind: state
+  name: Shipped
+- kind: final
+  name: Completed
+- kind: transition
+  from: entry
+  to: Draft
+- kind: transition
+  from: Draft
+  to: Shipped
+  trigger: checkout
+  guard: cart is not empty
+  action: reserve stock
+- kind: transition
+  from: Shipped
+  to: Completed
+  trigger: delivered
+::::
+```
+
+Validation is structural only, because executable state-machine behavior is
+deferred: exactly one `initial` per scope, no transition into an `initial` or
+out of a `final`, and no shared name between an outer and an inner scope. Two
+warnings report topology without failing a Block — a state unreachable from its
+scope's `initial`, and a non-`final` state with no outgoing transition.
+
+### `entity`
+
+Entity-relationship Blocks author entities with attributes and keys, plus
+relationships whose every end carries a cardinality. An attribute's `keys:` is a
+collection over `primary`, `foreign`, and `unique`, so a junction table whose
+primary key is also a foreign key is expressible without repeating a field.
+`type:` is authored text and is never validated against any type system;
+`references:` on a foreign key is validated against a real entity and attribute
+in the same Block.
+
+```text
+:::: entity
+id: shop-schema
+number: true
+title: Order schema
+----
+- kind: entity
+  name: Customer
+  attributes:
+    - name: id
+      type: uuid
+      keys:
+        - primary
+    - name: email
+      type: text
+      keys:
+        - unique
+- kind: entity
+  name: Order
+  attributes:
+    - name: id
+      type: uuid
+      keys:
+        - primary
+    - name: customer_id
+      type: uuid
+      keys:
+        - foreign
+      references:
+        entity: Customer
+        attribute: id
+- kind: relationship
+  label: places
+  first:
+    entity: Customer
+    cardinality: one
+  second:
+    entity: Order
+    cardinality: one-or-many
+::::
+```
+
+Each end's `cardinality:` states how many instances of that end's entity
+participate in one relationship instance, and renders at that end, so the
+Block above reads "one customer places one-or-many orders". The cardinality
+enum is shared verbatim with class association ends, and the authored words
+never appear in output. Two warnings report topology without failing a Block —
+an entity with no `primary` key, and an entity in no relationship.
+
+### `class`
+
+Class diagrams author classes and interfaces with ordered members, plus typed
+relationships. A `class` may be `abstract:` and carries `attributes:` and
+`operations:`; an `interface` is an operation contract only, so an attribute on
+one is rejected rather than quietly accepted. An operation's `parameters:` is an
+ordered collection of `name:` and optional `type:` records, and the renderer
+always emits the parentheses, so an operation that omits both `parameters:` and
+`return-type:` still renders as `total()`. `inheritance` and `implementation`
+point from subtype to supertype with a hollow triangle at the target end and
+`implementation` drawn dashed; `aggregation` and `composition` put the diamond
+at the `from:` end; and `association` renders with no arrowhead at all, because
+navigability is deferred and an invented arrow would claim a direction the
+author never wrote.
+
+```text
+:::: class
+id: payment-classes
+number: true
+title: Payment classes
+----
+- kind: interface
+  name: PaymentGateway
+  operations:
+    - name: authorize
+      parameters:
+        - name: amount
+          type: Money
+        - name: source
+          type: Account
+      return-type: Authorization
+- kind: class
+  name: StripeGateway
+  operations:
+    - name: authorize
+      visibility: public
+      parameters:
+        - name: amount
+          type: Money
+      return-type: Authorization
+- kind: relationship
+  form: implementation
+  from: StripeGateway
+  to: PaymentGateway
+::::
+```
+
+Member order is display order, and `visibility:` and `static:` stay unspecified
+when omitted rather than defaulting to public. `inheritance` requires both ends
+to agree — two classes or two interfaces — `implementation` requires an
+interface target, multiplicity is refused on both ranked forms, and an
+inheritance cycle is an error listing its path. Multiple inheritance is legal
+and unremarked, because the compiler claims no language semantics. One warning
+reports topology without failing a Block: a class in no relationship.
+
 ## Data and composition
 
 ### `table`

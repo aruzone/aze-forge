@@ -23,6 +23,7 @@ alpha catalog is sequenced.
 | `06-corrective-diagnostics.aze.md` | Representative diagnostics that should appear under the approved contracts. |
 | `07-timing-scenarios.aze.md` | Clocked bus transaction on the cycle scale and its duration-equivalent time-scale twin. |
 | `08-diagram-scenarios.aze.md` | Branching flowchart with a cycle, tree with forward references, and a grouped service architecture with nested groups, ports and undirected multi-edges. |
+| `09-models-scenarios.aze.md` | Login exchange, order lifecycle, order/customer schema, and a small class hierarchy: the four typed software and data model directives, per the resolved [issue #61](https://github.com/aruzone/aze-forge/issues/61#issuecomment-5580464259) contract. |
 
 ## Approved constraints
 

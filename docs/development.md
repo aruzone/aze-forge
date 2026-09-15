@@ -81,6 +81,18 @@ node --test test/equation.test.mjs
   ids, escaping and terminators), and `test/diagram.test.mjs` (the compiler
   path: two-pass reference resolution, mode-scoped warnings, content identity
   across Themes and formats, and the three contract scenarios).
+- The software and data models family has one seam per layer, because the
+  layers are independently replaceable: `test/models-block.test.mjs` (the four
+  directive grammars — `sequence`, `state`, `entity`, `class` — with their
+  diagnostic namespaces and per-kind ceilings), `test/models-layout.test.mjs`
+  (deterministic per-kind geometry: figure containment, fragment-tab and
+  label clearance, composite nesting, route avoidance and marker ends),
+  `test/models-render.test.mjs`
+  (the SVG emitter, intrinsic sizing from the advance metric, positional ids,
+  escaping and terminators), and `test/models.test.mjs` (the compiler path:
+  per-scope activation balance, per-scope state reachability, reference
+  resolution, key and inheritance checks, content identity across Themes and
+  formats, and the four contract scenarios).
 - `test/advance-metric.test.mjs` is the Advance metric seam: the generated
   character-advance table over both pinned font packages, its
   uncovered-code-point rule, and the script scale that sizes diagram boxes

@@ -310,7 +310,7 @@ async function stepCatalog() {
     `azeforge.acceptance/v1 with ${canonical.entries.length} entries`,
   );
   const p0 = canonical.entries.filter((item) => item.gate === "p0");
-  check("P0-CLI-007", "catalog covers every required P0 contract", p0.length === 43 && p0.every((item) => item.required), `${p0.length} P0 entries`);
+  check("P0-CLI-007", "catalog covers every required P0 contract", p0.length === 45 && p0.every((item) => item.required), `${p0.length} P0 entries`);
   const ids = new Set(canonical.entries.map((item) => item.id));
   check("P0-CLI-007", "catalog IDs are unique", ids.size === canonical.entries.length, `${ids.size} unique IDs`);
   const coverage = checkAcceptanceCoverage(AUTOMATED_P0_IDS);
@@ -341,6 +341,39 @@ function assertGoldenHtml(id, html) {
   if (!/text-align:left/.test(html) || !/text-align:center/.test(html) || !/text-align:right/.test(html)) failures.push("align");
   failures.push(...timingFailures(html).map((failure) => `timing:${failure}`));
   failures.push(...diagramFailures(html).map((failure) => `diagram:${failure}`));
+  failures.push(...modelsFailures(html).map((failure) => `models:${failure}`));
+  return failures;
+}
+
+// The native Models family proves itself through inspectable structure: the
+// Golden login sequence must render its lanes, activation bars, fragment frame
+// and note, and the payment class hierarchy its boxes, dividers and diamonds,
+// each carrying its authored labels and an ordered timeline summary.
+const MODELS_FIGURES = [
+  ["sequence", "login-exchange", "Login exchange"],
+  ["class", "payment-classes", "Payment classes"],
+];
+
+function modelsFailures(markup) {
+  const failures = [];
+  for (const [kind, id, title] of MODELS_FIGURES) {
+    if (!markup.includes(`data-${kind}-id="${id}"`)) failures.push(`${kind}-figure`);
+    if (!markup.includes(`>${title}<`)) failures.push(`${kind}-name`);
+  }
+  for (const [needle, label] of [
+    ["aze-sequence-participant", "participant"],
+    ["aze-sequence-activation", "activation"],
+    ["aze-sequence-fragment", "fragment"],
+    ["aze-sequence-note", "note"],
+    ["aze-class-box", "class-box"],
+    ["aze-class-divider", "class-divider"],
+    ["aze-class-diamond", "class-diamond"],
+    [">PaymentGateway<", "interface-header"],
+    ["api_key", "member-name"],
+    ["1. user → web: Submit credentials", "timeline-summary"],
+  ]) {
+    if (!markup.includes(needle)) failures.push(label);
+  }
   return failures;
 }
 
@@ -348,6 +381,21 @@ function assertGoldenHtml(id, html) {
 // geometry, so every state the Golden clocked-bus transaction authors must be
 // present, alongside the authored bus value, marker, group and arrow anchors.
 // Both scale surfaces of the one shared scale must reach every format.
+/**
+ * Chromium writes a PDF string literally when every code unit fits
+ * PDFDocEncoding and as a UTF-16BE hex string otherwise, so one authored
+ * string can appear in two forms. The models timeline summary carries U+2192,
+ * which flips the whole alt string to the hex form.
+ */
+function pdfCarriesText(latin1, text) {
+  if (latin1.includes(text)) return true;
+  const hex = [...text]
+    .map((character) => character.charCodeAt(0).toString(16).padStart(4, "0"))
+    .join("")
+    .toUpperCase();
+  return latin1.includes(hex);
+}
+
 const TIMING_STATES = ["low", "high", "unknown", "impedance", "bus", "continue", "rise", "fall"];
 const TIMING_FIGURES = [
   ["clocked-bus-transaction", "Clocked bus transaction", "cycles"],
@@ -466,6 +514,7 @@ async function stepGoldenMatrix(live) {
           if (!/Representative material properties/.test(svg)) failures.push("caption");
           failures.push(...timingFailures(svg).map((failure) => `timing:${failure}`));
           failures.push(...diagramFailures(svg).map((failure) => `diagram:${failure}`));
+          failures.push(...modelsFailures(svg).map((failure) => `models:${failure}`));
           check("P0-OUT-001", `${cell} carries every semantic object`, failures.length === 0, failures.join(",") || "equations,mermaid,table,plot,chart,timing");
         }
         if (format === "png") {
@@ -509,6 +558,10 @@ async function stepGoldenMatrix(live) {
             if (!latin1.includes(alt)) failures.push("timing-figure-alt");
           }
           if (!/\/Title \(Diagrams/.test(latin1)) failures.push("diagram-bookmark");
+          if (!/\/Title \(Software and data models/.test(latin1)) failures.push("models-bookmark");
+          for (const alt of ["Login exchange", "Payment classes"]) {
+            if (!pdfCarriesText(latin1, alt)) failures.push("models-figure-alt");
+          }
           for (const alt of [
             "/Alt (Request branching process",
             "/Alt (Compiler component tree",

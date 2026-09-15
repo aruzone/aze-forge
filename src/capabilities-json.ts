@@ -185,7 +185,7 @@ export const capabilitiesJsonSchema: JsonValue = Object.freeze({
     security: { type: "object" },
     engines: {
       type: "object",
-      required: ["browser", "katex", "mermaid", "plot", "geometry", "chemistry", "timing", "diagram", "fonts"],
+      required: ["browser", "katex", "mermaid", "plot", "geometry", "chemistry", "timing", "diagram", "models", "fonts"],
       additionalProperties: false,
       properties: {
         browser: {
@@ -202,10 +202,11 @@ export const capabilitiesJsonSchema: JsonValue = Object.freeze({
         },
         katex: {
           type: "object",
-          required: ["version", "availability"],
+          required: ["version", "language", "availability"],
           additionalProperties: false,
           properties: {
             version: { type: "string", minLength: 1 },
+            language: { type: "string", minLength: 1 },
             availability,
           },
         },
@@ -258,6 +259,32 @@ export const capabilitiesJsonSchema: JsonValue = Object.freeze({
           additionalProperties: false,
           properties: {
             emitter: { type: "string", minLength: 1 },
+            availability,
+          },
+        },
+        models: {
+          type: "object",
+          required: [
+            "layout",
+            "wrap",
+            "emitter",
+            "advanceMetric",
+            "metricSource",
+            "directiveTypes",
+            "availability",
+          ],
+          additionalProperties: false,
+          properties: {
+            layout: { type: "string", minLength: 1 },
+            wrap: { type: "string", minLength: 1 },
+            emitter: { type: "string", minLength: 1 },
+            advanceMetric: { type: "string", minLength: 1 },
+            metricSource: { type: "array", minItems: 1, items: { type: "string", minLength: 1 } },
+            directiveTypes: {
+              type: "array",
+              minItems: 1,
+              items: { enum: ["sequence", "state", "entity", "class"] },
+            },
             availability,
           },
         },
