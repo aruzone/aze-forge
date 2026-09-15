@@ -13,6 +13,7 @@ import {
   structureHtmlBlockRenderer,
 } from "./chemistry.js";
 import { circuitHtmlBlockRenderer } from "./circuit-render.js";
+import { timingHtmlBlockRenderer } from "./timing-render.js";
 
 import { assetManifestHash } from "./assets.js";
 import { artifactBytesHash, canonicalJson, sha256 } from "./hash.js";
@@ -77,6 +78,7 @@ export const pngBlockRenderers: readonly AnyBlockRenderer[] = Object.freeze([
   pngBlockRenderer(reactionHtmlBlockRenderer),
   pngBlockRenderer(structureHtmlBlockRenderer),
   pngBlockRenderer(circuitHtmlBlockRenderer),
+  pngBlockRenderer(timingHtmlBlockRenderer),
 ]);
 
 export interface PngBrowserCapability {

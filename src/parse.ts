@@ -37,6 +37,8 @@ import { CHART_PLUGIN_TYPE, PLOT_PLUGIN_TYPE } from "./plot-schemas.js";
 import { EMPTY_DOCUMENT_DEFAULTS, chartPlugin, parseDocumentDefaults, plotPlugin, validateChartBlock, validatePlotBlock, type PlotBlockDefaults, type PlotDocumentDefaults, type PlotInputLine } from "./plot.js";
 import { CIRCUIT_PLUGIN_TYPE } from "./circuit-schemas.js";
 import { circuitPlugin, validateCircuitBlock, type CircuitInputLine } from "./circuit.js";
+import { TIMING_PLUGIN_TYPE } from "./timing-schemas.js";
+import { timingPlugin, validateTimingBlock, type TimingInputLine } from "./timing.js";
 import type {
   ArtifactFormat,
   CalloutBlock,
@@ -2185,6 +2187,36 @@ function parseCircuitEnvelope(
   diagnostics.push(...validated.diagnostics);
   return validated.block ?? invalidBlockFor(source, first, last, startIndex, diagnostics, CIRCUIT_PLUGIN_TYPE);
 }
+function parseTimingEnvelope(
+  source: string,
+  lines: readonly SourceLine[],
+  openIndex: number,
+  closingIndex: number,
+  first: SourceLine,
+  last: SourceLine,
+  options: ParseOptions,
+  diagnostics: Diagnostic[],
+): ParsedBlock {
+  const blockRange = rangeFromLines(first, last);
+  const startIndex = diagnostics.length;
+  const { bodyStart, separatorFound } = splitHeaderEntries(lines, openIndex, closingIndex);
+  if (!separatorFound) {
+    missingSeparatorDiagnostic(lines, openIndex, closingIndex, first, options, diagnostics);
+    return invalidBlockFor(source, first, last, startIndex, diagnostics, TIMING_PLUGIN_TYPE);
+  }
+  const toInput = (line: SourceLine): TimingInputLine => ({
+    text: lineText(line),
+    range: rangeFromLines(line, line),
+  });
+  const validated = validateTimingBlock({
+    headerLines: lines.slice(openIndex + 1, bodyStart - 1).map(toInput),
+    bodyLines: lines.slice(bodyStart, closingIndex).map(toInput),
+    blockRange,
+    ...(options.sourceName === undefined ? {} : { sourceName: options.sourceName }),
+  });
+  diagnostics.push(...validated.diagnostics);
+  return validated.block ?? invalidBlockFor(source, first, last, startIndex, diagnostics, TIMING_PLUGIN_TYPE);
+}
 
 
 function parseChemistryEnvelope(
@@ -2467,6 +2499,10 @@ function parseBlocks(
             validateChartBlock,
           ),
         );
+        continue;
+      }
+      if (closed && originalType === TIMING_PLUGIN_TYPE && activeTypes.includes(TIMING_PLUGIN_TYPE)) {
+        blocks.push(parseTimingEnvelope(source, lines, openIndex, closingIndex, first, last, options, diagnostics));
         continue;
       }
       if (
@@ -3007,6 +3043,7 @@ export function parseSource(source: string, options: ParseOptions = {}): ParseRe
     formulaPlugin,
     reactionPlugin,
     circuitPlugin,
+    timingPlugin,
     structurePlugin,
   ];
   const activeTypes = [...new Set(activePlugins.map((plugin) => plugin.descriptor.type))].sort();

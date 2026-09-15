@@ -13,6 +13,7 @@ import {
 } from "./chemistry.js";
 import { renderCircuitFragment } from "./circuit-render.js";
 import type { EmbeddedFontFace } from "./font.js";
+import { renderTimingFragment, timingDependencyClosure } from "./timing-render.js";
 import { artifactBytesHash, canonicalJson, sha256 } from "./hash.js";
 import { escapeHtml, renderInlineHtml } from "./html-fragment.js";
 import { inlineTextValue } from "./markdown.js";
@@ -37,6 +38,7 @@ import type {
   MermaidBlock,
   Theme,
   CircuitBlock,
+  TimingBlock,
 } from "./model.js";
 import { renderTableFragment } from "./table.js";
 
@@ -92,6 +94,10 @@ export interface HtmlPluginRenderers {
     block: CircuitBlock,
     context: BlockRendererContext,
   ) => string;
+  readonly renderTiming?: (
+    block: TimingBlock,
+    context: BlockRendererContext,
+  ) => string;
 }
 
 interface RenderContext {
@@ -133,6 +139,10 @@ interface RenderContext {
   ) => string;
   readonly renderCircuit: (
     block: CircuitBlock,
+    context: BlockRendererContext,
+  ) => string;
+  readonly renderTiming: (
+    block: TimingBlock,
     context: BlockRendererContext,
   ) => string;
 }
@@ -229,6 +239,11 @@ function renderBlock(block: AzeBlock, context: RenderContext): string {
         ...(context.sourceName === undefined ? {} : { sourceName: context.sourceName }),
         renderBlocks: (children) => renderBlocks(children, context),
       });
+    case "timing":
+      return context.renderTiming(block, {
+        ...(context.sourceName === undefined ? {} : { sourceName: context.sourceName }),
+        renderBlocks: (children) => renderBlocks(children, context),
+      });
     case "structure":
       return context.renderStructure(block, {
         ...(context.sourceName === undefined ? {} : { sourceName: context.sourceName }),
@@ -293,6 +308,8 @@ export function createHtmlLayout(
     pluginRenderers.renderStructure ?? ((block: StructureBlock, context: BlockRendererContext): string => renderStructureFragment(block, context));
   const renderCircuit =
     pluginRenderers.renderCircuit ?? ((block: CircuitBlock, context: BlockRendererContext): string => renderCircuitFragment(block, context));
+  const renderTiming =
+    pluginRenderers.renderTiming ?? ((block: TimingBlock, context: BlockRendererContext): string => renderTimingFragment(block, context));
   const context: RenderContext = {
     equationFragments,
     derivationFragments,
@@ -305,12 +322,13 @@ export function createHtmlLayout(
     renderReaction,
     renderStructure,
     renderCircuit,
+    renderTiming,
     renderTable,
   };
   return {
     title: escapeHtml(documentTitle(document)),
     description: "AzeForge whole-Document Artifact",
-    css: `${embeddedFontCss(fontFaces)}${themeCss(theme)}${getKatexCss()}.aze-equation{margin:1em 0;text-align:center}.aze-equation[data-align="left"]{text-align:left}.aze-equation[data-align="right"]{text-align:right}.aze-derivation{margin:1em 0}.aze-derivation ol{list-style:none;padding:0;margin:0}.aze-derivation li{display:block;text-align:center;margin:.35em 0}.aze-derivation[data-align="left"] li{text-align:left}.aze-derivation[data-align="right"] li{text-align:right}.aze-derivation .aze-derivation-annotation{display:block;font-style:italic;color:#666;font-size:.9em}.aze-mermaid{margin:1em 0}.aze-mermaid svg{display:block;max-width:100%;max-height:520px;width:auto;height:auto;margin:0 auto}.aze-plot{margin:1em 0}.aze-plot svg{display:block;max-width:100%;height:auto;margin:0 auto}.aze-chart{margin:1em 0}.aze-chart svg{display:block;max-width:100%;height:auto;margin:0 auto}.aze-geometry{margin:1em 0}.aze-geometry svg{display:block;max-width:100%;height:auto;margin:0 auto}.aze-circuit{margin:1em 0;color:inherit}.aze-circuit svg{display:block;max-width:100%;height:auto}.aze-formula{margin:1em 0;text-align:center}.aze-formula .aze-formula-expression{font-size:1.05em}.aze-reaction{margin:1em 0;text-align:center}.aze-reaction .aze-reaction-arrow{font-size:1.1em}.aze-reaction .aze-reaction-conditions{display:inline-block;font-size:.85em;font-style:italic;color:#666}.aze-structure{margin:1em 0}.aze-structure svg{display:block;max-width:100%;height:auto;margin:0 auto}`,
+    css: `${embeddedFontCss(fontFaces)}${themeCss(theme)}${getKatexCss()}.aze-equation{margin:1em 0;text-align:center}.aze-equation[data-align="left"]{text-align:left}.aze-equation[data-align="right"]{text-align:right}.aze-derivation{margin:1em 0}.aze-derivation ol{list-style:none;padding:0;margin:0}.aze-derivation li{display:block;text-align:center;margin:.35em 0}.aze-derivation[data-align="left"] li{text-align:left}.aze-derivation[data-align="right"] li{text-align:right}.aze-derivation .aze-derivation-annotation{display:block;font-style:italic;color:#666;font-size:.9em}.aze-mermaid{margin:1em 0}.aze-mermaid svg{display:block;max-width:100%;max-height:520px;width:auto;height:auto;margin:0 auto}.aze-plot{margin:1em 0}.aze-plot svg{display:block;max-width:100%;height:auto;margin:0 auto}.aze-chart{margin:1em 0}.aze-chart svg{display:block;max-width:100%;height:auto;margin:0 auto}.aze-geometry{margin:1em 0}.aze-geometry svg{display:block;max-width:100%;height:auto;margin:0 auto}.aze-circuit{margin:1em 0;color:inherit}.aze-circuit svg{display:block;max-width:100%;height:auto}.aze-timing{margin:1em 0;color:inherit}.aze-timing svg{display:block;max-width:100%;height:auto;margin:0 auto}.aze-formula{margin:1em 0;text-align:center}.aze-formula .aze-formula-expression{font-size:1.05em}.aze-reaction{margin:1em 0;text-align:center}.aze-reaction .aze-reaction-arrow{font-size:1.1em}.aze-reaction .aze-reaction-conditions{display:inline-block;font-size:.85em;font-style:italic;color:#666}.aze-structure{margin:1em 0}.aze-structure svg{display:block;max-width:100%;height:auto;margin:0 auto}`,
     body: `<main><article>${renderBlocks(document.blocks, context)}</article></main>`,
     fingerprintDependencies: {
       theme: theme as unknown as JsonValue,
@@ -330,6 +348,9 @@ export function createHtmlLayout(
         : {}),
       ...(document.blocks.some((block) => block.kind === "formula" || block.kind === "reaction" || block.kind === "structure")
         ? { chemistry: chemistryDependencyClosure() }
+        : {}),
+      ...(document.blocks.some((block) => block.kind === "timing")
+        ? { timing: timingDependencyClosure() }
         : {}),
       prose: {
         serializer: "azeforge-prose/v1",

@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 
+import { addExactDecimals } from "./quantity.js";
 import { isTypedTableData } from "./table.js";
 import type {
   ArtifactHash,
@@ -11,6 +12,7 @@ import type {
   ParsedBlock,
   Sha256Hash,
   TableData,
+  TimingInterval,
   TypedTableData,
 } from "./model.js";
 
@@ -128,6 +130,39 @@ function projectTableData(data: TableData | TypedTableData): JsonValue {
   };
 }
 
+/**
+ * Fold adjacent intervals that share a state and value into one. The two
+ * authoring surfaces meet here: `4.` and `....` are the same content, while
+ * a different parse stays different content.
+ */
+function timingIntervals(intervals: readonly TimingInterval[]): readonly TimingInterval[] {
+  const merged: TimingInterval[] = [];
+  for (const interval of intervals) {
+    const previous = merged[merged.length - 1];
+    const sameText =
+      previous !== undefined &&
+      (previous.value === undefined || interval.value === undefined
+        ? previous.value === interval.value
+        : canonicalJson(previous.value as unknown as JsonValue) ===
+          canonicalJson(interval.value as unknown as JsonValue));
+    if (previous === undefined || previous.state !== interval.state || !sameText) {
+      merged.push(interval);
+      continue;
+    }
+    merged[merged.length - 1] = {
+      state: previous.state,
+      ...(previous.count === undefined
+        ? {}
+        : { count: addExactDecimals(previous.count, interval.count ?? "0") }),
+      ...(previous.duration === undefined
+        ? {}
+        : { duration: addExactDecimals(previous.duration, interval.duration ?? "0") }),
+      ...(previous.value === undefined ? {} : { value: previous.value }),
+    };
+  }
+  return merged;
+}
+
 export function documentContentHash(document: AzeDocument): ContentHash {
   const metadata: Record<string, JsonValue> = {
     authors: document.metadata.authors,
@@ -138,6 +173,55 @@ export function documentContentHash(document: AzeDocument): ContentHash {
   if (document.metadata.outputs !== undefined) metadata.outputs = document.metadata.outputs;
 
   function projectBlock(block: ParsedBlock | AzeBlock): JsonValue {
+    if (block.kind === "timing") {
+      // Parsed semantics only: states, lengths, text, widths, scale/unit/phase,
+      // authored order. Anchors contribute their resolved signal and boundary;
+      // source ranges and renderer geometry stay out of identity.
+      const projected: Record<string, JsonValue> = {
+        kind: block.kind,
+        pluginVersion: block.pluginVersion,
+        title: block.title as unknown as JsonValue,
+        scale: block.scale,
+        signals: block.signals.map((signal) => ({
+          ref: signal.ref,
+          clock: signal.clock,
+          phase: signal.phase,
+          ...(signal.width === undefined ? {} : { width: signal.width }),
+          intervals: timingIntervals(signal.intervals).map((interval) => ({
+            state: interval.state,
+            ...(interval.count === undefined ? {} : { count: interval.count }),
+            ...(interval.duration === undefined ? {} : { duration: interval.duration }),
+            ...(interval.value === undefined
+              ? {}
+              : { value: interval.value as unknown as JsonValue }),
+          })),
+        })),
+        groups: block.groups.map((group) => ({
+          label: group.label as unknown as JsonValue,
+          signals: [...group.signals],
+        })),
+        markers: block.markers.map((marker) => ({
+          at: marker.at,
+          ...(marker.label === undefined
+            ? {}
+            : { label: marker.label as unknown as JsonValue }),
+        })),
+        arrows: block.arrows.map((arrow) => ({
+          from: { signal: arrow.from.signal, boundary: arrow.from.boundary },
+          to: { signal: arrow.to.signal, boundary: arrow.to.boundary },
+          ...(arrow.label === undefined
+            ? {}
+            : { label: arrow.label as unknown as JsonValue }),
+        })),
+      };
+      if (block.id !== undefined) projected.id = block.id;
+      if (block.number !== undefined) projected.number = block.number;
+      if (block.description !== undefined) {
+        projected.description = block.description as unknown as JsonValue;
+      }
+      if (block.unit !== undefined) projected.unit = block.unit;
+      return projected;
+    }
     if (block.kind === "circuit") {
       const projected: Record<string, JsonValue> = {
         kind: block.kind,

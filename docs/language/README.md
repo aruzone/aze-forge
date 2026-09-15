@@ -21,6 +21,7 @@ alpha catalog is sequenced.
 | `04-chemistry-information.aze.md` | Specified versus unspecified/omitted chemistry information, per R4. |
 | `05-composition-report.aze.md` | Table, algorithm, statement/proof, and worked example. |
 | `06-corrective-diagnostics.aze.md` | Representative diagnostics that should appear under the approved contracts. |
+| `07-timing-scenarios.aze.md` | Clocked bus transaction on the cycle scale and its duration-equivalent time-scale twin. |
 
 ## Approved constraints
 

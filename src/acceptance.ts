@@ -375,6 +375,33 @@ export const ACCEPTANCE_ENTRIES: readonly AcceptanceEntry[] = Object.freeze([
     ["#51", "#64"],
   ),
   acceptanceEntry(
+    "P0-TIM-001",
+    "p0",
+    "timing",
+    "Native timing Blocks over one shared cycle-or-time scale",
+    "they are compiled",
+    [
+      "bounded wave: strings and intervals: duration records parse into authored-order intervals over one registered interval-state enum with edge states admitted as intervals",
+      "bus value text and width stay authored display facts while contiguous groups and signal@boundary markers and arrows resolve against declared signals",
+      "authored timing is preserved rather than certified",
+    ],
+    "automated",
+    ["#51", "#63"],
+  ),
+  acceptanceEntry(
+    "P0-TIM-002",
+    "p0",
+    "timing",
+    "Invalid or over-limit timing declarations",
+    "they are compiled",
+    [
+      "invalid interval spellings, wrong scale form, non-contiguous or over-nested groups, unresolvable anchors, and malformed text diagnose with stable sub-ranged azeforge.timing codes",
+      "every exceeded ceiling diagnoses in the same sub-ranged namespace and the family registers no warnings",
+    ],
+    "automated",
+    ["#51", "#63"],
+  ),
+  acceptanceEntry(
     "P0-OUT-001",
     "p0",
     "artifact",

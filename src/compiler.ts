@@ -27,6 +27,7 @@ import type {
   ReactionBlock,
   StructureBlock,
   CircuitBlock,
+  TimingBlock,
   CompileOptions,
   CompileResult,
   Compiler,
@@ -540,6 +541,26 @@ function collectRenderText(blocks: readonly AzeBlock[], out: string[]): void {
           }
         }
         break;
+      case "timing": {
+        if (block.id !== undefined) out.push(block.id);
+        const texts = [
+          block.title,
+          ...(block.description === undefined ? [] : [block.description]),
+          ...block.signals.flatMap((signal) =>
+            signal.intervals.flatMap((interval) => (interval.value === undefined ? [] : [interval.value])),
+          ),
+          ...block.groups.map((group) => group.label),
+          ...block.markers.flatMap((marker) => (marker.label === undefined ? [] : [marker.label])),
+          ...block.arrows.flatMap((arrow) => (arrow.label === undefined ? [] : [arrow.label])),
+        ];
+        for (const text of texts) {
+          for (const run of text) {
+            out.push(run.kind === "quantity" ? `${run.coefficient} ${run.prefix}${run.unit}` : run.value);
+          }
+        }
+        for (const signal of block.signals) out.push(signal.ref);
+        break;
+      }
     }
   }
 }
@@ -1312,6 +1333,10 @@ interface PluginAdapterResolution {
     block: CircuitBlock,
     context: BlockRendererContext,
   ) => string;
+  readonly renderTiming?: (
+    block: TimingBlock,
+    context: BlockRendererContext,
+  ) => string;
 }
 
 function checkPluginAdapters(
@@ -1350,6 +1375,9 @@ function checkPluginAdapters(
   let renderCircuit:
     | ((block: CircuitBlock, context: BlockRendererContext) => string)
     | undefined;
+  let renderTiming:
+    | ((block: TimingBlock, context: BlockRendererContext) => string)
+    | undefined;
   for (const entry of [
     { blockType: "callout", pluginVersion: "1.0.0" },
     { blockType: "table", pluginVersion: "2.0.0" },
@@ -1360,6 +1388,7 @@ function checkPluginAdapters(
     { blockType: "reaction", pluginVersion: "1.0.0" },
     { blockType: "structure", pluginVersion: "1.0.0" },
     { blockType: "circuit", pluginVersion: "1.0.0" },
+    { blockType: "timing", pluginVersion: "1.0.0" },
   ] as const) {
     const entryType: string = entry.blockType;
     const blocks = pluginBlocks(document, entry.blockType);
@@ -1583,6 +1612,18 @@ function checkPluginAdapters(
         }
         return result;
       };
+    } else if (entry.blockType === "timing") {
+      const render = chosen.render as (
+        block: TimingBlock,
+        context: BlockRendererContext,
+      ) => string | Promise<string>;
+      renderTiming = (block, context) => {
+        const result = render(block, context);
+        if (typeof result !== "string") {
+          throw new BlockRendererSyncError(chosen.descriptor.id, "timing");
+        }
+        return result;
+      };
     } else {
       throw new CompilerConfigurationError(
         "AZE_CONFIG_ADAPTER_BLOCK_TYPE",
@@ -1601,6 +1642,7 @@ function checkPluginAdapters(
     ...(renderReaction === undefined ? {} : { renderReaction }),
     ...(renderStructure === undefined ? {} : { renderStructure }),
     ...(renderCircuit === undefined ? {} : { renderCircuit }),
+    ...(renderTiming === undefined ? {} : { renderTiming }),
   };
 }
 
@@ -2006,6 +2048,9 @@ export function createCompiler(options: CompilerOptions = {}): Compiler {
           ...(pluginPreflight.renderCircuit === undefined
             ? {}
             : { renderCircuit: pluginPreflight.renderCircuit }),
+          ...(pluginPreflight.renderTiming === undefined
+            ? {}
+            : { renderTiming: pluginPreflight.renderTiming }),
         };
         const renderArguments = [
           imageResolution.document,

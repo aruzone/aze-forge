@@ -185,7 +185,7 @@ export const capabilitiesJsonSchema: JsonValue = Object.freeze({
     security: { type: "object" },
     engines: {
       type: "object",
-      required: ["browser", "katex", "mermaid", "plot", "geometry", "fonts"],
+      required: ["browser", "katex", "mermaid", "plot", "geometry", "chemistry", "timing", "fonts"],
       additionalProperties: false,
       properties: {
         browser: {
@@ -240,6 +240,24 @@ export const capabilitiesJsonSchema: JsonValue = Object.freeze({
             emitter: { type: "string", minLength: 1 },
             eval: { type: "string", minLength: 1 },
             epsilon: { type: "number", minimum: 0 },
+            availability,
+          },
+        },
+        chemistry: {
+          type: "object",
+          required: ["emitter", "availability"],
+          additionalProperties: false,
+          properties: {
+            emitter: { type: "string", minLength: 1 },
+            availability,
+          },
+        },
+        timing: {
+          type: "object",
+          required: ["emitter", "availability"],
+          additionalProperties: false,
+          properties: {
+            emitter: { type: "string", minLength: 1 },
             availability,
           },
         },

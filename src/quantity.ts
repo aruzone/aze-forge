@@ -104,6 +104,20 @@ export interface ParsedQuantity {
   readonly unit: string;
 }
 
+/** Exact decimal addition over canonical non-negative spellings. */
+export function addExactDecimals(left: string, right: string): string {
+  const [leftInt = "0", leftFrac = ""] = left.split(".");
+  const [rightInt = "0", rightFrac = ""] = right.split(".");
+  const scale = Math.max(leftFrac.length, rightFrac.length);
+  const units =
+    BigInt(`${leftInt}${leftFrac.padEnd(scale, "0")}`) +
+    BigInt(`${rightInt}${rightFrac.padEnd(scale, "0")}`);
+  const digits = units.toString().padStart(scale + 1, "0");
+  const whole = digits.slice(0, digits.length - scale);
+  const fraction = scale === 0 ? "" : digits.slice(digits.length - scale);
+  return canonicalExactDecimal(scale === 0 ? whole : `${whole}.${fraction}`);
+}
+
 interface Split {
   readonly coefficient: string;
   readonly unit: string;

@@ -222,22 +222,24 @@ title: Unbound resistor terminal
 ::::
 // Expected: existing Circuit diagnostic — terminal `R1.b` is declared but not bound.
 
-// TIMING — bus interval on the cycles scale written as a word instead of a character.
+// TIMING — a signal written with the time-scale `intervals:` collection on the cycle scale.
 
 :::: timing
 id: timing-wrong-form
 number: false
 scale: cycles
-title: Wrong waveform form for cycles scale
+title: Wrong waveform form for the cycle scale
 ----
 - kind: signal
-  name: data
+  ref: addr
+  width: 8
+  wave: 0011
   intervals:
     - state: bus
-      duration: 2
+      duration: 1
       value: A5
 ::::
-// Expected: azeforge.timing error — cycles scale requires the `wave:` string form, not `intervals:`.
+// Expected: azeforge.timing#invalid-field — `intervals:` is only valid with `scale: time`; the cycle scale takes the `wave:` string.
 
 // CHEMISTRY — attachment atom carrying charge.
 

@@ -307,6 +307,50 @@ id: voltage-divider
 Circuit support is coordinate-free: the semantic connections are represented
 by node and terminal relations rather than manually positioned wires.
 
+### `timing`
+
+Timing blocks describe digital transactions over one shared scale: the integer
+cycle grid, or an explicit duration axis with a registered unit. Clock and
+single-bit signals carry edge states, buses carry authored values, and unknown
+and high-impedance windows remain distinct states. Groups, markers, and
+`signal@boundary` arrows are authored display facts.
+
+```text
+:::: timing
+id: handshake
+number: true
+title: Clocked handshake
+scale: cycles
+----
+- kind: signal
+  ref: clk
+  clock: true
+  wave: 2p2n
+- kind: signal
+  ref: valid
+  wave: 0011
+- kind: signal
+  ref: addr
+  width: 8
+  wave: x={A5}.
+- kind: group
+  label: Transaction
+  signals: valid, addr
+- kind: marker
+  at: 0
+  label: Reset
+- kind: arrow
+  from: addr@2
+  to: valid@2
+  label: t_{su}
+::::
+```
+
+Signals, groups, markers, and arrows keep their authored order in the
+Document. The family registers no warnings: every unsupported or
+contradictory declaration is an error, and arrows and markers describe the
+claimed transaction rather than certifying it.
+
 ## Diagrams
 
 ### `mermaid`

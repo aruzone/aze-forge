@@ -9,6 +9,20 @@ import {
   MAX_CIRCUIT_RELATIONS,
 } from "./circuit.js";
 import {
+  MAX_TIMING_ARROWS,
+  MAX_TIMING_GROUP_DEPTH,
+  MAX_TIMING_GROUPS,
+  MAX_TIMING_INTERVALS,
+  MAX_TIMING_MARKERS,
+  MAX_TIMING_SIGNALS,
+  MAX_TIMING_SPAN,
+  MAX_TIMING_TEXT_CODE_POINTS,
+  MAX_TIMING_TOTAL_INTERVALS,
+  MAX_TIMING_WAVE_CHARS,
+  MAX_TIMING_WIDTH,
+} from "./timing.js";
+import { TIMING_EMITTER_VERSION } from "./timing-render.js";
+import {
   MAX_EQUATION_SOURCE_LENGTH,
   MAX_EQUATION_TEX_LENGTH,
 } from "./equation.js";
@@ -251,6 +265,10 @@ export interface CapabilitiesReport {
       emitter: typeof CHEMISTRY_EMITTER_VERSION;
       availability: EngineAvailability;
     }>;
+    readonly timing: Readonly<{
+      emitter: typeof TIMING_EMITTER_VERSION;
+      availability: EngineAvailability;
+    }>;
     readonly fonts: readonly {
       readonly family: string;
       readonly weights: readonly number[];
@@ -489,6 +507,19 @@ export async function buildCapabilities(
           maxRelations: MAX_CIRCUIT_RELATIONS,
           maxAnnotations: MAX_CIRCUIT_ANNOTATIONS,
         },
+        timing: {
+          maxSignals: MAX_TIMING_SIGNALS,
+          maxIntervals: MAX_TIMING_INTERVALS,
+          maxTotalIntervals: MAX_TIMING_TOTAL_INTERVALS,
+          maxGroups: MAX_TIMING_GROUPS,
+          maxGroupDepth: MAX_TIMING_GROUP_DEPTH,
+          maxMarkers: MAX_TIMING_MARKERS,
+          maxArrows: MAX_TIMING_ARROWS,
+          maxTextCodePoints: MAX_TIMING_TEXT_CODE_POINTS,
+          maxWaveChars: MAX_TIMING_WAVE_CHARS,
+          maxSpan: MAX_TIMING_SPAN,
+          maxWidth: MAX_TIMING_WIDTH,
+        },
       },
       serve: { bind: "127.0.0.1", port: { min: 0, max: 65535, default: 0 } },
     },
@@ -527,6 +558,10 @@ export async function buildCapabilities(
       },
       chemistry: {
         emitter: CHEMISTRY_EMITTER_VERSION,
+        availability: bundled,
+      },
+      timing: {
+        emitter: TIMING_EMITTER_VERSION,
         availability: bundled,
       },
       fonts: [

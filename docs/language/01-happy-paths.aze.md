@@ -363,36 +363,38 @@ title: Clocked logic acceptance circuit
 id: bus-transaction
 number: true
 title: Clocked bus transaction
+description: single handshake
+scale: cycles
 ----
 - kind: signal
-  name: clk
-  wave: 10n10n10n10
+  ref: clk
+  clock: true
+  wave: 2p2n2p2n
 - kind: signal
-  name: valid
-  wave: 0..1..0...
+  ref: valid
+  wave: 00000111
 - kind: signal
-  name: ready
-  wave: 0...1..0.
+  ref: ready
+  wave: 00000011
 - kind: signal
-  name: addr
-  wave: x==={A5}={A6}=x....
+  ref: addr
   width: 8
+  wave: x={A5}={A6}.
 - kind: signal
-  name: data
-  wave: x===={D0}xz....
+  ref: data
   width: 8
+  phase: 1
+  wave: ={D0}xz.
 - kind: group
-  label: payload
-  signals:
-    - addr
-    - data
+  label: Transaction
+  signals: addr, data
 - kind: marker
   at: 0
-  label: reset
+  label: Reset
 - kind: arrow
   from: addr@4
   to: valid@5
-  label: t_su
+  label: t_{su}
 ::::
 
 // Chemistry: precipitation reaction and a labeled structure.

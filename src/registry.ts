@@ -26,6 +26,8 @@ import {
 } from "./chemistry.js";
 import { circuitPlugin } from "./circuit.js";
 import { circuitHtmlBlockRenderer } from "./circuit-render.js";
+import { timingPlugin } from "./timing.js";
+import { timingHtmlBlockRenderer } from "./timing-render.js";
 import {
   svgBlockRenderers,
   svgRendererDescriptor,
@@ -77,6 +79,7 @@ export function getBuiltInRegistry(): ResolvedRegistry {
       reactionPlugin,
       structurePlugin,
       circuitPlugin,
+      timingPlugin,
     ]),
     blockRenderers: Object.freeze([
       equationHtmlBlockRenderer,
@@ -91,6 +94,7 @@ export function getBuiltInRegistry(): ResolvedRegistry {
       reactionHtmlBlockRenderer,
       structureHtmlBlockRenderer,
       circuitHtmlBlockRenderer,
+      timingHtmlBlockRenderer,
       ...svgBlockRenderers,
       ...pngBlockRenderers,
       ...pdfBlockRenderers,

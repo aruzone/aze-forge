@@ -52,6 +52,7 @@ A native capability uses controlled AzeMark declarations, retains its domain mea
   - High, low, unknown, and high-impedance states
   - Labeled bus values, repeated intervals, signal groups, markers, and timing relationships
   - Shared cycle scale or explicit time scale
+  - [Implemented with the native Timing family](https://github.com/aruzone/aze-forge/issues/63).
 - Chemistry
   - Formulas with subscripts, charges, and isotopes
   - Reactions with coefficients, arrows, conditions, and state labels

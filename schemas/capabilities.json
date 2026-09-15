@@ -374,6 +374,8 @@
         "mermaid",
         "plot",
         "geometry",
+        "chemistry",
+        "timing",
         "fonts"
       ],
       "additionalProperties": false,
@@ -522,6 +524,48 @@
             "epsilon": {
               "type": "number",
               "minimum": 0
+            },
+            "availability": {
+              "enum": [
+                "unknown",
+                "available",
+                "unavailable"
+              ]
+            }
+          }
+        },
+        "chemistry": {
+          "type": "object",
+          "required": [
+            "emitter",
+            "availability"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "emitter": {
+              "type": "string",
+              "minLength": 1
+            },
+            "availability": {
+              "enum": [
+                "unknown",
+                "available",
+                "unavailable"
+              ]
+            }
+          }
+        },
+        "timing": {
+          "type": "object",
+          "required": [
+            "emitter",
+            "availability"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "emitter": {
+              "type": "string",
+              "minLength": 1
             },
             "availability": {
               "enum": [

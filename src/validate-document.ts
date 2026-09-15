@@ -244,6 +244,123 @@ function isCircuitAnnotation(value: unknown): boolean {
 }
 
 
+function isTimingIntervalState(value: unknown): boolean {
+  return (
+    value === "low" ||
+    value === "high" ||
+    value === "unknown" ||
+    value === "impedance" ||
+    value === "bus" ||
+    value === "continue" ||
+    value === "rise" ||
+    value === "fall"
+  );
+}
+
+function isTimingInterval(value: unknown): boolean {
+  return (
+    isObjectRecord(value) &&
+    hasOnlyKeys(value, ["count", "duration", "state", "value"]) &&
+    isTimingIntervalState(value.state) &&
+    (value.count === undefined || typeof value.count === "string") &&
+    (value.duration === undefined ||
+      typeof value.duration === "string") &&
+    value.count !== value.duration &&
+    (value.value === undefined || isCircuitText(value.value))
+  );
+}
+
+function isTimingSignal(value: unknown): boolean {
+  return (
+    isObjectRecord(value) &&
+    hasOnlyKeys(value, [
+      "ref",
+      "clock",
+      "phase",
+      "width",
+      "intervals",
+      "range",
+    ]) &&
+    typeof value.ref === "string" &&
+    typeof value.clock === "boolean" &&
+    typeof value.phase === "string" &&
+    (value.width === undefined || typeof value.width === "number") &&
+    Array.isArray(value.intervals) &&
+    value.intervals.every((interval) => isTimingInterval(interval)) &&
+    isSourceRange(value.range)
+  );
+}
+
+function isTimingAnchor(value: unknown): boolean {
+  return (
+    isObjectRecord(value) &&
+    hasOnlyKeys(value, ["signal", "boundary", "range"]) &&
+    typeof value.signal === "string" &&
+    typeof value.boundary === "string" &&
+    isSourceRange(value.range)
+  );
+}
+
+function isTimingBlock(value: Record<string, unknown>): boolean {
+  return (
+    hasOnlyKeys(value, [
+      "kind",
+      "range",
+      "id",
+      "number",
+      "pluginVersion",
+      "title",
+      "description",
+      "scale",
+      "unit",
+      "signals",
+      "groups",
+      "markers",
+      "arrows",
+    ]) &&
+    isSourceRange(value.range) &&
+    (value.id === undefined || typeof value.id === "string") &&
+    (value.number === undefined || typeof value.number === "boolean") &&
+    value.pluginVersion === "1.0.0" &&
+    isCircuitText(value.title) &&
+    (value.description === undefined || isCircuitText(value.description)) &&
+    (value.scale === "cycles" || value.scale === "time") &&
+    (value.unit === undefined || typeof value.unit === "string") &&
+    (value.scale === "time" ? typeof value.unit === "string" : value.unit === undefined) &&
+    Array.isArray(value.signals) &&
+    value.signals.every((signal) => isTimingSignal(signal)) &&
+    Array.isArray(value.groups) &&
+    value.groups.every(
+      (group) =>
+        isObjectRecord(group) &&
+        hasOnlyKeys(group, ["label", "signals", "range"]) &&
+        isCircuitText(group.label) &&
+        Array.isArray(group.signals) &&
+        group.signals.every((ref) => typeof ref === "string") &&
+        isSourceRange(group.range),
+    ) &&
+    Array.isArray(value.markers) &&
+    value.markers.every(
+      (marker) =>
+        isObjectRecord(marker) &&
+        hasOnlyKeys(marker, ["at", "label", "range"]) &&
+        typeof marker.at === "string" &&
+        (marker.label === undefined || isCircuitText(marker.label)) &&
+        isSourceRange(marker.range),
+    ) &&
+    Array.isArray(value.arrows) &&
+    value.arrows.every(
+      (arrow) =>
+        isObjectRecord(arrow) &&
+        hasOnlyKeys(arrow, ["from", "to", "label", "range"]) &&
+        isTimingAnchor(arrow.from) &&
+        isTimingAnchor(arrow.to) &&
+        (arrow.label === undefined || isCircuitText(arrow.label)) &&
+        isSourceRange(arrow.range),
+    )
+  );
+}
+
 function isParsedBlock(value: unknown): value is ParsedBlock {
   if (!isObjectRecord(value)) return false;
   if (value.kind === "circuit") {
@@ -274,6 +391,9 @@ function isParsedBlock(value: unknown): value is ParsedBlock {
       Array.isArray(value.annotations) &&
       value.annotations.every((annotation) => isCircuitAnnotation(annotation))
     );
+  }
+  if (value.kind === "timing") {
+    return isTimingBlock(value);
   }
   if (value.kind === "heading") {
     return (

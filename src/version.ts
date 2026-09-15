@@ -23,6 +23,16 @@ import {
   mermaidDataSchema,
   mermaidSourceSchema,
 } from "./mermaid-schemas.js";
+import {
+  CIRCUIT_PLUGIN_VERSION,
+  circuitDataSchema,
+  circuitSourceSchema,
+} from "./circuit-schemas.js";
+import {
+  TIMING_PLUGIN_VERSION,
+  timingDataSchema,
+  timingSourceSchema,
+} from "./timing-schemas.js";
 import type { JsonValue } from "./model.js";
 import {
   FORMULA_PLUGIN_VERSION,
@@ -89,6 +99,10 @@ export function publicSchemaVersions(): readonly VersionedSchema[] {
     { id: schemaId(reactionDataSchema), version: REACTION_PLUGIN_VERSION },
     { id: schemaId(structureSourceSchema), version: STRUCTURE_PLUGIN_VERSION },
     { id: schemaId(structureDataSchema), version: STRUCTURE_PLUGIN_VERSION },
+    { id: schemaId(circuitSourceSchema), version: CIRCUIT_PLUGIN_VERSION },
+    { id: schemaId(circuitDataSchema), version: CIRCUIT_PLUGIN_VERSION },
+    { id: schemaId(timingSourceSchema), version: TIMING_PLUGIN_VERSION },
+    { id: schemaId(timingDataSchema), version: TIMING_PLUGIN_VERSION },
   ]);
 }
 

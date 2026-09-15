@@ -481,6 +481,60 @@ export interface CircuitBlock {
   readonly symbolConvention: "iec" | "ansi"; readonly nodes: readonly CircuitNode[]; readonly components: readonly CircuitComponent[];
   readonly relations: readonly CircuitRelation[]; readonly annotations: readonly CircuitAnnotation[];
 }
+/** One registered timing interval state; character and word spellings are two surfaces of this enum. */
+export type TimingIntervalState =
+  | "low" | "high" | "unknown" | "impedance" | "bus" | "continue" | "rise" | "fall";
+export interface TimingInterval {
+  /** Whole-cycle length on the `cycles` scale; absent on the `time` scale. */
+  readonly count?: string;
+  /** Exact decimal length in the Block unit on the `time` scale; absent on `cycles`. */
+  readonly duration?: string;
+  readonly state: TimingIntervalState;
+  /** Authored bus display label; never parsed as binary and never checked against `width`. */
+  readonly value?: CircuitText;
+}
+export interface TimingSignal {
+  readonly ref: string;
+  readonly clock: boolean;
+  /** Exact decimal offset from grid zero; `0` when unauthored. */
+  readonly phase: string;
+  /** Authored bus width in bits; sizes bus-slash marks only. */
+  readonly width?: number;
+  readonly intervals: readonly TimingInterval[];
+  readonly range: SourceRange;
+}
+export interface TimingGroup {
+  readonly label: CircuitText;
+  readonly signals: readonly string[];
+  readonly range: SourceRange;
+}
+export interface TimingMarker {
+  /** Exact decimal cycle position, or the duration equivalent on the `time` scale. */
+  readonly at: string;
+  readonly label?: CircuitText;
+  readonly range: SourceRange;
+}
+/** One resolved `signal@boundary` anchor; the boundary indexes interval edges after `phase`. */
+export interface TimingAnchor {
+  readonly signal: string;
+  readonly boundary: string;
+  readonly range: SourceRange;
+}
+export interface TimingArrow {
+  readonly from: TimingAnchor;
+  readonly to: TimingAnchor;
+  readonly label?: CircuitText;
+  readonly range: SourceRange;
+}
+export interface TimingBlock {
+  readonly kind: "timing"; readonly pluginVersion: "1.0.0"; readonly range: SourceRange;
+  readonly id?: string; readonly number?: boolean;
+  readonly title: CircuitText; readonly description?: CircuitText;
+  readonly scale: "cycles" | "time"; readonly unit?: string;
+  readonly signals: readonly TimingSignal[]; readonly groups: readonly TimingGroup[];
+  readonly markers: readonly TimingMarker[]; readonly arrows: readonly TimingArrow[];
+}
+
 
 
 export type ParsedBlock =
@@ -501,6 +555,7 @@ export type ParsedBlock =
   | FormulaBlock
   | ReactionBlock
   | StructureBlock
+  | TimingBlock
   | CircuitBlock
   | InvalidBlock;
 
@@ -521,6 +576,7 @@ export type AzeBlock =
   | GeometryBlock
   | FormulaBlock
   | ReactionBlock
+  | TimingBlock
   | CircuitBlock
   | StructureBlock;
 export type ArtifactFormat = "html" | "svg" | "png" | "pdf";
@@ -796,6 +852,7 @@ export type AnyBlockRenderer =
   | AzeBlockRenderer<ReactionBlock>
   | AzeBlockRenderer<StructureBlock>
   | AzeBlockRenderer<CircuitBlock>
+  | AzeBlockRenderer<TimingBlock>
   | MermaidBlockRenderer;
 export type BlockRenderer = AnyBlockRenderer;
 export interface CompilerPolicy {
