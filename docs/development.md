@@ -86,6 +86,13 @@ the checkout build, so the acceptance gate runs identically post-install.
 `--refresh` rewrites `acceptance/expected.json` with the current live
 evidence; it is developer-only and refuses under CI.
 
+The Golden report (`acceptance/golden-report.aze.md`) is the P0 corpus: every
+approved native family authors its contract scenario there, and `P0-OUT-001`
+proves each one reaches HTML, SVG, PNG, and PDF under all three Themes. Editing
+the Golden report always invalidates the committed baselines, so the change and
+its reviewed `--refresh` run belong in one commit, made on the canonical host —
+an unrefreshed Golden edit leaves `test:canonical` red.
+
 ## Browser engine and offline installs
 
 Browser-backed formats (`svg`, `png`, `pdf`, Mermaid diagrams) need the

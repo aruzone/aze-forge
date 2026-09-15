@@ -101,6 +101,27 @@ function goldenFailures(html) {
   if (!html.includes("analytic step response")) failures.push("plot-legend");
   if (!html.includes('data-chart-id="bench-scores"')) failures.push("bench-scores");
   if (!html.includes('href="https://example.com/engineering-notation"')) failures.push("link");
+  // Native Timing: both scale surfaces of the Golden clocked-bus transaction
+  // must reach HTML with every authored state distinguishable by geometry.
+  for (const [id, title, scale] of [
+    ["clocked-bus-transaction", "Clocked bus transaction", "cycles"],
+    ["clocked-bus-transaction-time-scale", "Clocked bus transaction time scale", "time"],
+  ]) {
+    if (!html.includes(`data-timing-id="${id}"`)) failures.push(`${id}-figure`);
+    if (!html.includes(`data-timing-scale="${scale}"`)) failures.push(`${id}-scale`);
+    if (!html.includes(`>${title}<`)) failures.push(`${id}-name`);
+  }
+  for (const state of ["low", "high", "unknown", "impedance", "bus", "continue", "rise", "fall"]) {
+    if (!html.includes(`aze-timing-${state}`)) failures.push(`timing-${state}`);
+  }
+  for (const [needle, label] of [
+    [">A5<", "timing-bus-value"],
+    [">D0<", "timing-impedance-bus-value"],
+    [">Reset<", "timing-marker-label"],
+    [">Transaction<", "timing-group-label"],
+  ]) {
+    if (!html.includes(needle)) failures.push(label);
+  }
   return failures;
 }
 
@@ -263,6 +284,77 @@ test("png evidence uses the exact profile, theme dimensions, and approved bounds
   const normalized = (await import("../dist/render-png.js")).normalizePng(bytes);
   assert.deepEqual(Buffer.from(normalized), bytes);
 });
+
+test("native timing survives every Artifact format of the Golden report", async (context) => {
+  const directory = await mkdtemp(join(tmpdir(), "azeforge-accept-timing-"));
+  context.after(() => rm(directory, { recursive: true, force: true }));
+  const golden = await readFile(GOLDEN_PATH, "utf8");
+  await writeFile(join(directory, "timing.aze.md"), golden);
+  await writeFile(join(directory, "untimed.aze.md"), `${golden.replace(/\n## Timing\n[\s\S]*$/, "")}\n`);
+  assert.match(golden, /:::: timing/, "the Golden report must keep its Timing block");
+
+  const reports = new Map();
+  for (const format of ["html", "svg", "png", "pdf"]) {
+    const result = runCli(["render", "timing.aze.md", "--output", `timing.${format}`, "--format", format, "--diagnostics", "json"], directory);
+    reports.set(format, parseReport(result, `timing ${format}`));
+  }
+  const hashes = new Set([...reports.values()].map((report) => report.contentHash));
+  assert.equal(hashes.size, 1, "one Document, one content identity across every format");
+
+  const svg = (await readFile(join(directory, "timing.svg"))).toString("utf8");
+  assert.deepEqual(timingGeometryFailures(svg), []);
+  const figures = [...svg.matchAll(/<figure class="aze-timing"[\s\S]*?<\/figure>/g)].map((match) => match[0]);
+  assert.equal(figures.length, 2, "both scale surfaces must reach the SVG Artifact");
+  for (const figure of figures) {
+    const viewBox = /viewBox="0 0 ([\d.]+) ([\d.]+)"/.exec(figure);
+    assert.ok(viewBox !== null && Number(viewBox[1]) > 0 && Number(viewBox[2]) > 0, "the figure needs a finite viewBox");
+  }
+
+  const timedPng = await readFile(join(directory, "timing.png"));
+  const untimed = runCli(["render", "untimed.aze.md", "--output", "untimed.png", "--format", "png"], directory);
+  assert.equal(untimed.status, 0, untimed.stderr.toString("utf8"));
+  assert.notDeepEqual(timedPng, await readFile(join(directory, "untimed.png")));
+
+  const pdf = (await readFile(join(directory, "timing.pdf"))).toString("latin1");
+  for (const alt of [
+    "/Alt (Clocked bus transaction single handshake)",
+    "/Alt (Clocked bus transaction time scale single handshake)",
+  ]) {
+    assert.ok(pdf.includes(alt), `the PDF must tag the timing figure: ${alt}`);
+  }
+  // Match the bookmark prefix: Chromium repeats outline runs in some Theme PDFs.
+  assert.ok(/\/Title \(Timing/.test(pdf), "the PDF must book the timing section");
+  const untimedPdf = runCli(["render", "untimed.aze.md", "--output", "untimed.pdf", "--format", "pdf"], directory);
+  assert.equal(untimedPdf.status, 0, untimedPdf.stderr.toString("utf8"));
+  assert.ok(!(await readFile(join(directory, "untimed.pdf"))).toString("latin1").includes("/Alt (Clocked bus transaction"));
+});
+
+// The native Timing family proves itself through shape-distinguishable state
+// geometry: every authored state must carry its own class, and the authored
+// bus values and labels must survive into the rendered Artifact.
+function timingGeometryFailures(markup) {
+  const failures = [];
+  for (const [id, title, scale] of [
+    ["clocked-bus-transaction", "Clocked bus transaction", "cycles"],
+    ["clocked-bus-transaction-time-scale", "Clocked bus transaction time scale", "time"],
+  ]) {
+    if (!markup.includes(`data-timing-id="${id}"`)) failures.push(`${id}-figure`);
+    if (!markup.includes(`data-timing-scale="${scale}"`)) failures.push(`${id}-scale`);
+    if (!markup.includes(`>${title}<`)) failures.push(`${id}-name`);
+  }
+  for (const state of ["low", "high", "unknown", "impedance", "bus", "continue", "rise", "fall"]) {
+    if (!markup.includes(`aze-timing-${state}`)) failures.push(state);
+  }
+  for (const [needle, label] of [
+    [">A5<", "bus-value"],
+    [">D0<", "impedance-bus-value"],
+    [">Reset<", "marker-label"],
+    [">Transaction<", "group-label"],
+  ]) {
+    if (!markup.includes(needle)) failures.push(label);
+  }
+  return failures;
+}
 
 test("baseline refresh is developer-only and refused under CI", () => {
   const script = fileURLToPath(new URL("../scripts/acceptance.mjs", import.meta.url));

@@ -339,6 +339,41 @@ function assertGoldenHtml(id, html) {
   if (!html.includes('href="https://example.com/engineering-notation"')) failures.push("link");
   if (!/<table id="materials">[\s\S]*?<caption>Representative material properties/.test(html)) failures.push("caption");
   if (!/text-align:left/.test(html) || !/text-align:center/.test(html) || !/text-align:right/.test(html)) failures.push("align");
+  failures.push(...timingFailures(html).map((failure) => `timing:${failure}`));
+  return failures;
+}
+
+// The native Timing family proves itself through shape-distinguishable state
+// geometry, so every state the Golden clocked-bus transaction authors must be
+// present, alongside the authored bus value, marker, group and arrow anchors.
+// Both scale surfaces of the one shared scale must reach every format.
+const TIMING_STATES = ["low", "high", "unknown", "impedance", "bus", "continue", "rise", "fall"];
+const TIMING_FIGURES = [
+  ["clocked-bus-transaction", "Clocked bus transaction", "cycles"],
+  ["clocked-bus-transaction-time-scale", "Clocked bus transaction time scale", "time"],
+];
+
+function timingFailures(markup) {
+  const failures = [];
+  for (const [id, title, scale] of TIMING_FIGURES) {
+    if (!markup.includes(`data-timing-id="${id}"`)) failures.push(`${id}-figure`);
+    if (!markup.includes(`data-timing-scale="${scale}"`)) failures.push(`${id}-scale`);
+    if (!markup.includes(`>${title}<`)) failures.push(`${id}-name`);
+  }
+  for (const state of TIMING_STATES) {
+    if (!markup.includes(`aze-timing-${state}`)) failures.push(state);
+  }
+  for (const [needle, label] of [
+    ["aze-timing-marker", "marker"],
+    ["aze-timing-arrow", "arrow"],
+    ["aze-timing-group", "group"],
+    [">A5<", "bus-value"],
+    [">D0<", "impedance-bus-value"],
+    [">Reset<", "marker-label"],
+    [">Transaction<", "group-label"],
+  ]) {
+    if (!markup.includes(needle)) failures.push(label);
+  }
   return failures;
 }
 
@@ -372,7 +407,7 @@ async function stepGoldenMatrix(live) {
         if (format === "html") {
           const html = bytes.toString("utf8");
           const failures = assertGoldenHtml(cell, html);
-          check("P0-OUT-001", `${cell} carries every semantic object`, failures.length === 0, failures.join(",") || "h1,h2,equations,table,mermaid,link");
+          check("P0-OUT-001", `${cell} carries every semantic object`, failures.length === 0, failures.join(",") || "h1,h2,equations,table,mermaid,link,timing");
           const tampered = html.replace("gaussian-integral", "missing-integral");
           check("P0-OUT-001", `${cell} mismatch always fails`, assertGoldenHtml(cell, tampered).length > 0, "tampered id detected");
         }
@@ -384,7 +419,8 @@ async function stepGoldenMatrix(live) {
           if (!svg.includes("aze-plot")) failures.push("plot");
           if (!svg.includes("aze-chart")) failures.push("chart");
           if (!/Representative material properties/.test(svg)) failures.push("caption");
-          check("P0-OUT-001", `${cell} carries every semantic object`, failures.length === 0, failures.join(",") || "equations,mermaid,table,plot,chart");
+          failures.push(...timingFailures(svg).map((failure) => `timing:${failure}`));
+          check("P0-OUT-001", `${cell} carries every semantic object`, failures.length === 0, failures.join(",") || "equations,mermaid,table,plot,chart,timing");
         }
         if (format === "png") {
           const chunks = pngChunks(bytes);
@@ -418,7 +454,15 @@ async function stepGoldenMatrix(live) {
           const textOps = (content.match(/\bT[Jj]\b/g) ?? []).length;
           if (textOps < 500) failures.push(`text-ops:${textOps}`);
           if ((bytes.toString("latin1").match(/\/ToUnicode/g) ?? []).length < 1) failures.push("table-text");
-          check("P0-OUT-001", `${cell} carries title, authors, links, bookmarks, geometry, and page text`, failures.length === 0, failures.join(",") || `${pages} pages`);
+          const latin1 = Buffer.from(bytes).toString("latin1");
+          if (!/\/Title \(Timing/.test(latin1)) failures.push("timing-bookmark");
+          for (const alt of [
+            "/Alt (Clocked bus transaction single handshake)",
+            "/Alt (Clocked bus transaction time scale single handshake)",
+          ]) {
+            if (!latin1.includes(alt)) failures.push("timing-figure-alt");
+          }
+          check("P0-OUT-001", `${cell} carries title, authors, links, bookmarks, geometry, page text, and both timing figures`, failures.length === 0, failures.join(",") || `${pages} pages`);
         }
       } finally {
         await rm(directory, { recursive: true, force: true });
