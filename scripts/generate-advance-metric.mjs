@@ -1,6 +1,11 @@
 #!/usr/bin/env node
-// Regenerates `src/advance-metric-data.ts` from the pinned @fontsource/inter
-// woff2 subsets that `src/font.ts` lists (`INTER_SUBSET_RANGES`), at weight 400.
+// Regenerates `src/advance-metric-data.ts` from the pinned font packages the
+// compiler embeds: the @fontsource/inter woff2 subsets that `src/font.ts`
+// lists (`INTER_SUBSET_RANGES`) at weight 400, and the @fontsource/jetbrains-mono
+// subsets its code face loads. Both halves are read here because the Advance
+// metric is the shared text-size mechanism for every family that measures text
+// from a registered advance table, and the fingerprint must move when either
+// pinned package moves.
 //
 // Diagram labels are measured in CSS pixels before layout, so the compiler
 // needs the per-code-point advance widths of the same Inter bytes the browser
@@ -27,6 +32,11 @@ const FONT_SOURCE_PATH = join(ROOT, "src", "font.ts");
 const OUTPUT_PATH = join(ROOT, "src", "advance-metric-data.ts");
 
 const PACKAGE_NAME = "@fontsource/inter";
+const CODE_PACKAGE_NAME = "@fontsource/jetbrains-mono";
+const CODE_FILE_PREFIX = "jetbrains-mono";
+// Mirrors the subset filter in `src/font.ts`'s `loadCodeFontFaces`, which skips
+// the one subset the code face does not ship.
+const CODE_EXCLUDED_SUBSETS = ["greek-ext"];
 const WEIGHT = 400;
 const DEFAULT_CODE_POINT = 0x0078; // "x"
 const WOFF2_SIGNATURE = 0x774f4632;
@@ -247,17 +257,65 @@ async function readSubsetNames() {
   return names;
 }
 
-async function readPackageVersion() {
+async function readPackageVersion(packageName) {
   const manifest = JSON.parse(
     await readFile(
-      join(ROOT, "node_modules", PACKAGE_NAME, "package.json"),
+      join(ROOT, "node_modules", packageName, "package.json"),
       "utf8",
     ),
   );
   if (typeof manifest.version !== "string") {
-    throw new Error(`${PACKAGE_NAME} declares no version.`);
+    throw new Error(`${packageName} declares no version.`);
   }
   return manifest.version;
+}
+
+/**
+ * Read one face's advance widths across its subsets. The first subset covering
+ * a code point wins, which matters only where the pinned subsets overlap.
+ */
+async function readFaceAdvances({ packageName, filePrefix, subsetNames, version, fileTag }) {
+  const advances = new Map();
+  const sources = [];
+  let unitsPerEm;
+
+  for (const name of subsetNames) {
+    const file = join(
+      "node_modules",
+      packageName,
+      "files",
+      `${filePrefix}-${name}-${WEIGHT}-normal.woff2`,
+    );
+    const bytes = await readFile(join(ROOT, file));
+    sources.push({
+      package: packageName,
+      version,
+      hash: `sha256:${createHash("sha256").update(bytes).digest("hex")}`,
+    });
+
+    const tables = readWoff2Tables(bytes, file);
+    const subsetUnitsPerEm = readUnitsPerEm(requireTable(tables, "head", file), file);
+    if (unitsPerEm === undefined) unitsPerEm = subsetUnitsPerEm;
+    else if (subsetUnitsPerEm !== unitsPerEm) {
+      throw new Error(
+        `${file} declares unitsPerEm ${subsetUnitsPerEm}, not ${unitsPerEm}.`,
+      );
+    }
+
+    const widths = readAdvanceWidths(tables, file);
+    for (const [codePoint, glyph] of readCmapFormat4(tables, file)) {
+      const width = widths[glyph];
+      if (width === undefined) {
+        throw new Error(`${file} maps U+${codePoint.toString(16)} past hmtx.`);
+      }
+      if (!advances.has(codePoint)) advances.set(codePoint, width);
+    }
+  }
+
+  if (unitsPerEm === undefined) {
+    throw new Error(`${fileTag} declares no readable subset.`);
+  }
+  return { advances, sources, unitsPerEm };
 }
 
 /* ------------------------------------------------------------------ *
@@ -298,68 +356,70 @@ function renderModule(data) {
  * ------------------------------------------------------------------ */
 
 async function main() {
-  const subsetNames = await readSubsetNames();
-  const version = await readPackageVersion();
+  const subsetNames = (await readSubsetNames()).filter(
+    (name) => !CODE_EXCLUDED_SUBSETS.includes(name),
+  );
+  const inter = await readFaceAdvances({
+    packageName: PACKAGE_NAME,
+    filePrefix: "inter",
+    subsetNames: await readSubsetNames(),
+    version: await readPackageVersion(PACKAGE_NAME),
+    fileTag: "Inter",
+  });
+  const code = await readFaceAdvances({
+    packageName: CODE_PACKAGE_NAME,
+    filePrefix: CODE_FILE_PREFIX,
+    subsetNames,
+    version: await readPackageVersion(CODE_PACKAGE_NAME),
+    fileTag: "JetBrains Mono",
+  });
 
-  const advances = new Map();
-  const sources = [];
-  let unitsPerEm;
-
-  for (const name of subsetNames) {
-    const file = join(
-      "node_modules",
-      PACKAGE_NAME,
-      "files",
-      `inter-${name}-${WEIGHT}-normal.woff2`,
-    );
-    const bytes = await readFile(join(ROOT, file));
-    sources.push({
-      package: PACKAGE_NAME,
-      version,
-      hash: `sha256:${createHash("sha256").update(bytes).digest("hex")}`,
-    });
-
-    const tables = readWoff2Tables(bytes, file);
-    const subsetUnitsPerEm = readUnitsPerEm(requireTable(tables, "head", file), file);
-    if (unitsPerEm === undefined) unitsPerEm = subsetUnitsPerEm;
-    else if (subsetUnitsPerEm !== unitsPerEm) {
-      throw new Error(
-        `${file} declares unitsPerEm ${subsetUnitsPerEm}, not ${unitsPerEm}.`,
-      );
-    }
-
-    const widths = readAdvanceWidths(tables, file);
-    for (const [codePoint, glyph] of readCmapFormat4(tables, file)) {
-      const width = widths[glyph];
-      if (width === undefined) {
-        throw new Error(`${file} maps U+${codePoint.toString(16)} past hmtx.`);
-      }
-      // First subset in INTER_SUBSET_RANGES order wins; subsets never disagree.
-      if (!advances.has(codePoint)) advances.set(codePoint, width);
-    }
-  }
-
-  const defaultAdvance = advances.get(DEFAULT_CODE_POINT);
+  const defaultAdvance = inter.advances.get(DEFAULT_CODE_POINT);
   if (defaultAdvance === undefined) {
     throw new Error("Inter does not cover U+0078, so defaultAdvance is unknown.");
   }
 
   const sorted = {};
-  for (const codePoint of [...advances.keys()].sort((a, b) => a - b)) {
-    sorted[String(codePoint)] = advances.get(codePoint);
+  for (const codePoint of [...inter.advances.keys()].sort((a, b) => a - b)) {
+    sorted[String(codePoint)] = inter.advances.get(codePoint);
+  }
+
+  // The code face is monospaced: one advance covers every spacing code point it
+  // maps (the few zero-width combining marks excepted), so the table stores the
+  // constant instead of repeating it.
+  const codeAdvances = new Set(
+    [...code.advances.values()].filter((width) => width > 0),
+  );
+  if (codeAdvances.size !== 1) {
+    throw new Error(
+      `JetBrains Mono is not monospaced: ${codeAdvances.size} distinct advances.`,
+    );
+  }
+  const monospaceAdvance = [...codeAdvances][0];
+  if (monospaceAdvance === undefined) {
+    throw new Error("JetBrains Mono maps no code point.");
   }
 
   const data = {
     family: "Inter",
     weight: WEIGHT,
-    unitsPerEm,
+    unitsPerEm: inter.unitsPerEm,
     defaultAdvance,
     advances: sorted,
-    sources,
+    monospace: {
+      family: "JetBrains Mono",
+      weight: WEIGHT,
+      unitsPerEm: code.unitsPerEm,
+      advance: monospaceAdvance,
+      codePoints: code.advances.size,
+    },
+    sources: [...inter.sources, ...code.sources],
   };
   await writeFile(OUTPUT_PATH, renderModule(data));
   process.stdout.write(
-    `advance metric: ${Object.keys(sorted).length} code points, unitsPerEm ${unitsPerEm}, defaultAdvance ${defaultAdvance}, ${subsetNames.length} subsets\n`,
+    `advance metric: ${Object.keys(sorted).length} code points, unitsPerEm ${inter.unitsPerEm}, defaultAdvance ${defaultAdvance}, ` +
+      `monospace advance ${monospaceAdvance} over ${code.advances.size} code points, ` +
+      `${data.sources.length} subset files\n`,
   );
 }
 

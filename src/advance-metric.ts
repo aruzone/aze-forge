@@ -34,7 +34,7 @@ export const ADVANCE_METRIC_VERSION = "1.0.0" as const;
 export const SCRIPT_SCALE = 0.7;
 
 export interface AdvanceMetricTable {
-  /** Font family the table was generated from. */
+  /** Proportional family the code-point table was generated from. */
   readonly family: "Inter";
   readonly weight: 400;
   /** Design units per em of the source font. */
@@ -43,11 +43,32 @@ export interface AdvanceMetricTable {
   readonly defaultAdvance: number;
   /** Code point (decimal string) -> advance in design units. */
   readonly advances: Readonly<Record<string, number>>;
+  /**
+   * The monospaced face of the same pinned stack. Its advance is one constant
+   * across every code point it maps, so it is stored once; the metric is
+   * shared with every family that sizes code text from it.
+   */
+  readonly monospace: Readonly<{
+    readonly family: "JetBrains Mono";
+    readonly weight: 400;
+    readonly unitsPerEm: number;
+    readonly advance: number;
+    readonly codePoints: number;
+  }>;
   /** `@fontsource` package versions and woff2 byte hashes the table came from. */
   readonly sources: readonly { readonly package: string; readonly version: string; readonly hash: string }[];
 }
 
 export const advanceMetricTable: AdvanceMetricTable = ADVANCE_METRIC_DATA;
+
+/**
+ * The pinned font package versions the table was generated from, in the order
+ * the subsets were read. A capability report states these so a metric change
+ * is visible without reading the fingerprint.
+ */
+export const ADVANCE_METRIC_SOURCES: readonly string[] = Object.freeze([
+  ...new Set(advanceMetricTable.sources.map((source) => `${source.package}@${source.version}`)),
+]);
 
 /**
  * Design units of one string, all of it at `scale` em; a code point the table
@@ -106,6 +127,7 @@ export function advanceMetricDependencyClosure(): JsonValue {
     family: advanceMetricTable.family,
     weight: advanceMetricTable.weight,
     unitsPerEm: advanceMetricTable.unitsPerEm,
+    monospace: advanceMetricTable.monospace as unknown as JsonValue,
   };
   closure.sources = advanceMetricTable.sources.map(
     (source) => `${source.package}@${source.version}:${source.hash}`,

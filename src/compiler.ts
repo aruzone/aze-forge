@@ -71,7 +71,8 @@ import {
 } from "./mermaid.js";
 import { MERMAID_PLUGIN_TYPE } from "./mermaid-schemas.js";
 import { DIAGRAM_PLUGIN_TYPE } from "./diagram-schemas.js";
-import { diagramDependencyClosure } from "./diagram-render.js";
+import { DiagramRenderError, diagramDependencyClosure } from "./diagram-render.js";
+import { DiagramLayoutError } from "./diagram-layout.js";
 import { isTypedTableData } from "./table.js";
 import { DERIVATION_PLUGIN_TYPE } from "./derivation-schemas.js";
 import { FragmentSecurityError } from "./html-fragment.js";
@@ -1537,21 +1538,32 @@ async function renderDiagramFragments(
             },
           ),
         );
+      } else if (
+        error instanceof DiagramLayoutError ||
+        error instanceof DiagramRenderError
+      ) {
+        diagnostics.push(
+          createDiagnostic(error.code, "error", error.message, {
+            location,
+            data: {
+              adapterId: chosen.descriptor.id,
+              blockType: DIAGRAM_PLUGIN_TYPE,
+            },
+            suggestion: error.remedy,
+          }),
+        );
       } else {
         diagnostics.push(
           createDiagnostic(
-            "azeforge.renderer#diagram-layout",
+            "azeforge.renderer#unexpected-failure",
             "error",
-            "The diagram layout could not be computed.",
+            "The diagram Block renderer failed unexpectedly.",
             {
               location,
               data: {
                 adapterId: chosen.descriptor.id,
                 blockType: DIAGRAM_PLUGIN_TYPE,
-                detail: error instanceof Error ? error.message : String(error),
               },
-              suggestion:
-                "Check the diagram declaration list; a layout failure publishes no Artifact.",
             },
           ),
         );

@@ -808,3 +808,46 @@ test("label ceilings report code points, lines and the Block total", () => {
     limit: MAX_DIAGRAM_TOTAL_LABEL_CODE_POINTS,
   });
 });
+
+test("did-you-mean stays inside the registered vocabularies", () => {
+  const suggestion = (result, code) => {
+    const diagnostic = result.diagnostics.find(
+      (entry) => entry.code === `azeforge.diagram#${code}`,
+    );
+    assert.notEqual(diagnostic, undefined, `expected ${code}`);
+    return diagnostic.suggestion ?? "";
+  };
+
+  assert.equal(
+    suggestion(
+      validate("mode: flowchart\n", "- kind: node\n  name: a\n  shape: diamon\n"),
+      "unknown-shape",
+    ),
+    'Did you mean "diamond"?',
+  );
+  assert.equal(
+    suggestion(validate("mode: state\n", "- kind: node\n  name: a\n"), "unknown-mode"),
+    "Registered values: flowchart, graph, tree, architecture.",
+  );
+  assert.equal(
+    suggestion(
+      validate("mode: flowchart\n", "- kind: port\n  name: a\n"),
+      "unknown-declaration",
+    ),
+    "Registered values: node, group, edge.",
+  );
+  assert.equal(
+    suggestion(
+      validate("mode: flowchart\n", "- kind: node\n  name: a\n  colour: red\n"),
+      "unknown-field",
+    ),
+    "Registered values: name, label, shape, parent, ports.",
+  );
+
+  // Structural faults are not vocabulary faults: no suggestion is invented.
+  const unresolved = validate("mode: flowchart\n", "- kind: edge\n  from: a\n  to: b\n");
+  assert.ok(
+    unresolved.diagnostics.every((diagnostic) => diagnostic.suggestion === undefined),
+    "a structural fault carries no did-you-mean",
+  );
+});

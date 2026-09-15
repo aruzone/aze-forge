@@ -1630,6 +1630,13 @@ export const ADVANCE_METRIC_DATA: AdvanceMetricTable = Object.freeze({
     "43007": 2415,
     "65279": 0,
   }),
+  "monospace": Object.freeze({
+    "family": "JetBrains Mono",
+    "weight": 400,
+    "unitsPerEm": 1000,
+    "advance": 600,
+    "codePoints": 663,
+  }),
   "sources": Object.freeze([
     Object.freeze({
       "package": "@fontsource/inter",
@@ -1665,6 +1672,36 @@ export const ADVANCE_METRIC_DATA: AdvanceMetricTable = Object.freeze({
       "package": "@fontsource/inter",
       "version": "5.3.0",
       "hash": "sha256:8909904ab6c872eb994093482a88a28eca2cd95912d7b6fecd72103b0dc07edc",
+    }),
+    Object.freeze({
+      "package": "@fontsource/jetbrains-mono",
+      "version": "5.2.8",
+      "hash": "sha256:5f4292eb92ca542e9f60048ca72832d0183b1a06e5d7bcfeed16f9be9ebb4018",
+    }),
+    Object.freeze({
+      "package": "@fontsource/jetbrains-mono",
+      "version": "5.2.8",
+      "hash": "sha256:522f5827308102a9c0ea7860b5a11306043610ecf03d150ba32056a06e8c56e2",
+    }),
+    Object.freeze({
+      "package": "@fontsource/jetbrains-mono",
+      "version": "5.2.8",
+      "hash": "sha256:365b7a8eaff022b13ed0561fde3890a04a30507d773ecd5adb3aca8e766a285c",
+    }),
+    Object.freeze({
+      "package": "@fontsource/jetbrains-mono",
+      "version": "5.2.8",
+      "hash": "sha256:efc9e0df126ca6dd1c37a022bfe1d664d23b3fcaa32979d2028ecb4c074306c8",
+    }),
+    Object.freeze({
+      "package": "@fontsource/jetbrains-mono",
+      "version": "5.2.8",
+      "hash": "sha256:505dfba8ecbe77e82765f36d317ed7ef4ac42719dc5f4ae68d1c483fd22d0d14",
+    }),
+    Object.freeze({
+      "package": "@fontsource/jetbrains-mono",
+      "version": "5.2.8",
+      "hash": "sha256:14425ba9c695763c1547f48a206b7aa60350a33ae23de09f0407877f3fcd89eb",
     }),
   ]),
 });

@@ -14,6 +14,7 @@ import {
 import { renderCircuitFragment } from "./circuit-render.js";
 import type { EmbeddedFontFace } from "./font.js";
 import { renderTimingFragment, timingDependencyClosure } from "./timing-render.js";
+import { diagramLabelTypography } from "./diagram-layout.js";
 import { artifactBytesHash, canonicalJson, sha256 } from "./hash.js";
 import { escapeHtml, renderInlineHtml } from "./html-fragment.js";
 import { inlineTextValue } from "./markdown.js";
@@ -280,8 +281,7 @@ function embeddedFontCss(fontFaces: readonly EmbeddedFontFace[]): string {
  */
 function diagramCss(theme: Theme): string {
   const tokens = theme.diagram;
-  const size = (value: number): number =>
-    Math.max(value, tokens.minimumLabelFontSizePx);
+  const typography = diagramLabelTypography(theme);
   const label = `font-family:"${tokens.labelFontFamily}";fill:currentColor`;
   const depth = (level: number, dash: string): string => {
     const opacity = 1 - tokens.groupDepthOpacityStep * level;
@@ -300,9 +300,9 @@ function diagramCss(theme: Theme): string {
     `.aze-diagram-arrow{fill:${tokens.arrowFill};stroke:none}`,
     `.aze-diagram-edge-label-background{fill:${tokens.edgeLabelBackground}}`,
     `.aze-diagram-label{${label}}`,
-    `.aze-diagram-node-label{font-size:${size(tokens.nodeLabelFontSizePx)}px;text-anchor:middle;dominant-baseline:central}`,
-    `.aze-diagram-group-label{font-size:${size(tokens.groupLabelFontSizePx)}px;text-anchor:start;dominant-baseline:hanging}`,
-    `.aze-diagram-edge-label{font-size:${size(tokens.edgeLabelFontSizePx)}px;text-anchor:middle;dominant-baseline:middle}`,
+    `.aze-diagram-node-label{font-size:${typography.nodeFontSizePx}px;text-anchor:middle;dominant-baseline:central}`,
+    `.aze-diagram-group-label{font-size:${typography.groupFontSizePx}px;text-anchor:start;dominant-baseline:hanging}`,
+    `.aze-diagram-edge-label{font-size:${typography.edgeFontSizePx}px;text-anchor:middle;dominant-baseline:middle}`,
   ].join("");
 }
 

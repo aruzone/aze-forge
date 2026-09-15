@@ -57,12 +57,20 @@ test("the recorded sources are the installed woff2 bytes", async () => {
   assert.ok(advanceMetricTable.sources.length > 0);
   const hashes = [];
   for (const source of advanceMetricTable.sources) {
-    assert.equal(source.package, "@fontsource/inter");
+    assert.ok(
+      ["@fontsource/inter", "@fontsource/jetbrains-mono"].includes(source.package),
+      source.package,
+    );
     assert.match(source.version, /^\d+\.\d+\.\d+/);
     assert.match(source.hash, /^sha256:[0-9a-f]{64}$/);
     hashes.push(source.hash);
   }
   assert.equal(new Set(hashes).size, hashes.length, "each subset is recorded once");
+  assert.deepEqual(
+    [...new Set(advanceMetricTable.sources.map((source) => source.package))],
+    ["@fontsource/inter", "@fontsource/jetbrains-mono"],
+    "both pinned text packages are recorded",
+  );
 
   const manifest = JSON.parse(
     await readFile(new URL("node_modules/@fontsource/inter/package.json", ROOT), "utf8"),
@@ -73,7 +81,9 @@ test("the recorded sources are the installed woff2 bytes", async () => {
     "the recorded version is the installed @fontsource/inter",
   );
 
-  const latin = advanceMetricTable.sources.at(-1);
+  const latin = advanceMetricTable.sources
+    .filter((source) => source.package === "@fontsource/inter")
+    .at(-1);
   const bytes = await readFile(
     new URL("node_modules/@fontsource/inter/files/inter-latin-400-normal.woff2", ROOT),
   );
@@ -170,7 +180,10 @@ test("advanceMetricDependencyClosure fingerprints the metric", () => {
   assert.equal(closure.family, "Inter");
   assert.equal(closure.weight, 400);
   assert.equal(closure.sources.length, advanceMetricTable.sources.length);
-  assert.ok(closure.sources.every((entry) => entry.includes("@fontsource/inter@")));
+  assert.ok(closure.sources.some((entry) => entry.includes("@fontsource/inter@")));
+  assert.ok(closure.sources.some((entry) => entry.includes("@fontsource/jetbrains-mono@")));
+  assert.equal(closure.monospace.family, "JetBrains Mono");
+  assert.equal(closure.monospace.advance, advanceMetricTable.monospace.advance);
 });
 
 test("the generator reproduces the committed table byte for byte", async () => {

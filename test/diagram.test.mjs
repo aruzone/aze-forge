@@ -274,26 +274,6 @@ test("Diagram identity is Theme-invariant and never carries layout geometry", as
   assert.doesNotMatch(html, /\$H/);
 });
 
-test("Diagram keeps authored names out of positional SVG ids", async () => {
-  const compiler = createCompiler();
-  const result = await compiler.compile(
-    diagramSource(SERVICE_ARCHITECTURE, {
-      header: "id: services\nmode: architecture\n",
-    }),
-    { format: "svg" },
-  );
-  assert.deepEqual(errorCodes(result), []);
-  const svg = Buffer.from(result.artifact.bytes).toString("utf8");
-  const ids = [...svg.matchAll(/\sid="(aze-d-[^"]+)"/g)].map((match) => match[1]);
-  assert.ok(ids.length > 0, "expected positional diagram ids");
-  for (const id of ids) {
-    assert.match(id, /^aze-d-0-(?:title|desc|(?:n|g|e|p)-\d+)$/, `non-positional id ${id}`);
-  }
-  for (const name of ["gateway", "persistence", "edge-tier"]) {
-    assert.doesNotMatch(svg, new RegExp(`id="[^"]*${name}`), `${name} leaked into an id`);
-  }
-});
-
 test("Diagram renders shapes, ports, groups, arrowheads and accessible names", async () => {
   const compiler = createCompiler();
   const result = await compiler.compile(
@@ -360,14 +340,11 @@ test("Diagram undirected edges carry no terminator while directed edges do", asy
   );
 });
 
-test("Diagram diagnoses every unsupported declaration as a stable error", async () => {
+test("Diagram diagnoses invalid declarations through the compiler and never yields a partial Block", async () => {
+  // The full code registry and the ceiling matrix are the validator seam
+  // (test/diagram-block.test.mjs); these four cases prove the same diagnostics
+  // reach the parse dispatch and that an invalid Block produces no Block.
   const cases = [
-    {
-      name: "no declarations",
-      body: "",
-      header: "mode: flowchart\n",
-      codes: ["azeforge.diagram#empty"],
-    },
     {
       name: "unknown mode",
       body: "- kind: node\n  name: a\n",
@@ -375,92 +352,10 @@ test("Diagram diagnoses every unsupported declaration as a stable error", async 
       codes: ["azeforge.diagram#unknown-mode"],
     },
     {
-      name: "unknown declaration",
-      body: "- kind: port\n  name: a\n",
-      header: "mode: flowchart\n",
-      codes: ["azeforge.diagram#unknown-declaration"],
-    },
-    {
-      name: "unknown shape",
-      body: "- kind: node\n  name: a\n  shape: star\n",
-      header: "mode: flowchart\n",
-      codes: ["azeforge.diagram#unknown-shape"],
-    },
-    {
-      name: "unknown side",
-      body: "- kind: node\n  name: a\n  ports:\n    - name: p\n      side: middle\n",
-      header: "mode: flowchart\n",
-      codes: ["azeforge.diagram#unknown-side"],
-    },
-    {
-      name: "unknown flow",
-      body: "- kind: node\n  name: a\n",
-      header: "mode: flowchart\nflow: sideways\n",
-      codes: ["azeforge.diagram#unknown-flow"],
-    },
-    {
-      name: "unknown field",
-      body: "- kind: node\n  name: a\n  colour: red\n",
-      header: "mode: flowchart\n",
-      codes: ["azeforge.diagram#unknown-field"],
-    },
-    {
-      name: "duplicate field",
-      body: "- kind: node\n  name: a\n  shape: circle\n  shape: diamond\n",
-      header: "mode: flowchart\n",
-      codes: ["azeforge.diagram#duplicate-field"],
-    },
-    {
-      name: "missing field",
-      body: "- kind: node\n  label: A\n",
-      header: "mode: flowchart\n",
-      codes: ["azeforge.diagram#missing-field"],
-    },
-    {
-      name: "duplicate name",
-      body: "- kind: node\n  name: a\n- kind: group\n  name: a\n",
-      header: "mode: flowchart\n",
-      codes: ["azeforge.diagram#duplicate-name"],
-    },
-    {
-      name: "duplicate port",
-      body:
-        "- kind: node\n  name: a\n  ports:\n    - name: p\n    - name: p\n",
-      header: "mode: flowchart\n",
-      codes: ["azeforge.diagram#duplicate-port"],
-    },
-    {
       name: "unresolved reference",
       body: "- kind: edge\n  from: a\n  to: b\n- kind: node\n  name: a\n",
       header: "mode: flowchart\n",
       codes: ["azeforge.diagram#unresolved-reference"],
-    },
-    {
-      name: "unresolved port",
-      body:
-        "- kind: node\n  name: a\n- kind: node\n  name: b\n- kind: edge\n  from: a.p\n  to: b\n",
-      header: "mode: flowchart\n",
-      codes: ["azeforge.diagram#unresolved-port"],
-    },
-    {
-      name: "invalid port reference",
-      body:
-        "- kind: node\n  name: a\n- kind: edge\n  from: a.p.q\n  to: a\n",
-      header: "mode: flowchart\n",
-      codes: ["azeforge.diagram#invalid-port-reference"],
-    },
-    {
-      name: "group endpoint",
-      body: "- kind: group\n  name: g\n- kind: node\n  name: a\n- kind: edge\n  from: g\n  to: a\n",
-      header: "mode: flowchart\n",
-      codes: ["azeforge.diagram#group-endpoint"],
-    },
-    {
-      name: "group cycle",
-      body:
-        "- kind: group\n  name: outer\n  parent: inner\n- kind: group\n  name: inner\n  parent: outer\n- kind: node\n  name: a\n  parent: outer\n",
-      header: "mode: flowchart\n",
-      codes: ["azeforge.diagram#group-cycle"],
     },
     {
       name: "undirected outside graph",
@@ -470,24 +365,11 @@ test("Diagram diagnoses every unsupported declaration as a stable error", async 
       codes: ["azeforge.diagram#undirected-not-permitted"],
     },
     {
-      name: "tree without a root",
-      body:
-        "- kind: node\n  name: a\n- kind: node\n  name: b\n- kind: edge\n  from: a\n  to: b\n- kind: edge\n  from: b\n  to: a\n",
-      header: "mode: tree\n",
-      codes: ["azeforge.diagram#invalid-tree"],
-    },
-    {
       name: "tree with a self-loop",
       body:
-        "- kind: node\n  name: a\n- kind: node\n  name: b\n- kind: node\n  name: c\n- kind: edge\n  from: a\n  to: b\n- kind: edge\n  from: a\n  to: c\n- kind: edge\n  from: b\n  to: c\n- kind: edge\n  from: c\n  to: c\n",
+        "- kind: node\n  name: a\n- kind: node\n  name: b\n- kind: edge\n  from: a\n  to: b\n- kind: edge\n  from: b\n  to: b\n",
       header: "mode: tree\n",
       codes: ["azeforge.diagram#invalid-tree"],
-    },
-    {
-      name: "over-long label",
-      body: `- kind: node\n  name: a\n  label: ${"x".repeat(501)}\n`,
-      header: "mode: flowchart\n",
-      codes: ["azeforge.diagram#limit-exceeded"],
     },
   ];
 
@@ -604,14 +486,26 @@ test("Diagram adjacency survives a Theme change while geometry does not", async 
   const dark = await compiler.compile(source, { format: "svg", theme: "dark-presentation" });
   assert.equal(light.contentHash, dark.contentHash);
 
-  const endpoints = (bytes) =>
-    [...Buffer.from(bytes).toString("utf8").matchAll(/data-edge="([^"]+)"/g)].map(
+  // Incidence is authored, so the semantic enumeration of `<desc>` is
+  // Theme-invariant, and so is the number and order of positional edge paths.
+  const described = (bytes) =>
+    /<desc id="aze-d-0-desc">([\s\S]*?)<\/desc>/.exec(Buffer.from(bytes).toString("utf8"))[1];
+  assert.equal(described(light.artifact.bytes), described(dark.artifact.bytes));
+  assert.match(described(light.artifact.bytes), /gateway\.upstream -&gt; replica \(fallback\)/);
+  const edgeIds = (bytes) =>
+    [...Buffer.from(bytes).toString("utf8").matchAll(new RegExp(/id="aze-d-0-e-(\d+)"/, "g"))].map(
       (match) => match[1],
     );
-  assert.deepEqual(endpoints(light.artifact.bytes), endpoints(dark.artifact.bytes));
+  assert.deepEqual(edgeIds(light.artifact.bytes), edgeIds(dark.artifact.bytes));
+  assert.equal(edgeIds(light.artifact.bytes).length, 4);
+
+  // Coordinates are measured, so a Theme with larger label type re-lays-out
+  // the figure: the same adjacency, different pixels.
+  const paths = (bytes) =>
+    [...Buffer.from(bytes).toString("utf8").matchAll(/ d="([^"]*)"/g)].map((match) => match[1]);
+  assert.notDeepEqual(paths(light.artifact.bytes), paths(dark.artifact.bytes));
   assert.notDeepEqual(
     Buffer.from(light.artifact.bytes),
     Buffer.from(dark.artifact.bytes),
-    "Theme typography re-lays-out the figure",
   );
 });

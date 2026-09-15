@@ -218,9 +218,42 @@ function coordinate(value: number | undefined, what: string): number {
 
 interface Box { readonly width: number; readonly height: number }
 
+/**
+ * Effective label typography: the Theme's three typography sets raised to its
+ * declared minimum readable size, with a line never shorter than its text.
+ * Layout, the emitted label line spacing and the layout CSS all read this one
+ * derivation, so the measured box and the drawn text cannot disagree.
+ */
+export interface DiagramLabelTypography {
+  readonly nodeFontSizePx: number;
+  readonly nodeLineHeightPx: number;
+  readonly groupFontSizePx: number;
+  readonly groupLineHeightPx: number;
+  readonly edgeFontSizePx: number;
+  readonly edgeLineHeightPx: number;
+}
+
+export function diagramLabelTypography(theme: Theme): DiagramLabelTypography {
+  const tokens = theme.diagram;
+  const floor = tokens.minimumLabelFontSizePx;
+  const size = (value: number): number => Math.max(value, floor);
+  const nodeFontSizePx = size(tokens.nodeLabelFontSizePx);
+  const groupFontSizePx = size(tokens.groupLabelFontSizePx);
+  const edgeFontSizePx = size(tokens.edgeLabelFontSizePx);
+  return {
+    nodeFontSizePx,
+    nodeLineHeightPx: Math.max(tokens.nodeLabelLineHeightPx, nodeFontSizePx),
+    groupFontSizePx,
+    groupLineHeightPx: Math.max(tokens.groupLabelLineHeightPx, groupFontSizePx),
+    edgeFontSizePx,
+    edgeLineHeightPx: Math.max(tokens.edgeLabelLineHeightPx, edgeFontSizePx),
+  };
+}
+
 /** Node box: the label plus its band, with port space reserved per side. */
 function nodeBox(node: DiagramNode, theme: Theme): Box {
   const settings = theme.diagram;
+  const label = diagramLabelTypography(theme);
   const half = settings.portSizePx / 2;
   const sides = new Set<DiagramPortSide>();
   for (const port of node.ports) {
@@ -229,7 +262,7 @@ function nodeBox(node: DiagramNode, theme: Theme): Box {
   const advance =
     node.label === undefined
       ? 0
-      : Math.max(labelAdvance(node.label, settings.nodeLabelFontSizePx), 0);
+      : Math.max(labelAdvance(node.label, label.nodeFontSizePx), 0);
   const lines = labelLines(node.label);
   return {
     width: Math.max(
@@ -241,7 +274,7 @@ function nodeBox(node: DiagramNode, theme: Theme): Box {
       MIN_NODE_WIDTH,
     ),
     height: Math.max(
-      lines * settings.nodeLabelLineHeightPx +
+      lines * label.nodeLineHeightPx +
         NODE_PADDING_Y +
         (sides.has("top") ? half : 0) +
         NODE_PADDING_Y +
@@ -253,15 +286,15 @@ function nodeBox(node: DiagramNode, theme: Theme): Box {
 
 /** An empty group still draws: its box holds its label and nothing else. */
 function emptyGroupBox(group: DiagramGroup, theme: Theme): Box {
-  const settings = theme.diagram;
+  const label = diagramLabelTypography(theme);
   const advance =
     group.label === undefined
       ? 0
-      : Math.max(labelAdvance(group.label, settings.groupLabelFontSizePx), 0);
+      : Math.max(labelAdvance(group.label, label.groupFontSizePx), 0);
   return {
     width: Math.max(advance + 2 * GROUP_PADDING, MIN_GROUP_WIDTH),
     height: Math.max(
-      labelLines(group.label) * settings.groupLabelLineHeightPx + 2 * GROUP_PADDING,
+      labelLines(group.label) * label.groupLineHeightPx + 2 * GROUP_PADDING,
       MIN_GROUP_HEIGHT,
     ),
   };
@@ -269,10 +302,9 @@ function emptyGroupBox(group: DiagramGroup, theme: Theme): Box {
 
 /** The group label is reserved as extra top padding, so it never sits on a member. */
 function groupPadding(group: DiagramGroup, theme: Theme): string {
-  const settings = theme.diagram;
   const labelHeight = group.label === undefined
     ? 0
-    : labelLines(group.label) * settings.groupLabelLineHeightPx;
+    : labelLines(group.label) * diagramLabelTypography(theme).groupLineHeightPx;
   const top = labelHeight === 0 ? GROUP_PADDING : GROUP_PADDING + labelHeight + GROUP_LABEL_GAP;
   return `[top=${top},left=${GROUP_PADDING},bottom=${GROUP_PADDING},right=${GROUP_PADDING}]`;
 }

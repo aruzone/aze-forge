@@ -53,7 +53,7 @@ const SUITE_EVIDENCE = [
   ["P0-TIM-001", "test/timing.test.mjs"],
   ["P0-TIM-002", "test/timing.test.mjs"],
   ["P0-DIA-001", "test/diagram.test.mjs"],
-  ["P0-DIA-002", "test/diagram.test.mjs"],
+  ["P0-DIA-002", "test/diagram-block.test.mjs"],
   ["P0-MMD-001", "test/mermaid.test.mjs"],
   ["P0-OUT-001", "test/acceptance.test.mjs"],
   ["P0-OUT-002", "test/acceptance.test.mjs"],

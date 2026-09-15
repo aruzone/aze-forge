@@ -110,6 +110,10 @@ test("capabilities --json enumerates the P0 contract in canonical order", async 
   assert.equal(payload.engines.diagram.elkjs, "0.12.0");
   assert.equal(payload.engines.diagram.emitter, "1.0.0");
   assert.equal(payload.engines.diagram.advanceMetric, "1.0.0");
+  assert.deepEqual(payload.engines.diagram.metricSource, [
+    "@fontsource/inter@5.3.0",
+    "@fontsource/jetbrains-mono@5.2.8",
+  ]);
   assert.deepEqual(payload.limits.blocks.diagram, {
     maxDeclarations: 512,
     maxNodes: 128,

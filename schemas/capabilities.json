@@ -584,6 +584,7 @@
             "elkjs",
             "emitter",
             "advanceMetric",
+            "metricSource",
             "availability"
           ],
           "additionalProperties": false,
@@ -603,6 +604,14 @@
             "advanceMetric": {
               "type": "string",
               "minLength": 1
+            },
+            "metricSource": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
             },
             "availability": {
               "enum": [

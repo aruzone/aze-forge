@@ -3,7 +3,9 @@
  *
  * One project-owned SVG emitter over the pinned ELK layout projection:
  * quantized 3-decimal coordinates, positional ids and an intrinsic finite
- * positive viewBox clamped to 4096 × 16384 px. Placement is legibility, never
+ * positive viewBox. The emitter registers no extent ceiling of its own —
+ * layout is total, so every valid Block renders, and the Artifact-format
+ * legs own their published byte and pixel limits. Placement is legibility, never
  * meaning: a reader who cannot see the pixels still gets mode, flow, counts,
  * nodes, edges and group membership from `<desc>`, and a directed edge differs
  * from an undirected one by geometry — an arrowhead polygon — rather than by
@@ -18,11 +20,16 @@
  */
 
 import {
-  ADVANCE_METRIC_VERSION,
+  advanceMetricDependencyClosure,
   labelAdvance,
   labelLines,
 } from "./advance-metric.js";
-import { DIAGRAM_LAYOUT_VERSION, ELKJS_VERSION, layoutDiagram } from "./diagram-layout.js";
+import {
+  DIAGRAM_LAYOUT_VERSION,
+  ELKJS_VERSION,
+  diagramLabelTypography,
+  layoutDiagram,
+} from "./diagram-layout.js";
 import { escapeXml, quantize } from "./plot.js";
 import { defaultTheme } from "./theme.js";
 import type {
@@ -50,9 +57,6 @@ export const DIAGRAM_HTML_BLOCK_RENDERER_ID = "azeforge.diagram.html/v1" as cons
 export const DIAGRAM_HTML_BLOCK_RENDERER_VERSION = "1.0.0" as const;
 export const DIAGRAM_EMITTER_VERSION = "1.0.0" as const;
 
-/** Extent ceiling of one emitted figure (contract §5); beyond it the emitter fails closed. */
-const MAX_DIAGRAM_WIDTH_PX = 4096;
-const MAX_DIAGRAM_HEIGHT_PX = 16384;
 /** The projection quantizes every coordinate through `quantize`, i.e. 3 decimals. */
 const QUANTIZATION_DECIMALS = 3;
 /** Layout-option fingerprint the projection was tuned with (issue #76 §4). */
@@ -81,9 +85,9 @@ const EDGE_LABEL_CLASS = "aze-diagram-label aze-diagram-edge-label";
  * partial figure: the extent guard runs before the first byte of markup.
  */
 export class DiagramRenderError extends Error {
-  readonly code = "azeforge.renderer#diagram-extent";
+  readonly code = "azeforge.renderer#diagram-render";
   readonly remedy =
-    "Reduce the diagram: fewer or shorter labels, fewer nodes, or split the Block into two diagrams.";
+    "Re-check the diagram declaration list; a renderer failure publishes no Artifact.";
 
   constructor(message: string) {
     super(message);
@@ -317,7 +321,8 @@ function edgeLabelMarkup(
 ): string {
   const width = labelAdvance(label, theme.diagram.edgeLabelFontSizePx) + 2 * EDGE_LABEL_PADDING_X_PX;
   const height =
-    labelLines(label) * theme.diagram.edgeLabelLineHeightPx + 2 * EDGE_LABEL_PADDING_Y_PX;
+    labelLines(label) * diagramLabelTypography(theme).edgeLineHeightPx +
+    2 * EDGE_LABEL_PADDING_Y_PX;
   // A route can hug the canvas edge; the label still stays readable inside it.
   const centerX = clampCenter(at.x, width / 2, extent.width);
   const centerY = clampCenter(at.y, height / 2, extent.height);
@@ -325,7 +330,7 @@ function edgeLabelMarkup(
     label,
     centerX,
     centerY,
-    theme.diagram.edgeLabelLineHeightPx,
+    diagramLabelTypography(theme).edgeLineHeightPx,
     EDGE_LABEL_CLASS,
     "center",
   );
@@ -447,12 +452,6 @@ function emitDiagramFragment(
       `The diagram layout has no positive finite extent (${quantize(width)} × ${quantize(height)} px).`,
     );
   }
-  if (width > MAX_DIAGRAM_WIDTH_PX || height > MAX_DIAGRAM_HEIGHT_PX) {
-    throw new DiagramRenderError(
-      `The diagram layout is ${quantize(width)} × ${quantize(height)} px, beyond the ` +
-        `${MAX_DIAGRAM_WIDTH_PX} × ${MAX_DIAGRAM_HEIGHT_PX} px ceiling.`,
-    );
-  }
   assertProjection(
     layout.nodes.length === entities.nodes.length,
     `${layout.nodes.length} layout nodes for ${entities.nodes.length} authored nodes`,
@@ -497,7 +496,7 @@ function emitDiagramFragment(
         authored?.label,
         group.x + GROUP_LABEL_INSET_PX,
         group.y + GROUP_LABEL_INSET_PX / 2,
-        theme.diagram.groupLabelLineHeightPx,
+        diagramLabelTypography(theme).groupLineHeightPx,
         GROUP_LABEL_CLASS,
         "top",
       );
@@ -532,7 +531,7 @@ function emitDiagramFragment(
         label,
         node.x + node.width / 2,
         node.y + node.height / 2,
-        theme.diagram.nodeLabelLineHeightPx,
+        diagramLabelTypography(theme).nodeLineHeightPx,
         NODE_LABEL_CLASS,
         "center",
       );
@@ -556,10 +555,7 @@ function emitDiagramFragment(
       if (authored === undefined) return "";
       const data = pathData(edge);
       if (data === "") return "";
-      const path =
-        `<path id="${svgId}-e-${index}" class="aze-diagram-edge"` +
-        ` data-edge="${escapeXml(`${endpointText(authored.from)}->${endpointText(authored.to)}`)}"` +
-        ` d="${data}"/>`;
+      const path = `<path id="${svgId}-e-${index}" class="aze-diagram-edge" d="${data}"/>`;
       const arrow = authored.direction === "directed" ? arrowMarkup(edge) : "";
       const at = polylineMidpoint(polyline(edge));
       const label =
@@ -601,13 +597,17 @@ export async function renderDiagramFragment(
   return emitDiagramFragment(block, layout, ordinal, theme);
 }
 
-/** Fingerprint closure for the rendered-artifact hash (contract §7). */
+/**
+ * Fingerprint closure for the rendered-artifact hash (contract §12): the
+ * layout language, the pinned engine, the emitter, the Advance metric and its
+ * pinned font sources, the option set and the quantization.
+ */
 export function diagramDependencyClosure(): JsonValue {
   return Object.freeze({
     layout: DIAGRAM_LAYOUT_VERSION,
     elkjs: ELKJS_VERSION,
     emitter: DIAGRAM_EMITTER_VERSION,
-    advanceMetric: ADVANCE_METRIC_VERSION,
+    advanceMetric: advanceMetricDependencyClosure(),
     quantization: QUANTIZATION_DECIMALS,
     options: DIAGRAM_OPTIONS_VERSION,
   });

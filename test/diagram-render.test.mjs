@@ -38,7 +38,6 @@ const ELEMENTS = new Set(["figure", "svg", "title", "desc", "g", "rect", "ellips
 const ATTRIBUTES = new Set([
   "class",
   "id",
-  "data-edge",
   "data-ordinal",
   "data-diagram-id",
   "data-diagram-mode",
@@ -106,33 +105,6 @@ const FLOWCHART = BLOCKS.find((block) => block.id === "branching-process");
 const TREE = BLOCKS.find((block) => block.id === "compiler-tree");
 const ARCHITECTURE = BLOCKS.find((block) => block.id === "service-architecture");
 
-const EDGES_BY_ID = {
-  "branching-process": [
-    "start->classify",
-    "classify->cache",
-    "classify->origin",
-    "origin->store",
-    "store->cache",
-    "cache->classify",
-  ],
-  "compiler-tree": [
-    "root->core",
-    "core->parser",
-    "core->renderer",
-    "renderer->svg-writer",
-    "renderer->png-writer",
-    "renderer->pdf-writer",
-  ],
-  "service-architecture": [
-    "client->gateway.inbound",
-    "gateway.upstream->auth.api",
-    "gateway.upstream->catalog.api",
-    "auth->primary",
-    "catalog->primary",
-    "catalog->replica",
-    "catalog->replica",
-  ],
-};
 const DIRECTED_BY_ID = {
   "branching-process": [true, true, true, true, true, true],
   "compiler-tree": [true, true, true, true, true, true],
@@ -163,17 +135,16 @@ function edgeSegments(fragment) {
   return group[1]
     .split(/(?=<path id=")/)
     .filter((segment) => segment.startsWith("<path "))
-    .map((segment) => ({
-      id: /^<path id="([^"]+)"/.exec(segment)[1],
-      dataEdge: /data-edge="([^"]*)"/.exec(segment)[1]
-        .replaceAll("&gt;", ">")
-        .replaceAll("&lt;", "<")
-        .replaceAll("&quot;", '"')
-        .replaceAll("&amp;", "&"),
-      d: / d="([^"]*)"/.exec(segment)[1],
-      arrow: segment.includes('class="aze-diagram-arrow"'),
-      label: segment.includes('class="aze-diagram-edge-label-background"'),
-    }));
+    .map((segment) => {
+      const id = /^<path id="([^"]+)"/.exec(segment)[1];
+      return {
+        id,
+        index: Number(/\d+$/.exec(id)[0]),
+        d: / d="([^"]*)"/.exec(segment)[1],
+        arrow: segment.includes('class="aze-diagram-arrow"'),
+        label: segment.includes('class="aze-diagram-edge-label-background"'),
+      };
+    });
 }
 
 function groupRects(fragment) {
@@ -303,25 +274,28 @@ test("directed edges carry an arrowhead polygon and undirected edges carry no te
   for (const block of BLOCKS) {
     const fragment = await render(block);
     const segments = edgeSegments(fragment);
-    assert.deepEqual(
-      segments.map((segment) => segment.dataEdge),
-      EDGES_BY_ID[block.id],
+    const authored = block.declarations.filter(
+      (declaration) => declaration.kind === "edge",
     );
     assert.deepEqual(
       segments.map((segment) => segment.id),
-      EDGES_BY_ID[block.id].map((_, index) => `aze-d-0-e-${index}`),
+      authored.map((_, index) => `aze-d-0-e-${index}`),
+    );
+    assert.deepEqual(
+      segments.map((segment) => segment.index),
+      authored.map((_, index) => index),
     );
     for (const [index, segment] of segments.entries()) {
       assert.ok(segment.d.startsWith("M"), segment.d);
       assert.equal(
         segment.arrow,
         DIRECTED_BY_ID[block.id][index],
-        `${block.id} edge ${index} (${segment.dataEdge}) arrowhead`,
+        `${block.id} edge ${index} (${segment.id}) arrowhead`,
       );
       assert.equal(
         segment.label,
         LABELS_BY_ID[block.id][index],
-        `${block.id} edge ${index} (${segment.dataEdge}) label`,
+        `${block.id} edge ${index} (${segment.id}) label`,
       );
     }
     assert.equal(
@@ -332,22 +306,27 @@ test("directed edges carry an arrowhead polygon and undirected edges carry no te
 
   // An arrowhead polygon is the only terminator the emitter can produce: no
   // markers, no defs and no second head anywhere, so the four undirected
-  // architecture edges stay distinguishable without colour.
+  // architecture edges stay distinguishable without colour. Edges stay in
+  // authored order, which is what the positional path ids encode.
   const architecture = await render(ARCHITECTURE);
-  assert.ok(architecture.includes('data-edge="client-&gt;gateway.inbound"'), "the arrow spelling is escaped");
   assert.ok(!architecture.includes("marker"));
   assert.ok(!/<(?:marker|defs|use)[\s>]/.test(architecture));
   assert.deepEqual(
-    edgeSegments(architecture)
-      .filter((segment) => !segment.arrow)
-      .map((segment) => segment.dataEdge),
-    ["auth->primary", "catalog->primary", "catalog->replica", "catalog->replica"],
+    edgeSegments(architecture).map((segment) => segment.index),
+    [0, 1, 2, 3, 4, 5, 6],
   );
   assert.deepEqual(
     edgeSegments(architecture)
-      .filter((segment) => segment.arrow)
-      .map((segment) => segment.dataEdge),
-    ["client->gateway.inbound", "gateway.upstream->auth.api", "gateway.upstream->catalog.api"],
+      .filter((segment) => !segment.arrow)
+      .map((segment) => segment.index),
+    [3, 4, 5, 6],
+  );
+  // Contract §10: semantic names never appear in an SVG attribute. The edge
+  // endpoints are therefore not observable here at all — only in `<desc>`.
+  assert.ok(!architecture.includes("data-edge"));
+  assert.deepEqual(
+    [...architecture.matchAll(/\sdata-[a-z-]+="([^"]*)"/g)].map((match) => match[1]),
+    ["0", "service-architecture", "architecture"],
   );
 });
 
@@ -514,15 +493,16 @@ test("adjacency is Theme-invariant while geometry is layout-derived", async () =
   const rendered = [];
   for (const theme of themes) rendered.push(await render(ARCHITECTURE, { theme }));
   const adjacency = rendered.map((fragment) =>
-    edgeSegments(fragment).map((segment) => [segment.dataEdge, segment.arrow]),
+    edgeSegments(fragment).map((segment) => [segment.index, segment.arrow, segment.label]),
   );
   assert.deepEqual(adjacency[1], adjacency[0]);
   assert.deepEqual(adjacency[2], adjacency[0]);
   assert.deepEqual(
     adjacency[0],
-    EDGES_BY_ID["service-architecture"].map((dataEdge, index) => [
-      dataEdge,
-      DIRECTED_BY_ID["service-architecture"][index],
+    DIRECTED_BY_ID["service-architecture"].map((directed, index) => [
+      index,
+      directed,
+      LABELS_BY_ID["service-architecture"][index],
     ]),
   );
 
@@ -543,14 +523,34 @@ test("the renderer descriptor, its exports and the dependency closure are frozen
   assert.equal(DIAGRAM_HTML_BLOCK_RENDERER_ID, "azeforge.diagram.html/v1");
   assert.equal(DIAGRAM_HTML_BLOCK_RENDERER_VERSION, "1.0.0");
   assert.equal(DIAGRAM_EMITTER_VERSION, "1.0.0");
-  assert.deepEqual(diagramDependencyClosure(), {
-    layout: "diagram-layout/v1",
-    elkjs: "0.12.0",
-    emitter: DIAGRAM_EMITTER_VERSION,
-    advanceMetric: "1.0.0",
-    quantization: 3,
-    options: "diagram-options/v1",
-  });
+  const closure = diagramDependencyClosure();
+  assert.deepEqual(Object.keys(closure), [
+    "layout",
+    "elkjs",
+    "emitter",
+    "advanceMetric",
+    "quantization",
+    "options",
+  ]);
+  assert.equal(closure.layout, "diagram-layout/v1");
+  assert.equal(closure.elkjs, "0.12.0");
+  assert.equal(closure.emitter, DIAGRAM_EMITTER_VERSION);
+  assert.equal(closure.quantization, 3);
+  assert.equal(closure.options, "diagram-options/v1");
+  // §12: the metric half of the closure carries its version *and* the pinned
+  // font sources, so regenerating the table moves every renderer fingerprint.
+  assert.equal(closure.advanceMetric.metric, "1.0.0");
+  assert.equal(closure.advanceMetric.family, "Inter");
+  assert.equal(closure.advanceMetric.monospace.family, "JetBrains Mono");
+  const sources = closure.advanceMetric.sources;
+  assert.equal(sources.length, 13);
+  assert.deepEqual(
+    [...new Set(sources.map((source) => `@${source.split(":")[0].split("@")[1]}`))].sort(),
+    ["@fontsource/inter", "@fontsource/jetbrains-mono"],
+  );
+  for (const source of sources) {
+    assert.match(source, /^@fontsource\/[a-z-]+@\d+\.\d+\.\d+:sha256:[0-9a-f]{64}$/);
+  }
   assert.deepEqual(diagramHtmlBlockRenderer.descriptor, {
     id: DIAGRAM_HTML_BLOCK_RENDERER_ID,
     version: DIAGRAM_HTML_BLOCK_RENDERER_VERSION,
@@ -578,7 +578,7 @@ test("a Block with no authored id or title still names itself positionally", asy
   assert.equal(titleText(await render(titled)).text, "Diagram compiler-tree");
 });
 
-test("an over-extent layout fails closed without a partial figure", async () => {
+test("a wide but valid layout renders: the emitter registers no extent ceiling", async () => {
   const wide = {
     kind: "diagram",
     pluginVersion: "1.0.0",
@@ -595,14 +595,11 @@ test("an over-extent layout fails closed without a partial figure", async () => 
       range: BLOCK_RANGE,
     })),
   };
-  await assert.rejects(
-    () => render(wide),
-    (error) => {
-      assert.ok(error instanceof DiagramRenderError, String(error));
-      assert.equal(error.code, "azeforge.renderer#diagram-extent");
-      assert.match(error.message, /beyond the 4096 × 16384 px ceiling/);
-      assert.ok(error.remedy.length > 0);
-      return true;
-    },
-  );
+  const fragment = await render(wide);
+  const box = /viewBox="0 0 ([0-9.]+) ([0-9.]+)"/.exec(fragment);
+  assert.ok(box !== null, "the wide figure still carries a viewBox");
+  assert.ok(Number(box[1]) > 4096, `expected an extent beyond 4096 px, got ${box[1]}`);
+  assert.ok(fragment.includes("aze-diagram-shape-rectangle"));
+  // Layout is total, so nothing throws here; the Artifact-format legs own
+  // their published byte and pixel limits and fail closed on their own terms.
 });

@@ -263,13 +263,25 @@ export const capabilitiesJsonSchema: JsonValue = Object.freeze({
         },
         diagram: {
           type: "object",
-          required: ["layout", "elkjs", "emitter", "advanceMetric", "availability"],
+          required: [
+            "layout",
+            "elkjs",
+            "emitter",
+            "advanceMetric",
+            "metricSource",
+            "availability",
+          ],
           additionalProperties: false,
           properties: {
             layout: { type: "string", minLength: 1 },
             elkjs: { type: "string", minLength: 1 },
             emitter: { type: "string", minLength: 1 },
             advanceMetric: { type: "string", minLength: 1 },
+            metricSource: {
+              type: "array",
+              minItems: 1,
+              items: { type: "string", minLength: 1 },
+            },
             availability,
           },
         },

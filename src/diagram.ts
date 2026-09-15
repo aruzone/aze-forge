@@ -21,6 +21,7 @@
  */
 
 import { createDiagnostic } from "./diagnostics.js";
+import { didYouMean } from "./plot.js";
 import {
   DIAGRAM_BODY_SYNTAX_ID,
   DIAGRAM_BODY_SYNTAX_VERSION,
@@ -85,6 +86,7 @@ const SHAPES = [
 const SIDES = ["left", "right", "top", "bottom"] as const;
 const FLOWS = ["top-to-bottom", "bottom-to-top", "left-to-right", "right-to-left"] as const;
 const DIRECTIONS = ["directed", "undirected"] as const;
+const DECLARATION_KINDS = ["node", "group", "edge"] as const;
 
 const DEFAULT_FLOW: Readonly<Record<DiagramMode, DiagramFlow>> = Object.freeze({
   flowchart: "top-to-bottom",
@@ -113,11 +115,22 @@ function diag(
   range: SourceRange,
   sourceName: string | undefined,
   data?: Record<string, JsonValue>,
+  suggestion?: string,
 ): Diagnostic {
   return createDiagnostic(`${NAMESPACE}#${code}`, "error", message, {
     location: sourceName === undefined ? { range } : { source: sourceName, range },
     ...(data === undefined ? {} : { data }),
+    ...(suggestion === undefined ? {} : { suggestion }),
   });
+}
+
+/**
+ * Did-you-mean over a registered vocabulary only: a proposal the reader can
+ * act on, never an invented near-miss outside the contract's closed sets.
+ */
+function vocabularySuggestion(value: string, registered: readonly string[]): string {
+  const spelled = didYouMean(value, registered);
+  return spelled ?? `Registered values: ${registered.join(", ")}.`;
 }
 
 function warn(
@@ -408,7 +421,16 @@ function allowedFields(
 ): void {
   for (const field of fields) {
     if (!registered.includes(field.key)) {
-      diagnostics.push(diag("unknown-field", `Diagram ${owner} field "${field.key}" is not supported.`, field.range, sourceName, { field: field.key }));
+      diagnostics.push(
+        diag(
+          "unknown-field",
+          `Diagram ${owner} field "${field.key}" is not supported.`,
+          field.range,
+          sourceName,
+          { field: field.key },
+          vocabularySuggestion(field.key, registered),
+        ),
+      );
     }
   }
 }
@@ -500,6 +522,7 @@ export function validateDiagramBlock(options: DiagramValidationOptions): {
         modeLine?.range ?? blockRange,
         sourceName,
         { field: "mode" },
+        modeText === "" ? undefined : vocabularySuggestion(modeText, MODES),
       ),
     );
   }
@@ -513,7 +536,7 @@ export function validateDiagramBlock(options: DiagramValidationOptions): {
     flow = flowText;
   } else {
     diagnostics.push(
-      diag("unknown-flow", `Diagram flow "${flowText}" is not registered.`, flowLine?.range ?? blockRange, sourceName, { field: "flow" }),
+      diag("unknown-flow", `Diagram flow "${flowText}" is not registered.`, flowLine?.range ?? blockRange, sourceName, { field: "flow" }, vocabularySuggestion(flowText, FLOWS)),
     );
   }
 
@@ -555,7 +578,7 @@ export function validateDiagramBlock(options: DiagramValidationOptions): {
       let shape: DiagramShape = "rectangle";
       if (shapeField !== undefined) {
         if (oneOf(SHAPES, shapeField.value)) shape = shapeField.value;
-        else diagnostics.push(diag("unknown-shape", `Diagram shape "${shapeField.value}" is not registered.`, shapeField.range, sourceName, { field: "shape" }));
+        else diagnostics.push(diag("unknown-shape", `Diagram shape "${shapeField.value}" is not registered.`, shapeField.range, sourceName, { field: "shape" }, vocabularySuggestion(shapeField.value, SHAPES)));
       }
       const ports: DiagramPort[] = [];
       for (const record of item.records) {
@@ -566,7 +589,7 @@ export function validateDiagramBlock(options: DiagramValidationOptions): {
         let side: DiagramPortSide | undefined;
         if (sideField !== undefined) {
           if (oneOf(SIDES, sideField.value)) side = sideField.value;
-          else diagnostics.push(diag("unknown-side", `Diagram port side "${sideField.value}" is not registered.`, sideField.range, sourceName, { field: "side" }));
+          else diagnostics.push(diag("unknown-side", `Diagram port side "${sideField.value}" is not registered.`, sideField.range, sourceName, { field: "side" }, vocabularySuggestion(sideField.value, SIDES)));
         }
         const portName = portNameField?.value ?? "";
         if (portName === "") {
@@ -627,7 +650,7 @@ export function validateDiagramBlock(options: DiagramValidationOptions): {
       let direction: DiagramEdgeDirection = "directed";
       if (directionField !== undefined) {
         if (oneOf(DIRECTIONS, directionField.value)) direction = directionField.value;
-        else diagnostics.push(diag("unknown-field", `Diagram edge direction "${directionField.value}" is not registered.`, directionField.range, sourceName, { field: "direction" }));
+        else diagnostics.push(diag("unknown-field", `Diagram edge direction "${directionField.value}" is not registered.`, directionField.range, sourceName, { field: "direction" }, vocabularySuggestion(directionField.value, DIRECTIONS)));
       }
       if (absentFrom || absentTo || fromField === undefined || toField === undefined) continue;
       declared.push({
@@ -643,7 +666,7 @@ export function validateDiagramBlock(options: DiagramValidationOptions): {
       });
       continue;
     }
-    diagnostics.push(diag("unknown-declaration", `Unknown diagram declaration "${item.kind}".`, item.range, sourceName));
+    diagnostics.push(diag("unknown-declaration", `Unknown diagram declaration "${item.kind}".`, item.range, sourceName, undefined, vocabularySuggestion(item.kind, DECLARATION_KINDS)));
   }
 
   /* Name and port resolution — forward references are legal, nothing is

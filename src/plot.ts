@@ -150,7 +150,7 @@ function distance(left: string, right: string): number {
   return previous[right.length] ?? right.length;
 }
 
-function didYouMean(value: string, candidates: readonly string[]): string | undefined {
+export function didYouMean(value: string, candidates: readonly string[]): string | undefined {
   let best: string | undefined;
   let bestDistance = Number.POSITIVE_INFINITY;
   for (const candidate of candidates) {

@@ -35,7 +35,7 @@ import {
   MAX_DIAGRAM_TOTAL_LABEL_CODE_POINTS,
 } from "./diagram.js";
 import { TIMING_EMITTER_VERSION } from "./timing-render.js";
-import { ADVANCE_METRIC_VERSION } from "./advance-metric.js";
+import { ADVANCE_METRIC_SOURCES, ADVANCE_METRIC_VERSION } from "./advance-metric.js";
 import { DIAGRAM_LAYOUT_VERSION, ELKJS_VERSION } from "./diagram-layout.js";
 import { DIAGRAM_EMITTER_VERSION } from "./diagram-render.js";
 import {
@@ -290,6 +290,7 @@ export interface CapabilitiesReport {
       elkjs: typeof ELKJS_VERSION;
       emitter: typeof DIAGRAM_EMITTER_VERSION;
       advanceMetric: typeof ADVANCE_METRIC_VERSION;
+      metricSource: readonly string[];
       availability: EngineAvailability;
     }>;
     readonly fonts: readonly {
@@ -605,6 +606,7 @@ export async function buildCapabilities(
         elkjs: ELKJS_VERSION,
         emitter: DIAGRAM_EMITTER_VERSION,
         advanceMetric: ADVANCE_METRIC_VERSION,
+        metricSource: ADVANCE_METRIC_SOURCES,
         availability: bundled,
       },
       fonts: [
