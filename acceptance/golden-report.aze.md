@@ -309,3 +309,201 @@ unit: ns
   to: valid@5
   label: t_{su}
 ::::
+## Diagrams
+
+The General diagrams family is authored once per mode on the one shared
+node/edge/group/port model. The flowchart is cyclic, the tree is written with
+forward references, and the architecture nests groups, names ports and keeps
+two undirected parallel edges between the same pair, so every structural
+feature the contract admits is visible in one rendered document.
+
+:::: diagram
+id: branching-process
+number: true
+title: Request branching process
+mode: flowchart
+flow: top-to-bottom
+----
+- kind: node
+  name: start
+  label: Start
+  shape: circle
+- kind: node
+  name: classify
+  label: Classify request?
+  shape: diamond
+- kind: node
+  name: cache
+  label: Serve from cache
+- kind: node
+  name: origin
+  label: Fetch from origin
+- kind: node
+  name: store
+  label: Store result
+  shape: cylinder
+- kind: edge
+  from: start
+  to: classify
+- kind: edge
+  from: classify
+  to: cache
+  label: hit
+- kind: edge
+  from: classify
+  to: origin
+  label: miss
+- kind: edge
+  from: origin
+  to: store
+- kind: edge
+  from: store
+  to: cache
+  label: warm
+- kind: edge
+  from: cache
+  to: classify
+  label: recheck
+::::
+
+:::: diagram
+id: compiler-tree
+number: true
+title: Compiler component tree
+mode: tree
+flow: top-to-bottom
+----
+- kind: edge
+  from: root
+  to: core
+- kind: edge
+  from: core
+  to: parser
+- kind: edge
+  from: core
+  to: renderer
+- kind: edge
+  from: renderer
+  to: svg-writer
+- kind: edge
+  from: renderer
+  to: png-writer
+- kind: edge
+  from: renderer
+  to: pdf-writer
+- kind: node
+  name: root
+  label: Compiler
+  shape: rounded
+- kind: node
+  name: core
+  label: Core
+- kind: node
+  name: parser
+  label: Parser
+- kind: node
+  name: renderer
+  label: Renderer
+- kind: node
+  name: svg-writer
+  label: SVG writer
+- kind: node
+  name: png-writer
+  label: PNG writer
+- kind: node
+  name: pdf-writer
+  label: PDF writer
+  shape: parallelogram
+  parent: printing
+- kind: group
+  name: printing
+  label: Printing
+::::
+
+:::: diagram
+id: service-architecture
+number: true
+title: Service architecture
+mode: architecture
+flow: left-to-right
+----
+- kind: group
+  name: edge-tier
+  label: Edge tier
+- kind: group
+  name: service-tier
+  label: Services
+- kind: group
+  name: data-tier
+  label: Data tier
+- kind: group
+  name: persistence
+  label: Persistence
+  parent: data-tier
+- kind: node
+  name: client
+  label: Browser
+  parent: edge-tier
+- kind: node
+  name: gateway
+  label: API gateway
+  parent: edge-tier
+  shape: hexagon
+  ports:
+    - name: inbound
+      side: left
+    - name: upstream
+      side: right
+- kind: node
+  name: auth
+  label: Auth service
+  parent: service-tier
+  shape: rounded
+  ports:
+    - name: api
+      side: left
+- kind: node
+  name: catalog
+  label: Catalog service
+  parent: service-tier
+  shape: rounded
+  ports:
+    - name: api
+      side: left
+- kind: node
+  name: primary
+  label: Primary database
+  parent: persistence
+  shape: cylinder
+- kind: node
+  name: replica
+  label: Read replica
+  parent: persistence
+  shape: cylinder
+- kind: edge
+  from: client
+  to: gateway.inbound
+- kind: edge
+  from: gateway.upstream
+  to: auth.api
+- kind: edge
+  from: gateway.upstream
+  to: catalog.api
+- kind: edge
+  from: auth
+  to: primary
+  direction: undirected
+- kind: edge
+  from: catalog
+  to: primary
+  direction: undirected
+- kind: edge
+  from: catalog
+  to: replica
+  direction: undirected
+- kind: edge
+  from: catalog
+  to: replica
+  label: fallback
+  direction: undirected
+::::

@@ -33,6 +33,7 @@ A native capability uses controlled AzeMark declarations, retains its domain mea
   - Trees
   - System architecture diagrams
   - Named nodes, standard shapes, groups, hierarchy, flow direction, and bounded layout hints
+  - [Implemented with the native Diagram family](https://github.com/aruzone/aze-forge/issues/76). The detailed contract is in [issue #60](https://github.com/aruzone/aze-forge/issues/60#issuecomment-5580563024).
 - Software and data models
   - Sequence diagrams with participants, ordered messages, activations, notes, alternatives, and loops
   - State machines with initial and final states, authored transition guards and actions, and nested states

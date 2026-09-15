@@ -21,7 +21,23 @@ import {
   MAX_TIMING_WAVE_CHARS,
   MAX_TIMING_WIDTH,
 } from "./timing.js";
+import {
+  MAX_DIAGRAM_DECLARATIONS,
+  MAX_DIAGRAM_EDGES,
+  MAX_DIAGRAM_GROUPS,
+  MAX_DIAGRAM_GROUP_DEPTH,
+  MAX_DIAGRAM_LABEL_CODE_POINTS,
+  MAX_DIAGRAM_LABEL_LINES,
+  MAX_DIAGRAM_NODES,
+  MAX_DIAGRAM_PARALLEL_EDGES,
+  MAX_DIAGRAM_PORTS,
+  MAX_DIAGRAM_PORTS_PER_NODE,
+  MAX_DIAGRAM_TOTAL_LABEL_CODE_POINTS,
+} from "./diagram.js";
 import { TIMING_EMITTER_VERSION } from "./timing-render.js";
+import { ADVANCE_METRIC_VERSION } from "./advance-metric.js";
+import { DIAGRAM_LAYOUT_VERSION, ELKJS_VERSION } from "./diagram-layout.js";
+import { DIAGRAM_EMITTER_VERSION } from "./diagram-render.js";
 import {
   MAX_EQUATION_SOURCE_LENGTH,
   MAX_EQUATION_TEX_LENGTH,
@@ -269,6 +285,13 @@ export interface CapabilitiesReport {
       emitter: typeof TIMING_EMITTER_VERSION;
       availability: EngineAvailability;
     }>;
+    readonly diagram: Readonly<{
+      layout: typeof DIAGRAM_LAYOUT_VERSION;
+      elkjs: typeof ELKJS_VERSION;
+      emitter: typeof DIAGRAM_EMITTER_VERSION;
+      advanceMetric: typeof ADVANCE_METRIC_VERSION;
+      availability: EngineAvailability;
+    }>;
     readonly fonts: readonly {
       readonly family: string;
       readonly weights: readonly number[];
@@ -507,6 +530,19 @@ export async function buildCapabilities(
           maxRelations: MAX_CIRCUIT_RELATIONS,
           maxAnnotations: MAX_CIRCUIT_ANNOTATIONS,
         },
+        diagram: {
+          maxDeclarations: MAX_DIAGRAM_DECLARATIONS,
+          maxNodes: MAX_DIAGRAM_NODES,
+          maxEdges: MAX_DIAGRAM_EDGES,
+          maxGroups: MAX_DIAGRAM_GROUPS,
+          maxGroupDepth: MAX_DIAGRAM_GROUP_DEPTH,
+          maxPortsPerNode: MAX_DIAGRAM_PORTS_PER_NODE,
+          maxPorts: MAX_DIAGRAM_PORTS,
+          maxParallelEdges: MAX_DIAGRAM_PARALLEL_EDGES,
+          maxLabelCodePoints: MAX_DIAGRAM_LABEL_CODE_POINTS,
+          maxLabelLines: MAX_DIAGRAM_LABEL_LINES,
+          maxTotalLabelCodePoints: MAX_DIAGRAM_TOTAL_LABEL_CODE_POINTS,
+        },
         timing: {
           maxSignals: MAX_TIMING_SIGNALS,
           maxIntervals: MAX_TIMING_INTERVALS,
@@ -562,6 +598,13 @@ export async function buildCapabilities(
       },
       timing: {
         emitter: TIMING_EMITTER_VERSION,
+        availability: bundled,
+      },
+      diagram: {
+        layout: DIAGRAM_LAYOUT_VERSION,
+        elkjs: ELKJS_VERSION,
+        emitter: DIAGRAM_EMITTER_VERSION,
+        advanceMetric: ADVANCE_METRIC_VERSION,
         availability: bundled,
       },
       fonts: [

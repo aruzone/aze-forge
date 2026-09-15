@@ -73,6 +73,14 @@ node --test test/equation.test.mjs
   expressions, exact-decimal canonicalization, gap/asymptote sampling,
   bar-family binning, stable diagnostics, quantized deterministic SVG, and
   the plot capabilities engine.
+- `test/diagram.test.mjs` is the general diagrams seam: two-pass forward
+  reference resolution, the four mode regimes and their warnings, the
+  ceiling matrix, pinned-elkjs layout totality and determinism, quantized
+  deterministic SVG with positional ids, Theme-invariant content identity,
+  and the three contract scenarios.
+- `test/advance-metric.test.mjs` is the Advance metric seam: the generated
+  character-advance table, its uncovered-code-point rule, and the script
+  scale that sizes diagram boxes without parsing a font at runtime.
 
 ## Acceptance runner
 

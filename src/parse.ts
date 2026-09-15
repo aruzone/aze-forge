@@ -39,6 +39,8 @@ import { CIRCUIT_PLUGIN_TYPE } from "./circuit-schemas.js";
 import { circuitPlugin, validateCircuitBlock, type CircuitInputLine } from "./circuit.js";
 import { TIMING_PLUGIN_TYPE } from "./timing-schemas.js";
 import { timingPlugin, validateTimingBlock, type TimingInputLine } from "./timing.js";
+import { DIAGRAM_PLUGIN_TYPE } from "./diagram-schemas.js";
+import { diagramPlugin, validateDiagramBlock, type DiagramInputLine } from "./diagram.js";
 import type {
   ArtifactFormat,
   CalloutBlock,
@@ -2219,6 +2221,38 @@ function parseTimingEnvelope(
 }
 
 
+function parseDiagramEnvelope(
+  source: string,
+  lines: readonly SourceLine[],
+  openIndex: number,
+  closingIndex: number,
+  first: SourceLine,
+  last: SourceLine,
+  options: ParseOptions,
+  diagnostics: Diagnostic[],
+): ParsedBlock {
+  const blockRange = rangeFromLines(first, last);
+  const startIndex = diagnostics.length;
+  const { bodyStart, separatorFound } = splitHeaderEntries(lines, openIndex, closingIndex);
+  if (!separatorFound) {
+    missingSeparatorDiagnostic(lines, openIndex, closingIndex, first, options, diagnostics);
+    return invalidBlockFor(source, first, last, startIndex, diagnostics, DIAGRAM_PLUGIN_TYPE);
+  }
+  const toInput = (line: SourceLine): DiagramInputLine => ({
+    text: lineText(line),
+    range: rangeFromLines(line, line),
+  });
+  const validated = validateDiagramBlock({
+    headerLines: lines.slice(openIndex + 1, bodyStart - 1).map(toInput),
+    bodyLines: lines.slice(bodyStart, closingIndex).map(toInput),
+    blockRange,
+    ...(options.sourceName === undefined ? {} : { sourceName: options.sourceName }),
+  });
+  diagnostics.push(...validated.diagnostics);
+  return validated.block ?? invalidBlockFor(source, first, last, startIndex, diagnostics, DIAGRAM_PLUGIN_TYPE);
+}
+
+
 function parseChemistryEnvelope(
   source: string,
   lines: readonly SourceLine[],
@@ -2503,6 +2537,10 @@ function parseBlocks(
       }
       if (closed && originalType === TIMING_PLUGIN_TYPE && activeTypes.includes(TIMING_PLUGIN_TYPE)) {
         blocks.push(parseTimingEnvelope(source, lines, openIndex, closingIndex, first, last, options, diagnostics));
+        continue;
+      }
+      if (closed && originalType === DIAGRAM_PLUGIN_TYPE && activeTypes.includes(DIAGRAM_PLUGIN_TYPE)) {
+        blocks.push(parseDiagramEnvelope(source, lines, openIndex, closingIndex, first, last, options, diagnostics));
         continue;
       }
       if (
@@ -3044,6 +3082,7 @@ export function parseSource(source: string, options: ParseOptions = {}): ParseRe
     reactionPlugin,
     circuitPlugin,
     timingPlugin,
+    diagramPlugin,
     structurePlugin,
   ];
   const activeTypes = [...new Set(activePlugins.map((plugin) => plugin.descriptor.type))].sort();

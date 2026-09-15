@@ -46,6 +46,7 @@ export type {
   ParsedBlock,
   CircuitBlock,
   TimingBlock,
+  DiagramBlock,
   ContentHash,
   Sha256Hash,
   AssetManifestEntry,

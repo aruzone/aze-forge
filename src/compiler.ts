@@ -22,11 +22,13 @@ import type {
   BlockRendererContext,
   CalloutBlock,
   ChartBlock,
+  CircuitText,
   GeometryBlock,
   FormulaBlock,
   ReactionBlock,
   StructureBlock,
   CircuitBlock,
+  DiagramBlock,
   TimingBlock,
   CompileOptions,
   CompileResult,
@@ -53,6 +55,7 @@ import {
 } from "./equation.js";
 import type {
   DerivationBlock,
+  DiagramBlockRenderer,
   EquationBlock,
   MermaidBlock,
   MermaidBlockRenderer,
@@ -67,6 +70,8 @@ import {
   sanitizeMermaidFragment,
 } from "./mermaid.js";
 import { MERMAID_PLUGIN_TYPE } from "./mermaid-schemas.js";
+import { DIAGRAM_PLUGIN_TYPE } from "./diagram-schemas.js";
+import { diagramDependencyClosure } from "./diagram-render.js";
 import { isTypedTableData } from "./table.js";
 import { DERIVATION_PLUGIN_TYPE } from "./derivation-schemas.js";
 import { FragmentSecurityError } from "./html-fragment.js";
@@ -366,6 +371,21 @@ function derivationTargets(document: AzeDocument): readonly DerivationTarget[] {
   });
   return targets;
 }
+interface DiagramTarget {
+  readonly block: DiagramBlock;
+  readonly ordinal: number;
+}
+
+function diagramTargets(document: AzeDocument): readonly DiagramTarget[] {
+  const targets: DiagramTarget[] = [];
+  walkBlocks(document.blocks, (block) => {
+    if (block.kind === "diagram") {
+      targets.push({ block, ordinal: targets.length });
+    }
+  });
+  return targets;
+}
+
 interface MermaidTarget {
   readonly block: MermaidBlock;
   readonly ordinal: number;
@@ -541,6 +561,40 @@ function collectRenderText(blocks: readonly AzeBlock[], out: string[]): void {
           }
         }
         break;
+      case "diagram": {
+        if (block.id !== undefined) out.push(block.id);
+        const texts: CircuitText[] = [];
+        const push = (value: CircuitText | undefined): void => {
+          if (value !== undefined) texts.push(value);
+        };
+        push(block.title);
+        push(block.description);
+        for (const declaration of block.declarations) {
+          if (declaration.kind === "node") {
+            if (declaration.label === undefined) {
+              out.push(declaration.name);
+            } else {
+              for (const line of declaration.label) texts.push(line);
+            }
+            for (const port of declaration.ports) out.push(port.name);
+            continue;
+          }
+          if (declaration.kind === "group") {
+            if (declaration.label === undefined) out.push(declaration.name);
+            else for (const line of declaration.label) texts.push(line);
+            continue;
+          }
+          if (declaration.label !== undefined) {
+            for (const line of declaration.label) texts.push(line);
+          }
+        }
+        for (const text of texts) {
+          for (const run of text) {
+            out.push(run.kind === "quantity" ? `${run.coefficient} ${run.prefix}${run.unit}` : run.value);
+          }
+        }
+        break;
+      }
       case "timing": {
         if (block.id !== undefined) out.push(block.id);
         const texts = [
@@ -1295,6 +1349,218 @@ async function renderMermaidFragments(
   return { fragments, diagnostics };
 }
 
+/**
+ * Diagram fragments are produced ahead of HTML assembly because the pinned
+ * layout engine is asynchronous: the renderer returns one `<figure>` per
+ * Block, and the HTML assembler only ever reads the finished string. A
+ * failure here publishes no Artifact and never falls back to Mermaid.
+ */
+async function renderDiagramFragments(
+  document: AzeDocument,
+  rendererId: string,
+  registry: ResolvedRegistry,
+  policy: CompilerPolicy,
+  sourceName: string | undefined,
+  timeoutMs: number,
+  theme: Theme,
+): Promise<{
+  readonly fragments: ReadonlyMap<DiagramBlock, string>;
+  readonly diagnostics: readonly Diagnostic[];
+}> {
+  const targets = diagramTargets(document);
+  const rendererName = rendererId.toUpperCase();
+  if (targets.length === 0) {
+    return { fragments: new Map(), diagnostics: [] };
+  }
+  const renderer = registry.renderers.find((entry) => entry.id === rendererId);
+  if (renderer === undefined) {
+    return {
+      fragments: new Map(),
+      diagnostics: [
+        groupedAdapterDiagnostic(
+          "azeforge.renderer#adapter-missing",
+          `No ${rendererName} Renderer is registered for diagram Blocks.`,
+          targets,
+          sourceName,
+          { blockType: DIAGRAM_PLUGIN_TYPE, rendererId },
+          `Register the built-in ${rendererName} Renderer.`,
+          DIAGRAM_PLUGIN_TYPE,
+        ),
+      ],
+    };
+  }
+  if (policy.disabledRendererIds?.includes(renderer.id) === true) {
+    return {
+      fragments: new Map(),
+      diagnostics: [
+        groupedAdapterDiagnostic(
+          "azeforge.renderer#adapter-disabled",
+          `${rendererName} Renderer "${renderer.id}" is disabled by host policy.`,
+          targets,
+          sourceName,
+          { rendererId: renderer.id },
+          "Enable the Renderer in Compiler policy.",
+          DIAGRAM_PLUGIN_TYPE,
+        ),
+      ],
+    };
+  }
+  const candidates = registry.blockRenderers.filter(
+    (entry) =>
+      entry.descriptor.blockType === DIAGRAM_PLUGIN_TYPE &&
+      entry.descriptor.rendererId === rendererId,
+  );
+  if (candidates.length === 0) {
+    return {
+      fragments: new Map(),
+      diagnostics: [
+        groupedAdapterDiagnostic(
+          "azeforge.renderer#adapter-missing",
+          "No Block renderer is registered for diagram Blocks.",
+          targets,
+          sourceName,
+          { blockType: DIAGRAM_PLUGIN_TYPE, rendererId },
+          `Register the built-in diagram ${rendererName} Block renderer.`,
+          DIAGRAM_PLUGIN_TYPE,
+        ),
+      ],
+    };
+  }
+  const compatible = candidates.filter(
+    (entry) =>
+      targets.every((target) =>
+        satisfiesSemverRange(
+          target.block.pluginVersion,
+          entry.descriptor.pluginVersionRange,
+        ),
+      ) &&
+      satisfiesSemverRange(
+        renderer.version,
+        entry.descriptor.rendererVersionRange,
+      ),
+  );
+  if (compatible.length === 0) {
+    const candidate = candidates[0];
+    return {
+      fragments: new Map(),
+      diagnostics: [
+        groupedAdapterDiagnostic(
+          "azeforge.renderer#adapter-incompatible",
+          "The registered diagram Block renderer is incompatible with this Document.",
+          targets,
+          sourceName,
+          {
+            blockType: DIAGRAM_PLUGIN_TYPE,
+            ...(candidate === undefined
+              ? {}
+              : {
+                  adapterId: candidate.descriptor.id,
+                  pluginVersionRange: candidate.descriptor.pluginVersionRange,
+                  rendererVersionRange: candidate.descriptor.rendererVersionRange,
+                }),
+          },
+          `Register a Block renderer compatible with diagram v1 and ${rendererName} v1.`,
+          DIAGRAM_PLUGIN_TYPE,
+        ),
+      ],
+    };
+  }
+  if (compatible.length > 1) {
+    return {
+      fragments: new Map(),
+      diagnostics: [
+        groupedAdapterDiagnostic(
+          "azeforge.renderer#adapter-ambiguous",
+          "More than one Block renderer matches diagram Blocks.",
+          targets,
+          sourceName,
+          {
+            blockType: DIAGRAM_PLUGIN_TYPE,
+            adapterIds: compatible.map((entry) => entry.descriptor.id),
+          },
+          "Register exactly one matching Block renderer.",
+          DIAGRAM_PLUGIN_TYPE,
+        ),
+      ],
+    };
+  }
+  const chosen = compatible[0];
+  if (chosen === undefined) {
+    return { fragments: new Map(), diagnostics: [] };
+  }
+  if (policy.disabledBlockRendererIds?.includes(chosen.descriptor.id) === true) {
+    return {
+      fragments: new Map(),
+      diagnostics: [
+        groupedAdapterDiagnostic(
+          "azeforge.renderer#adapter-disabled",
+          `Block renderer "${chosen.descriptor.id}" is disabled by host policy.`,
+          targets,
+          sourceName,
+          { adapterId: chosen.descriptor.id },
+          "Enable the Block renderer in Compiler policy.",
+          DIAGRAM_PLUGIN_TYPE,
+        ),
+      ],
+    };
+  }
+  const fragments = new Map<DiagramBlock, string>();
+  const diagnostics: Diagnostic[] = [];
+  for (const target of targets) {
+    const location = {
+      ...(sourceName === undefined ? {} : { source: sourceName }),
+      range: target.block.range,
+    };
+    try {
+      const fragment = await withRenderTimeout(
+        Promise.resolve(
+          (chosen.render as DiagramBlockRenderer["render"])(target.block, {
+            ...(sourceName === undefined ? {} : { sourceName }),
+            ordinal: target.ordinal,
+            theme,
+          }),
+        ),
+        timeoutMs,
+      );
+      fragments.set(target.block, fragment);
+    } catch (error) {
+      if (error instanceof RenderTimeoutError) {
+        diagnostics.push(
+          createDiagnostic(
+            "azeforge.renderer#timeout",
+            "error",
+            `Block renderer "${chosen.descriptor.id}" timed out.`,
+            {
+              location,
+              data: { adapterId: chosen.descriptor.id, timeoutMs },
+              suggestion: "Retry the operation or adjust the host render timeout.",
+            },
+          ),
+        );
+      } else {
+        diagnostics.push(
+          createDiagnostic(
+            "azeforge.renderer#diagram-layout",
+            "error",
+            "The diagram layout could not be computed.",
+            {
+              location,
+              data: {
+                adapterId: chosen.descriptor.id,
+                blockType: DIAGRAM_PLUGIN_TYPE,
+                detail: error instanceof Error ? error.message : String(error),
+              },
+              suggestion:
+                "Check the diagram declaration list; a layout failure publishes no Artifact.",
+            },
+          ),
+        );
+      }
+    }
+  }
+  return { fragments, diagnostics };
+}
+
 interface PluginAdapterResolution {
   readonly diagnostics: readonly Diagnostic[];
   readonly renderCallout?: (
@@ -1961,6 +2227,15 @@ export function createCompiler(options: CompilerOptions = {}): Compiler {
           renderTimeoutMs,
           theme,
         );
+        const diagramPreflight = await renderDiagramFragments(
+          validation.document,
+          selectedRenderer.id,
+          registry,
+          policy,
+          compileOptions.sourceName,
+          renderTimeoutMs,
+          theme,
+        );
         const pluginPreflight = checkPluginAdapters(
           validation.document,
           selectedRenderer.id,
@@ -1972,6 +2247,7 @@ export function createCompiler(options: CompilerOptions = {}): Compiler {
           ...equationPreflight.diagnostics,
           ...derivationPreflight.diagnostics,
           ...mermaidPreflight.diagnostics,
+          ...diagramPreflight.diagnostics,
           ...pluginPreflight.diagnostics,
         ];
         if (preflightDiagnostics.length > 0) {
@@ -2062,6 +2338,8 @@ export function createCompiler(options: CompilerOptions = {}): Compiler {
           derivationPreflight.fragments,
           mermaidPreflight.fragments,
           mermaidDependencyClosure(),
+          diagramPreflight.fragments,
+          diagramDependencyClosure(),
           pluginRenderers,
         ] as const;
         const htmlLayout = createHtmlLayout(

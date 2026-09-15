@@ -73,17 +73,17 @@ test("capabilities --json enumerates the P0 contract in canonical order", async 
   );
   assert.deepEqual(
     payload.plugins.map(({ type }) => type),
-    ["callout", "chart", "circuit", "derivation", "equation", "formula", "geometry", "mermaid", "plot", "reaction", "structure", "table", "timing"],
+    ["callout", "chart", "circuit", "derivation", "diagram", "equation", "formula", "geometry", "mermaid", "plot", "reaction", "structure", "table", "timing"],
   );
   assert.deepEqual(
     payload.plugins.map(({ version }) => version),
-    ["1.0.0", "1.0.0", "1.0.0", "1.0.0", "2.0.0", "1.0.0", "1.0.0", "1.0.0", "1.0.0", "1.0.0", "1.0.0", "2.0.0", "1.0.0"],
+    ["1.0.0", "1.0.0", "1.0.0", "1.0.0", "1.0.0", "2.0.0", "1.0.0", "1.0.0", "1.0.0", "1.0.0", "1.0.0", "1.0.0", "2.0.0", "1.0.0"],
   );
   assert.deepEqual(
     payload.renderers.map(({ id }) => id),
     ["html", "pdf", "png", "svg"],
   );
-  assert.equal(payload.blockRenderers.length, 52);
+  assert.equal(payload.blockRenderers.length, 56);
   assert.deepEqual(
     payload.themes.map(({ id }) => id),
     ["academic", "dark-presentation", "default"],
@@ -105,6 +105,24 @@ test("capabilities --json enumerates the P0 contract in canonical order", async 
   assert.equal(payload.engines.geometry.emitter, "1.0.0");
   assert.equal(payload.engines.geometry.eval, "geometry-eval/v1");
   assert.equal(payload.engines.geometry.epsilon, 1e-9);
+  assert.equal(payload.engines.diagram.availability, "unknown");
+  assert.equal(payload.engines.diagram.layout, "diagram-layout/v1");
+  assert.equal(payload.engines.diagram.elkjs, "0.12.0");
+  assert.equal(payload.engines.diagram.emitter, "1.0.0");
+  assert.equal(payload.engines.diagram.advanceMetric, "1.0.0");
+  assert.deepEqual(payload.limits.blocks.diagram, {
+    maxDeclarations: 512,
+    maxNodes: 128,
+    maxEdges: 256,
+    maxGroups: 32,
+    maxGroupDepth: 4,
+    maxPortsPerNode: 12,
+    maxPorts: 128,
+    maxParallelEdges: 4,
+    maxLabelCodePoints: 500,
+    maxLabelLines: 8,
+    maxTotalLabelCodePoints: 16384,
+  });
 
   // Limits match the resolved defaults and state the lowerable-only policy.
   assert.deepEqual(payload.limits.diagnostics, {
@@ -137,6 +155,7 @@ test("capabilities --probe reports local availability and stays exit 0", async (
   assert.equal(payload.engines.mermaid.availability, "available");
   assert.equal(payload.engines.plot.availability, "available");
   assert.equal(payload.engines.geometry.availability, "available");
+  assert.equal(payload.engines.diagram.availability, "available");
 });
 
 test("human version, capabilities, and help use stderr with empty stdout", () => {

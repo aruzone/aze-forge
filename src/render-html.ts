@@ -38,6 +38,7 @@ import type {
   MermaidBlock,
   Theme,
   CircuitBlock,
+  DiagramBlock,
   TimingBlock,
 } from "./model.js";
 import { renderTableFragment } from "./table.js";
@@ -105,6 +106,7 @@ interface RenderContext {
   readonly equationFragments: ReadonlyMap<EquationBlock, string>;
   readonly derivationFragments: ReadonlyMap<DerivationBlock, string>;
   readonly mermaidFragments: ReadonlyMap<MermaidBlock, string>;
+  readonly diagramFragments: ReadonlyMap<DiagramBlock, string>;
   readonly renderCallout: (
     block: CalloutBlock,
     context: BlockRendererContext,
@@ -176,6 +178,11 @@ function renderBlock(block: AzeBlock, context: RenderContext): string {
       return (
         context.mermaidFragments.get(block) ??
         '<figure class="aze-mermaid"></figure>'
+      );
+    case "diagram":
+      return (
+        context.diagramFragments.get(block) ??
+        '<figure class="aze-diagram"></figure>'
       );
     case "heading":
       return `<h${block.level}${idAttribute(block.id)}>${renderInlineHtml(block.children)}</h${block.level}>`;
@@ -265,6 +272,40 @@ function embeddedFontCss(fontFaces: readonly EmbeddedFontFace[]): string {
     .join("");
 }
 
+/**
+ * General-diagram CSS. The three label typography sets are the same Theme
+ * tokens the Advance metric measures with, so a Theme change re-lays-out the
+ * figure rather than rescaling it. Group depth is distinguished by stroke
+ * pattern and fill opacity together, never by colour alone.
+ */
+function diagramCss(theme: Theme): string {
+  const tokens = theme.diagram;
+  const size = (value: number): number =>
+    Math.max(value, tokens.minimumLabelFontSizePx);
+  const label = `font-family:"${tokens.labelFontFamily}";fill:currentColor`;
+  const depth = (level: number, dash: string): string => {
+    const opacity = 1 - tokens.groupDepthOpacityStep * level;
+    return `.aze-diagram-group-depth-${level}{stroke-dasharray:${dash};fill-opacity:${opacity.toFixed(3)}}`;
+  };
+  return [
+    ".aze-diagram{margin:1em 0}",
+    ".aze-diagram svg{display:block;max-width:100%;height:auto;margin:0 auto}",
+    `.aze-diagram-node-shape{fill:${tokens.nodeFill};stroke:${tokens.nodeStroke};stroke-width:${tokens.nodeStrokeWidthPx}px;stroke-linejoin:round}`,
+    `.aze-diagram-group{fill:${tokens.groupFill};stroke:${tokens.groupStroke};stroke-width:${tokens.groupStrokeWidthPx}px;stroke-linejoin:round}`,
+    depth(1, "6 3"),
+    depth(2, "2 3"),
+    depth(3, "6 2 2 2"),
+    `.aze-diagram-port{fill:${tokens.portFill};stroke:${tokens.portStroke};stroke-width:${tokens.portStrokeWidthPx}px}`,
+    `.aze-diagram-edge{fill:none;stroke:${tokens.edgeStroke};stroke-width:${tokens.edgeStrokeWidthPx}px;stroke-linejoin:round}`,
+    `.aze-diagram-arrow{fill:${tokens.arrowFill};stroke:none}`,
+    `.aze-diagram-edge-label-background{fill:${tokens.edgeLabelBackground}}`,
+    `.aze-diagram-label{${label}}`,
+    `.aze-diagram-node-label{font-size:${size(tokens.nodeLabelFontSizePx)}px;text-anchor:middle;dominant-baseline:central}`,
+    `.aze-diagram-group-label{font-size:${size(tokens.groupLabelFontSizePx)}px;text-anchor:start;dominant-baseline:hanging}`,
+    `.aze-diagram-edge-label{font-size:${size(tokens.edgeLabelFontSizePx)}px;text-anchor:middle;dominant-baseline:middle}`,
+  ].join("");
+}
+
 function themeCss(theme: Theme): string {
   const { colors, geometry, typography } = theme;
   const colorScheme = theme.colorScheme;
@@ -288,6 +329,8 @@ export function createHtmlLayout(
   derivationFragments: ReadonlyMap<DerivationBlock, string> = new Map(),
   mermaidFragments: ReadonlyMap<MermaidBlock, string> = new Map(),
   mermaidDependencyClosure: JsonValue = { mermaid: MERMAID_VERSION },
+  diagramFragments: ReadonlyMap<DiagramBlock, string> = new Map(),
+  diagramDependencyClosure: JsonValue = {},
   pluginRenderers: HtmlPluginRenderers = {},
 ): HtmlLayout {
   const renderCallout =
@@ -314,6 +357,7 @@ export function createHtmlLayout(
     equationFragments,
     derivationFragments,
     mermaidFragments,
+    diagramFragments,
     renderCallout,
     renderPlot,
     renderChart,
@@ -328,7 +372,7 @@ export function createHtmlLayout(
   return {
     title: escapeHtml(documentTitle(document)),
     description: "AzeForge whole-Document Artifact",
-    css: `${embeddedFontCss(fontFaces)}${themeCss(theme)}${getKatexCss()}.aze-equation{margin:1em 0;text-align:center}.aze-equation[data-align="left"]{text-align:left}.aze-equation[data-align="right"]{text-align:right}.aze-derivation{margin:1em 0}.aze-derivation ol{list-style:none;padding:0;margin:0}.aze-derivation li{display:block;text-align:center;margin:.35em 0}.aze-derivation[data-align="left"] li{text-align:left}.aze-derivation[data-align="right"] li{text-align:right}.aze-derivation .aze-derivation-annotation{display:block;font-style:italic;color:#666;font-size:.9em}.aze-mermaid{margin:1em 0}.aze-mermaid svg{display:block;max-width:100%;max-height:520px;width:auto;height:auto;margin:0 auto}.aze-plot{margin:1em 0}.aze-plot svg{display:block;max-width:100%;height:auto;margin:0 auto}.aze-chart{margin:1em 0}.aze-chart svg{display:block;max-width:100%;height:auto;margin:0 auto}.aze-geometry{margin:1em 0}.aze-geometry svg{display:block;max-width:100%;height:auto;margin:0 auto}.aze-circuit{margin:1em 0;color:inherit}.aze-circuit svg{display:block;max-width:100%;height:auto}.aze-timing{margin:1em 0;color:inherit}.aze-timing svg{display:block;max-width:100%;height:auto;margin:0 auto}.aze-formula{margin:1em 0;text-align:center}.aze-formula .aze-formula-expression{font-size:1.05em}.aze-reaction{margin:1em 0;text-align:center}.aze-reaction .aze-reaction-arrow{font-size:1.1em}.aze-reaction .aze-reaction-conditions{display:inline-block;font-size:.85em;font-style:italic;color:#666}.aze-structure{margin:1em 0}.aze-structure svg{display:block;max-width:100%;height:auto;margin:0 auto}`,
+    css: `${embeddedFontCss(fontFaces)}${themeCss(theme)}${diagramCss(theme)}${getKatexCss()}.aze-equation{margin:1em 0;text-align:center}.aze-equation[data-align="left"]{text-align:left}.aze-equation[data-align="right"]{text-align:right}.aze-derivation{margin:1em 0}.aze-derivation ol{list-style:none;padding:0;margin:0}.aze-derivation li{display:block;text-align:center;margin:.35em 0}.aze-derivation[data-align="left"] li{text-align:left}.aze-derivation[data-align="right"] li{text-align:right}.aze-derivation .aze-derivation-annotation{display:block;font-style:italic;color:#666;font-size:.9em}.aze-mermaid{margin:1em 0}.aze-mermaid svg{display:block;max-width:100%;max-height:520px;width:auto;height:auto;margin:0 auto}.aze-plot{margin:1em 0}.aze-plot svg{display:block;max-width:100%;height:auto;margin:0 auto}.aze-chart{margin:1em 0}.aze-chart svg{display:block;max-width:100%;height:auto;margin:0 auto}.aze-geometry{margin:1em 0}.aze-geometry svg{display:block;max-width:100%;height:auto;margin:0 auto}.aze-circuit{margin:1em 0;color:inherit}.aze-circuit svg{display:block;max-width:100%;height:auto}.aze-timing{margin:1em 0;color:inherit}.aze-timing svg{display:block;max-width:100%;height:auto;margin:0 auto}.aze-formula{margin:1em 0;text-align:center}.aze-formula .aze-formula-expression{font-size:1.05em}.aze-reaction{margin:1em 0;text-align:center}.aze-reaction .aze-reaction-arrow{font-size:1.1em}.aze-reaction .aze-reaction-conditions{display:inline-block;font-size:.85em;font-style:italic;color:#666}.aze-structure{margin:1em 0}.aze-structure svg{display:block;max-width:100%;height:auto;margin:0 auto}`,
     body: `<main><article>${renderBlocks(document.blocks, context)}</article></main>`,
     fingerprintDependencies: {
       theme: theme as unknown as JsonValue,
@@ -339,7 +383,10 @@ export function createHtmlLayout(
       })),
       equations: equationDependencyClosure,
       derivation: equationDependencyClosure,
-      diagrams: mermaidDependencyClosure,
+      diagrams: {
+        mermaid: mermaidDependencyClosure,
+        native: diagramDependencyClosure,
+      },
       ...(document.blocks.some((block) => block.kind === "plot" || block.kind === "chart")
         ? { plots: plotDependencyClosure() }
         : {}),
@@ -371,6 +418,8 @@ export async function renderHtml(
   derivationFragments: ReadonlyMap<DerivationBlock, string> = new Map(),
   mermaidFragments: ReadonlyMap<MermaidBlock, string> = new Map(),
   mermaidDependencyClosure: JsonValue = { mermaid: MERMAID_VERSION },
+  diagramFragments: ReadonlyMap<DiagramBlock, string> = new Map(),
+  diagramDependencyClosure: JsonValue = {},
   pluginRenderers: HtmlPluginRenderers = {},
   assetManifest: readonly AssetManifestEntry[] = [],
 ): Promise<Artifact> {
@@ -383,6 +432,8 @@ export async function renderHtml(
     derivationFragments,
     mermaidFragments,
     mermaidDependencyClosure,
+    diagramFragments,
+    diagramDependencyClosure,
     pluginRenderers,
   );
   const rendererFingerprint = sha256(

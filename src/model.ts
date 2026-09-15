@@ -537,6 +537,86 @@ export interface TimingBlock {
 
 
 
+/** Registered diagram regimes: the mode selects structural validation and layout. */
+export type DiagramMode = "flowchart" | "graph" | "tree" | "architecture";
+/** Closed shape vocabulary; shapes carry no semantic validation. */
+export type DiagramShape =
+  | "rectangle"
+  | "rounded"
+  | "diamond"
+  | "parallelogram"
+  | "circle"
+  | "hexagon"
+  | "cylinder";
+/** Authored port attachment side; omission lets the layout engine choose. */
+export type DiagramPortSide = "left" | "right" | "top" | "bottom";
+/** Authored flow direction; the per-mode default applies when omitted. */
+export type DiagramFlow =
+  | "top-to-bottom"
+  | "bottom-to-top"
+  | "left-to-right"
+  | "right-to-left";
+/** Edge direction; undirected edges are permitted only in graph and architecture. */
+export type DiagramEdgeDirection = "directed" | "undirected";
+/**
+ * One authored label line, in the shared inline text subset. A label is one
+ * line, or several lines from a `|` multiline field whose authored breaks are
+ * the only breaks.
+ */
+export type DiagramLabel = readonly CircuitText[];
+
+/** A named attachment point on a Diagram node; it carries no direction. */
+export interface DiagramPort {
+  readonly name: string;
+  readonly side?: DiagramPortSide;
+  readonly range: SourceRange;
+}
+
+export interface DiagramNode {
+  readonly kind: "node";
+  readonly name: string;
+  readonly label?: DiagramLabel;
+  readonly shape: DiagramShape;
+  /** Containing group name, resolved after the whole declaration list is read. */
+  readonly parent?: string;
+  readonly ports: readonly DiagramPort[];
+  readonly range: SourceRange;
+}
+
+export interface DiagramGroup {
+  readonly kind: "group";
+  readonly name: string;
+  readonly label?: DiagramLabel;
+  readonly parent?: string;
+  readonly range: SourceRange;
+}
+
+/** One edge endpoint: a node name, or a qualified `node.port` reference. */
+export interface DiagramEndpoint {
+  readonly name: string;
+  readonly port?: string;
+  readonly range: SourceRange;
+}
+
+export interface DiagramEdge {
+  readonly kind: "edge";
+  readonly from: DiagramEndpoint;
+  readonly to: DiagramEndpoint;
+  readonly label?: DiagramLabel;
+  readonly direction: DiagramEdgeDirection;
+  readonly range: SourceRange;
+}
+
+export type DiagramDeclaration = DiagramNode | DiagramGroup | DiagramEdge;
+
+export interface DiagramBlock {
+  readonly kind: "diagram"; readonly pluginVersion: "1.0.0"; readonly range: SourceRange;
+  readonly id?: string; readonly number?: boolean;
+  readonly title?: CircuitText; readonly description?: CircuitText;
+  readonly mode: DiagramMode; readonly flow: DiagramFlow;
+  readonly declarations: readonly DiagramDeclaration[];
+}
+
 export type ParsedBlock =
   | HeadingBlock
   | ParagraphBlock
@@ -556,6 +636,7 @@ export type ParsedBlock =
   | ReactionBlock
   | StructureBlock
   | TimingBlock
+  | DiagramBlock
   | CircuitBlock
   | InvalidBlock;
 
@@ -577,6 +658,7 @@ export type AzeBlock =
   | FormulaBlock
   | ReactionBlock
   | TimingBlock
+  | DiagramBlock
   | CircuitBlock
   | StructureBlock;
 export type ArtifactFormat = "html" | "svg" | "png" | "pdf";
@@ -685,6 +767,37 @@ export interface Theme {
     canvasWidthPx: number;
     contentWidthPx: number;
     paddingPx: number;
+  }>;
+  /**
+   * General-diagram tokens. The three label typography sets are layout
+   * inputs: label size derives from them through the Advance metric, so a
+   * Theme change re-lays-out diagrams. Identities are Theme-owned; the
+   * diagram family selects none of them.
+   */
+  readonly diagram: Readonly<{
+    nodeFill: string;
+    nodeStroke: string;
+    nodeStrokeWidthPx: number;
+    nodeLabelFontSizePx: number;
+    nodeLabelLineHeightPx: number;
+    groupFill: string;
+    groupStroke: string;
+    groupStrokeWidthPx: number;
+    groupLabelFontSizePx: number;
+    groupLabelLineHeightPx: number;
+    groupDepthOpacityStep: number;
+    edgeStroke: string;
+    edgeStrokeWidthPx: number;
+    edgeLabelFontSizePx: number;
+    edgeLabelLineHeightPx: number;
+    edgeLabelBackground: string;
+    arrowFill: string;
+    portFill: string;
+    portStroke: string;
+    portStrokeWidthPx: number;
+    portSizePx: number;
+    labelFontFamily: "Inter";
+    minimumLabelFontSizePx: number;
   }>;
 }
 
@@ -830,6 +943,17 @@ export interface BlockRendererContext {
   readonly sourceName?: string;
   readonly renderBlocks: (blocks: readonly AzeBlock[]) => string;
 }
+export interface DiagramBlockRenderer {
+  readonly descriptor: BlockRendererDescriptor;
+  readonly render: (
+    block: DiagramBlock,
+    context: Readonly<{
+      sourceName?: string;
+      ordinal?: number;
+      theme?: Theme;
+    }>,
+  ) => string | Promise<string>;
+}
 
 export interface AzeBlockRenderer<TBlock extends object = AzeBlock> {
   readonly descriptor: BlockRendererDescriptor;
@@ -853,6 +977,7 @@ export type AnyBlockRenderer =
   | AzeBlockRenderer<StructureBlock>
   | AzeBlockRenderer<CircuitBlock>
   | AzeBlockRenderer<TimingBlock>
+  | DiagramBlockRenderer
   | MermaidBlockRenderer;
 export type BlockRenderer = AnyBlockRenderer;
 export interface CompilerPolicy {

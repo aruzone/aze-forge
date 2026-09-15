@@ -178,6 +178,123 @@ function isCircuitText(value: unknown): boolean {
   );
 }
 
+const DIAGRAM_MODES: Readonly<Record<string, true>> = {
+  flowchart: true,
+  graph: true,
+  tree: true,
+  architecture: true,
+};
+const DIAGRAM_FLOWS: Readonly<Record<string, true>> = {
+  "top-to-bottom": true,
+  "bottom-to-top": true,
+  "left-to-right": true,
+  "right-to-left": true,
+};
+const DIAGRAM_SHAPES: Readonly<Record<string, true>> = {
+  rectangle: true,
+  rounded: true,
+  diamond: true,
+  parallelogram: true,
+  circle: true,
+  hexagon: true,
+  cylinder: true,
+};
+const DIAGRAM_PORT_SIDES: Readonly<Record<string, true>> = {
+  left: true,
+  right: true,
+  top: true,
+  bottom: true,
+};
+
+function isDiagramLabel(value: unknown): boolean {
+  return Array.isArray(value) && value.length >= 1 && value.every((line) => isCircuitText(line));
+}
+
+function isDiagramPort(value: unknown): boolean {
+  if (!isObjectRecord(value) || !hasOnlyKeys(value, ["name", "side", "range"])) {
+    return false;
+  }
+  return (
+    typeof value.name === "string" &&
+    (value.side === undefined || DIAGRAM_PORT_SIDES[value.side as string] === true) &&
+    isSourceRange(value.range)
+  );
+}
+
+function isDiagramEndpoint(value: unknown): boolean {
+  if (!isObjectRecord(value) || !hasOnlyKeys(value, ["name", "port", "range"])) {
+    return false;
+  }
+  return (
+    typeof value.name === "string" &&
+    (value.port === undefined || typeof value.port === "string") &&
+    isSourceRange(value.range)
+  );
+}
+
+function isDiagramDeclaration(value: unknown): boolean {
+  if (!isObjectRecord(value)) return false;
+  if (value.kind === "node") {
+    return (
+      hasOnlyKeys(value, ["kind", "name", "label", "shape", "parent", "ports", "range"]) &&
+      typeof value.name === "string" &&
+      (value.label === undefined || isDiagramLabel(value.label)) &&
+      DIAGRAM_SHAPES[value.shape as string] === true &&
+      (value.parent === undefined || typeof value.parent === "string") &&
+      Array.isArray(value.ports) &&
+      value.ports.every((port) => isDiagramPort(port)) &&
+      isSourceRange(value.range)
+    );
+  }
+  if (value.kind === "group") {
+    return (
+      hasOnlyKeys(value, ["kind", "name", "label", "parent", "range"]) &&
+      typeof value.name === "string" &&
+      (value.label === undefined || isDiagramLabel(value.label)) &&
+      (value.parent === undefined || typeof value.parent === "string") &&
+      isSourceRange(value.range)
+    );
+  }
+  if (value.kind === "edge") {
+    return (
+      hasOnlyKeys(value, ["kind", "from", "to", "label", "direction", "range"]) &&
+      isDiagramEndpoint(value.from) &&
+      isDiagramEndpoint(value.to) &&
+      (value.label === undefined || isDiagramLabel(value.label)) &&
+      (value.direction === "directed" || value.direction === "undirected") &&
+      isSourceRange(value.range)
+    );
+  }
+  return false;
+}
+
+function isDiagramBlock(value: Record<string, unknown>): boolean {
+  return (
+    hasOnlyKeys(value, [
+      "kind",
+      "pluginVersion",
+      "range",
+      "id",
+      "number",
+      "title",
+      "description",
+      "mode",
+      "flow",
+      "declarations",
+    ]) &&
+    value.pluginVersion === "1.0.0" &&
+    DIAGRAM_MODES[value.mode as string] === true &&
+    DIAGRAM_FLOWS[value.flow as string] === true &&
+    (value.id === undefined || typeof value.id === "string") &&
+    (value.number === undefined || typeof value.number === "boolean") &&
+    (value.title === undefined || isCircuitText(value.title)) &&
+    (value.description === undefined || isCircuitText(value.description)) &&
+    Array.isArray(value.declarations) &&
+    value.declarations.every((declaration) => isDiagramDeclaration(declaration)) &&
+    isSourceRange(value.range)
+  );
+}
+
 function isCircuitComponent(value: unknown): boolean {
   if (!isObjectRecord(value)) return false;
   const kind = value.kind;
@@ -394,6 +511,9 @@ function isParsedBlock(value: unknown): value is ParsedBlock {
   }
   if (value.kind === "timing") {
     return isTimingBlock(value);
+  }
+  if (value.kind === "diagram") {
+    return isDiagramBlock(value);
   }
   if (value.kind === "heading") {
     return (

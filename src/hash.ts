@@ -7,6 +7,8 @@ import type {
   AzeBlock,
   AzeDocument,
   ContentHash,
+  DiagramEndpoint,
+  DiagramLabel,
   Inline,
   JsonValue,
   ParsedBlock,
@@ -220,6 +222,63 @@ export function documentContentHash(document: AzeDocument): ContentHash {
         projected.description = block.description as unknown as JsonValue;
       }
       if (block.unit !== undefined) projected.unit = block.unit;
+      return projected;
+    }
+    if (block.kind === "diagram") {
+      // Parsed semantics only: the mode, the flow, the declaration list in
+      // authored order, and every name, reference, shape, label, port and
+      // direction. Renderer-derived layout never reaches identity.
+      const label = (value: DiagramLabel | undefined): JsonValue | undefined =>
+        value === undefined ? undefined : (value as unknown as JsonValue);
+      const endpoint = (value: DiagramEndpoint): JsonValue => ({
+        name: value.name,
+        ...(value.port === undefined ? {} : { port: value.port }),
+      });
+      const projected: Record<string, JsonValue> = {
+        kind: block.kind,
+        pluginVersion: block.pluginVersion,
+        mode: block.mode,
+        flow: block.flow,
+        declarations: block.declarations.map((declaration) => {
+          if (declaration.kind === "node") {
+            const nodeLabel = label(declaration.label);
+            return {
+              kind: declaration.kind,
+              name: declaration.name,
+              shape: declaration.shape,
+              ...(declaration.parent === undefined ? {} : { parent: declaration.parent }),
+              ...(nodeLabel === undefined ? {} : { label: nodeLabel }),
+              ports: declaration.ports.map((port) => ({
+                name: port.name,
+                ...(port.side === undefined ? {} : { side: port.side }),
+              })),
+            };
+          }
+          if (declaration.kind === "group") {
+            const groupLabel = label(declaration.label);
+            return {
+              kind: declaration.kind,
+              name: declaration.name,
+              ...(declaration.parent === undefined ? {} : { parent: declaration.parent }),
+              ...(groupLabel === undefined ? {} : { label: groupLabel }),
+            };
+          }
+          const edgeLabel = label(declaration.label);
+          return {
+            kind: declaration.kind,
+            from: endpoint(declaration.from),
+            to: endpoint(declaration.to),
+            direction: declaration.direction,
+            ...(edgeLabel === undefined ? {} : { label: edgeLabel }),
+          };
+        }),
+      };
+      if (block.id !== undefined) projected.id = block.id;
+      if (block.number !== undefined) projected.number = block.number;
+      if (block.title !== undefined) projected.title = block.title as unknown as JsonValue;
+      if (block.description !== undefined) {
+        projected.description = block.description as unknown as JsonValue;
+      }
       return projected;
     }
     if (block.kind === "circuit") {

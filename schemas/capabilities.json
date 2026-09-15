@@ -376,6 +376,7 @@
         "geometry",
         "chemistry",
         "timing",
+        "diagram",
         "fonts"
       ],
       "additionalProperties": false,
@@ -564,6 +565,42 @@
           "additionalProperties": false,
           "properties": {
             "emitter": {
+              "type": "string",
+              "minLength": 1
+            },
+            "availability": {
+              "enum": [
+                "unknown",
+                "available",
+                "unavailable"
+              ]
+            }
+          }
+        },
+        "diagram": {
+          "type": "object",
+          "required": [
+            "layout",
+            "elkjs",
+            "emitter",
+            "advanceMetric",
+            "availability"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "layout": {
+              "type": "string",
+              "minLength": 1
+            },
+            "elkjs": {
+              "type": "string",
+              "minLength": 1
+            },
+            "emitter": {
+              "type": "string",
+              "minLength": 1
+            },
+            "advanceMetric": {
               "type": "string",
               "minLength": 1
             },
