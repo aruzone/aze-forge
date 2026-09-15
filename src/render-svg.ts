@@ -15,6 +15,8 @@ import {
 import { circuitHtmlBlockRenderer } from "./circuit-render.js";
 import { timingHtmlBlockRenderer } from "./timing-render.js";
 import { diagramHtmlBlockRenderer } from "./diagram-render.js";
+import { controlHtmlBlockRenderer } from "./control-render.js";
+import { freeBodyHtmlBlockRenderer } from "./free-body-render.js";
 import {
   classHtmlBlockRenderer,
   entityHtmlBlockRenderer,
@@ -88,6 +90,8 @@ export const svgBlockRenderers: readonly AnyBlockRenderer[] = Object.freeze([
   svgBlockRenderer(stateHtmlBlockRenderer),
   svgBlockRenderer(entityHtmlBlockRenderer),
   svgBlockRenderer(classHtmlBlockRenderer),
+  svgBlockRenderer(controlHtmlBlockRenderer),
+  svgBlockRenderer(freeBodyHtmlBlockRenderer),
 ]);
 
 export interface SvgBrowserCapability {

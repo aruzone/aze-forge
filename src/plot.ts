@@ -233,7 +233,7 @@ export function canonicalDecimal(spelling: string): string | undefined {
   if (intPart === "") intPart = "0";
   fracPart = fracPart.replace(/0+$/, "");
   const out = fracPart === "" ? intPart : `${intPart}.${fracPart}`;
-  return sign === "-" && /^0(\.0*)?$/.test(out) ? out.slice(1) : `${sign}${out}`;
+  return sign === "-" && /^0(\.0*)?$/.test(out) ? "0" : `${sign}${out}`;
 }
 
 /* ------------------------------------------------------------------ *

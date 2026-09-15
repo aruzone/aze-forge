@@ -39,6 +39,14 @@ import {
   diagramSourceSchema,
 } from "./diagram-schemas.js";
 import {
+  CONTROL_PLUGIN_VERSION,
+  FREE_BODY_PLUGIN_VERSION,
+  controlDataSchema,
+  controlSourceSchema,
+  freeBodyDataSchema,
+  freeBodySourceSchema,
+} from "./control-schemas.js";
+import {
   CLASS_PLUGIN_VERSION,
   ENTITY_PLUGIN_VERSION,
   SEQUENCE_PLUGIN_VERSION,
@@ -132,6 +140,10 @@ export function publicSchemaVersions(): readonly VersionedSchema[] {
     { id: schemaId(entityDataSchema), version: ENTITY_PLUGIN_VERSION },
     { id: schemaId(classSourceSchema), version: CLASS_PLUGIN_VERSION },
     { id: schemaId(classDataSchema), version: CLASS_PLUGIN_VERSION },
+    { id: schemaId(controlSourceSchema), version: CONTROL_PLUGIN_VERSION },
+    { id: schemaId(controlDataSchema), version: CONTROL_PLUGIN_VERSION },
+    { id: schemaId(freeBodySourceSchema), version: FREE_BODY_PLUGIN_VERSION },
+    { id: schemaId(freeBodyDataSchema), version: FREE_BODY_PLUGIN_VERSION },
   ]);
 }
 

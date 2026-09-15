@@ -7,6 +7,7 @@ import type {
 } from "./model.js";
 import { isObjectRecord } from "./type-guards.js";
 import { createDiagnostic } from "./diagnostics.js";
+import { canonicalDecimal } from "./plot.js";
 const OUTPUT_FORMATS: Readonly<Record<string, true>> = {
   html: true,
   svg: true,
@@ -291,6 +292,283 @@ function isDiagramBlock(value: Record<string, unknown>): boolean {
     (value.description === undefined || isCircuitText(value.description)) &&
     Array.isArray(value.declarations) &&
     value.declarations.every((declaration) => isDiagramDeclaration(declaration)) &&
+    isSourceRange(value.range)
+  );
+}
+
+const CONTROL_FLOWS: Readonly<Record<string, true>> = {
+  "top-to-bottom": true,
+  "bottom-to-top": true,
+  "left-to-right": true,
+  "right-to-left": true,
+};
+
+const CONTROL_SIGNS: Readonly<Record<string, true>> = { "+": true, "-": true };
+
+/** The stored spelling is the canonical one: exact decimals carry no noise. */
+function isCanonicalDecimal(value: unknown): boolean {
+  return typeof value === "string" && canonicalDecimal(value) === value;
+}
+
+function isControlDeclaration(value: unknown): boolean {
+  if (!isObjectRecord(value)) return false;
+  if (value.kind === "block") {
+    return (
+      hasOnlyKeys(value, ["kind", "name", "label", "tf", "range"]) &&
+      typeof value.name === "string" &&
+      value.name.length > 0 &&
+      isCircuitText(value.tf) &&
+      (value.label === undefined || isCircuitText(value.label)) &&
+      isSourceRange(value.range)
+    );
+  }
+  if (value.kind === "sum") {
+    return (
+      hasOnlyKeys(value, ["kind", "name", "signs", "range"]) &&
+      typeof value.name === "string" &&
+      value.name.length > 0 &&
+      Array.isArray(value.signs) &&
+      value.signs.length >= 1 &&
+      value.signs.every((sign) => CONTROL_SIGNS[sign as string] === true) &&
+      isSourceRange(value.range)
+    );
+  }
+  if (value.kind === "input" || value.kind === "output") {
+    return (
+      hasOnlyKeys(value, ["kind", "name", "label", "range"]) &&
+      typeof value.name === "string" &&
+      value.name.length > 0 &&
+      isCircuitText(value.label) &&
+      isSourceRange(value.range)
+    );
+  }
+  if (value.kind === "edge") {
+    return (
+      hasOnlyKeys(value, ["kind", "from", "to", "label", "range"]) &&
+      typeof value.from === "string" &&
+      typeof value.to === "string" &&
+      (value.label === undefined || isCircuitText(value.label)) &&
+      isSourceRange(value.range)
+    );
+  }
+  return false;
+}
+
+function isControlBlock(value: Record<string, unknown>): boolean {
+  return (
+    hasOnlyKeys(value, [
+      "kind",
+      "pluginVersion",
+      "range",
+      "id",
+      "number",
+      "title",
+      "description",
+      "flow",
+      "declarations",
+    ]) &&
+    value.pluginVersion === "1.0.0" &&
+    CONTROL_FLOWS[value.flow as string] === true &&
+    (value.id === undefined || typeof value.id === "string") &&
+    (value.number === undefined || typeof value.number === "boolean") &&
+    (value.title === undefined || isCircuitText(value.title)) &&
+    (value.description === undefined || isCircuitText(value.description)) &&
+    Array.isArray(value.declarations) &&
+    value.declarations.length > 0 &&
+    value.declarations.every((declaration) => isControlDeclaration(declaration)) &&
+    isSourceRange(value.range)
+  );
+}
+
+function isFreeBodyAttachment(value: unknown): boolean {
+  if (!isObjectRecord(value)) return false;
+  if (value.kind === "point") {
+    return (
+      hasOnlyKeys(value, ["kind", "name"]) &&
+      typeof value.name === "string" &&
+      value.name.length > 0
+    );
+  }
+  return (
+    value.kind === "coordinates" &&
+    hasOnlyKeys(value, ["kind", "x", "y"]) &&
+    isCanonicalDecimal(value.x) &&
+    isCanonicalDecimal(value.y)
+  );
+}
+
+function isFreeBodyDirection(value: unknown): boolean {
+  if (!isObjectRecord(value)) return false;
+  if (value.kind === "angle") {
+    return hasOnlyKeys(value, ["kind", "degrees"]) && isCanonicalDecimal(value.degrees);
+  }
+  return (
+    (value.kind === "parallel-to" || value.kind === "perpendicular-to") &&
+    hasOnlyKeys(value, ["kind", "line"]) &&
+    typeof value.line === "string" &&
+    value.line.length > 0
+  );
+}
+
+function isFreeBodyDeclaration(value: unknown): boolean {
+  if (!isObjectRecord(value)) return false;
+  switch (value.kind) {
+    case "block":
+      return (
+        hasOnlyKeys(value, ["kind", "name", "x", "y", "width", "height", "angle", "visible", "range"]) &&
+        typeof value.name === "string" &&
+        value.name.length > 0 &&
+        isCanonicalDecimal(value.x) &&
+        isCanonicalDecimal(value.y) &&
+        isCanonicalDecimal(value.width) &&
+        isCanonicalDecimal(value.height) &&
+        isCanonicalDecimal(value.angle) &&
+        typeof value.visible === "boolean" &&
+        isSourceRange(value.range)
+      );
+    case "circle":
+      return (
+        hasOnlyKeys(value, ["kind", "name", "x", "y", "radius", "visible", "range"]) &&
+        typeof value.name === "string" &&
+        value.name.length > 0 &&
+        isCanonicalDecimal(value.x) &&
+        isCanonicalDecimal(value.y) &&
+        isCanonicalDecimal(value.radius) &&
+        typeof value.visible === "boolean" &&
+        isSourceRange(value.range)
+      );
+    case "particle":
+      return (
+        hasOnlyKeys(value, ["kind", "name", "x", "y", "visible", "range"]) &&
+        typeof value.name === "string" &&
+        value.name.length > 0 &&
+        isCanonicalDecimal(value.x) &&
+        isCanonicalDecimal(value.y) &&
+        typeof value.visible === "boolean" &&
+        isSourceRange(value.range)
+      );
+    case "polygon":
+      return (
+        hasOnlyKeys(value, ["kind", "name", "vertices", "visible", "range"]) &&
+        typeof value.name === "string" &&
+        value.name.length > 0 &&
+        Array.isArray(value.vertices) &&
+        value.vertices.length >= 3 &&
+        value.vertices.every((vertex) => typeof vertex === "string") &&
+        typeof value.visible === "boolean" &&
+        isSourceRange(value.range)
+      );
+    case "point":
+      return (
+        hasOnlyKeys(value, ["kind", "name", "label", "x", "y", "visible", "range"]) &&
+        typeof value.name === "string" &&
+        value.name.length > 0 &&
+        isCanonicalDecimal(value.x) &&
+        isCanonicalDecimal(value.y) &&
+        (value.label === undefined || isCircuitText(value.label)) &&
+        typeof value.visible === "boolean" &&
+        isSourceRange(value.range)
+      );
+    case "line":
+      return (
+        hasOnlyKeys(value, ["kind", "name", "from", "to", "visible", "style", "range"]) &&
+        typeof value.name === "string" &&
+        value.name.length > 0 &&
+        typeof value.from === "string" &&
+        typeof value.to === "string" &&
+        typeof value.visible === "boolean" &&
+        (value.style === "solid" || value.style === "dashed") &&
+        isSourceRange(value.range)
+      );
+    case "force":
+      return (
+        hasOnlyKeys(value, ["kind", "at", "direction", "magnitude", "length", "label", "range"]) &&
+        isFreeBodyAttachment(value.at) &&
+        isFreeBodyDirection(value.direction) &&
+        (value.magnitude === undefined || isCanonicalDecimal(value.magnitude)) &&
+        (value.length === undefined || isCanonicalDecimal(value.length)) &&
+        (value.label === undefined || isCircuitText(value.label)) &&
+        isSourceRange(value.range)
+      );
+    case "moment":
+      return (
+        hasOnlyKeys(value, ["kind", "at", "direction", "label", "range"]) &&
+        isFreeBodyAttachment(value.at) &&
+        (value.direction === "cw" || value.direction === "ccw") &&
+        (value.label === undefined || isCircuitText(value.label)) &&
+        isSourceRange(value.range)
+      );
+    case "axes":
+      return (
+        hasOnlyKeys(value, ["kind", "at", "angle", "xLabel", "yLabel", "range"]) &&
+        isFreeBodyAttachment(value.at) &&
+        isCanonicalDecimal(value.angle) &&
+        isCircuitText(value.xLabel) &&
+        isCircuitText(value.yLabel) &&
+        isSourceRange(value.range)
+      );
+    case "angle-mark":
+      return (
+        hasOnlyKeys(value, ["kind", "first", "vertex", "third", "label", "range"]) &&
+        typeof value.first === "string" &&
+        typeof value.vertex === "string" &&
+        typeof value.third === "string" &&
+        (value.label === undefined || isCircuitText(value.label)) &&
+        isSourceRange(value.range)
+      );
+    default:
+      return (
+        value.kind === "dimension" &&
+        hasOnlyKeys(value, ["kind", "from", "to", "label", "range"]) &&
+        isFreeBodyAttachment(value.from) &&
+        isFreeBodyAttachment(value.to) &&
+        isCircuitText(value.label) &&
+        isSourceRange(value.range)
+      );
+  }
+}
+
+function isFreeBodyBounds(value: unknown): boolean {
+  return (
+    isObjectRecord(value) &&
+    hasOnlyKeys(value, ["minX", "minY", "maxX", "maxY"]) &&
+    isCanonicalDecimal(value.minX) &&
+    isCanonicalDecimal(value.minY) &&
+    isCanonicalDecimal(value.maxX) &&
+    isCanonicalDecimal(value.maxY)
+  );
+}
+
+function isFreeBodyBlock(value: Record<string, unknown>): boolean {
+  return (
+    hasOnlyKeys(value, [
+      "kind",
+      "pluginVersion",
+      "range",
+      "id",
+      "number",
+      "title",
+      "description",
+      "scale",
+      "width",
+      "height",
+      "bounds",
+      "declarations",
+    ]) &&
+    value.pluginVersion === "1.0.0" &&
+    (value.id === undefined || typeof value.id === "string") &&
+    (value.number === undefined || typeof value.number === "boolean") &&
+    (value.title === undefined || isCircuitText(value.title)) &&
+    (value.description === undefined || isCircuitText(value.description)) &&
+    (value.scale === undefined || isCanonicalDecimal(value.scale)) &&
+    typeof value.width === "number" &&
+    Number.isInteger(value.width) &&
+    typeof value.height === "number" &&
+    Number.isInteger(value.height) &&
+    (value.bounds === undefined || isFreeBodyBounds(value.bounds)) &&
+    Array.isArray(value.declarations) &&
+    value.declarations.length > 0 &&
+    value.declarations.every((declaration) => isFreeBodyDeclaration(declaration)) &&
     isSourceRange(value.range)
   );
 }
@@ -834,6 +1112,12 @@ function isParsedBlock(value: unknown): value is ParsedBlock {
   }
   if (value.kind === "diagram") {
     return isDiagramBlock(value);
+  }
+  if (value.kind === "control") {
+    return isControlBlock(value);
+  }
+  if (value.kind === "free-body") {
+    return isFreeBodyBlock(value);
   }
   if (value.kind === "sequence") {
     return isSequenceBlock(value);

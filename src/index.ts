@@ -51,6 +51,8 @@ export type {
   StateBlock,
   EntityBlock,
   ClassBlock,
+  ControlBlock,
+  FreeBodyBlock,
   Cardinality,
   ContentHash,
   Sha256Hash,

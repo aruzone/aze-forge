@@ -41,6 +41,9 @@ import { TIMING_PLUGIN_TYPE } from "./timing-schemas.js";
 import { timingPlugin, validateTimingBlock, type TimingInputLine } from "./timing.js";
 import { DIAGRAM_PLUGIN_TYPE } from "./diagram-schemas.js";
 import { diagramPlugin, validateDiagramBlock, type DiagramInputLine } from "./diagram.js";
+import { CONTROL_PLUGIN_TYPE, FREE_BODY_PLUGIN_TYPE } from "./control-schemas.js";
+import { controlPlugin, validateControlBlock, type ControlInputLine } from "./control.js";
+import { freeBodyPlugin, validateFreeBodyBlock, type FreeBodyInputLine } from "./free-body.js";
 import {
   CLASS_PLUGIN_TYPE,
   ENTITY_PLUGIN_TYPE,
@@ -2308,6 +2311,68 @@ function parseDiagramEnvelope(
 }
 
 
+function parseControlEnvelope(
+  source: string,
+  lines: readonly SourceLine[],
+  openIndex: number,
+  closingIndex: number,
+  first: SourceLine,
+  last: SourceLine,
+  options: ParseOptions,
+  diagnostics: Diagnostic[],
+): ParsedBlock {
+  const blockRange = rangeFromLines(first, last);
+  const startIndex = diagnostics.length;
+  const { bodyStart, separatorFound } = splitHeaderEntries(lines, openIndex, closingIndex);
+  if (!separatorFound) {
+    missingSeparatorDiagnostic(lines, openIndex, closingIndex, first, options, diagnostics);
+    return invalidBlockFor(source, first, last, startIndex, diagnostics, CONTROL_PLUGIN_TYPE);
+  }
+  const toInput = (line: SourceLine): ControlInputLine => ({
+    text: lineText(line),
+    range: rangeFromLines(line, line),
+  });
+  const validated = validateControlBlock({
+    headerLines: lines.slice(openIndex + 1, bodyStart - 1).map(toInput),
+    bodyLines: lines.slice(bodyStart, closingIndex).map(toInput),
+    blockRange,
+    ...(options.sourceName === undefined ? {} : { sourceName: options.sourceName }),
+  });
+  diagnostics.push(...validated.diagnostics);
+  return validated.block ?? invalidBlockFor(source, first, last, startIndex, diagnostics, CONTROL_PLUGIN_TYPE);
+}
+
+function parseFreeBodyEnvelope(
+  source: string,
+  lines: readonly SourceLine[],
+  openIndex: number,
+  closingIndex: number,
+  first: SourceLine,
+  last: SourceLine,
+  options: ParseOptions,
+  diagnostics: Diagnostic[],
+): ParsedBlock {
+  const blockRange = rangeFromLines(first, last);
+  const startIndex = diagnostics.length;
+  const { bodyStart, separatorFound } = splitHeaderEntries(lines, openIndex, closingIndex);
+  if (!separatorFound) {
+    missingSeparatorDiagnostic(lines, openIndex, closingIndex, first, options, diagnostics);
+    return invalidBlockFor(source, first, last, startIndex, diagnostics, FREE_BODY_PLUGIN_TYPE);
+  }
+  const toInput = (line: SourceLine): FreeBodyInputLine => ({
+    text: lineText(line),
+    range: rangeFromLines(line, line),
+  });
+  const validated = validateFreeBodyBlock({
+    headerLines: lines.slice(openIndex + 1, bodyStart - 1).map(toInput),
+    bodyLines: lines.slice(bodyStart, closingIndex).map(toInput),
+    blockRange,
+    ...(options.sourceName === undefined ? {} : { sourceName: options.sourceName }),
+  });
+  diagnostics.push(...validated.diagnostics);
+  return validated.block ?? invalidBlockFor(source, first, last, startIndex, diagnostics, FREE_BODY_PLUGIN_TYPE);
+}
+
 function parseChemistryEnvelope(
   source: string,
   lines: readonly SourceLine[],
@@ -2623,6 +2688,14 @@ function parseBlocks(
       }
       if (closed && originalType === DIAGRAM_PLUGIN_TYPE && activeTypes.includes(DIAGRAM_PLUGIN_TYPE)) {
         blocks.push(parseDiagramEnvelope(source, lines, openIndex, closingIndex, first, last, options, diagnostics));
+        continue;
+      }
+      if (closed && originalType === CONTROL_PLUGIN_TYPE && activeTypes.includes(CONTROL_PLUGIN_TYPE)) {
+        blocks.push(parseControlEnvelope(source, lines, openIndex, closingIndex, first, last, options, diagnostics));
+        continue;
+      }
+      if (closed && originalType === FREE_BODY_PLUGIN_TYPE && activeTypes.includes(FREE_BODY_PLUGIN_TYPE)) {
+        blocks.push(parseFreeBodyEnvelope(source, lines, openIndex, closingIndex, first, last, options, diagnostics));
         continue;
       }
       if (
@@ -3170,6 +3243,8 @@ export function parseSource(source: string, options: ParseOptions = {}): ParseRe
     entityPlugin,
     classPlugin,
     structurePlugin,
+    controlPlugin,
+    freeBodyPlugin,
   ];
   const activeTypes = [...new Set(activePlugins.map((plugin) => plugin.descriptor.type))].sort();
   const blocks = parseBlocks(

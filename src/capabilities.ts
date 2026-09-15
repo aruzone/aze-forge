@@ -58,6 +58,31 @@ import {
   MAX_STATE_TRANSITIONS,
 } from "./models.js";
 import { MODELS_LAYOUT_VERSION, MODELS_WRAP_VERSION } from "./models-layout.js";
+import {
+  MAX_CONTROL_BLOCKS,
+  MAX_CONTROL_DECLARATIONS,
+  MAX_CONTROL_EDGES,
+  MAX_CONTROL_LABEL_CODE_POINTS,
+  MAX_CONTROL_SIGNS_PER_SUM,
+  MAX_CONTROL_STUBS,
+  MAX_CONTROL_SUMS,
+  MAX_CONTROL_TOTAL_LABEL_CODE_POINTS,
+} from "./control.js";
+import {
+  MAX_FREE_BODY_COORDINATE_MAGNITUDE,
+  MAX_FREE_BODY_DECLARATIONS,
+  MAX_FREE_BODY_DIMENSION_PX,
+  MAX_FREE_BODY_LABEL_CHARS,
+  MAX_FREE_BODY_POLYGON_VERTICES,
+} from "./free-body.js";
+import {
+  CONTROL_EMITTER_VERSION,
+  CONTROL_EVALUATOR_VERSION,
+  CONTROL_LAYOUT_VERSION,
+  FREE_BODY_EMITTER_VERSION,
+  FREE_BODY_EVALUATOR_VERSION,
+  FREE_BODY_SCALE_POLICY_VERSION,
+} from "./control-schemas.js";
 import { MODELS_EMITTER_VERSION, MODELS_MAX_HEIGHT_PX, MODELS_MAX_WIDTH_PX } from "./models-render.js";
 import { ADVANCE_METRIC_SOURCES, ADVANCE_METRIC_VERSION } from "./advance-metric.js";
 import { DIAGRAM_LAYOUT_VERSION, ELKJS_VERSION } from "./diagram-layout.js";
@@ -324,6 +349,21 @@ export interface CapabilitiesReport {
       advanceMetric: typeof ADVANCE_METRIC_VERSION;
       metricSource: readonly string[];
       directiveTypes: readonly string[];
+      availability: EngineAvailability;
+    }>;
+    readonly control: Readonly<{
+      layout: typeof CONTROL_LAYOUT_VERSION;
+      elkjs: typeof ELKJS_VERSION;
+      emitter: typeof CONTROL_EMITTER_VERSION;
+      eval: typeof CONTROL_EVALUATOR_VERSION;
+      advanceMetric: typeof ADVANCE_METRIC_VERSION;
+      metricSource: readonly string[];
+      availability: EngineAvailability;
+    }>;
+    readonly freeBody: Readonly<{
+      emitter: typeof FREE_BODY_EMITTER_VERSION;
+      eval: typeof FREE_BODY_EVALUATOR_VERSION;
+      scale: typeof FREE_BODY_SCALE_POLICY_VERSION;
       availability: EngineAvailability;
     }>;
     readonly fonts: readonly {
@@ -609,6 +649,23 @@ export async function buildCapabilities(
           maxWidthPx: MODELS_MAX_WIDTH_PX,
           maxHeightPx: MODELS_MAX_HEIGHT_PX,
         },
+        control: {
+          maxDeclarations: MAX_CONTROL_DECLARATIONS,
+          maxBlocks: MAX_CONTROL_BLOCKS,
+          maxSums: MAX_CONTROL_SUMS,
+          maxStubs: MAX_CONTROL_STUBS,
+          maxEdges: MAX_CONTROL_EDGES,
+          maxSignsPerSum: MAX_CONTROL_SIGNS_PER_SUM,
+          maxLabelCodePoints: MAX_CONTROL_LABEL_CODE_POINTS,
+          maxTotalLabelCodePoints: MAX_CONTROL_TOTAL_LABEL_CODE_POINTS,
+        },
+        freeBody: {
+          maxDeclarations: MAX_FREE_BODY_DECLARATIONS,
+          maxPolygonVertices: MAX_FREE_BODY_POLYGON_VERTICES,
+          maxLabelChars: MAX_FREE_BODY_LABEL_CHARS,
+          maxCoordinateMagnitude: MAX_FREE_BODY_COORDINATE_MAGNITUDE,
+          maxDimensionPx: MAX_FREE_BODY_DIMENSION_PX,
+        },
         timing: {
           maxSignals: MAX_TIMING_SIGNALS,
           maxIntervals: MAX_TIMING_INTERVALS,
@@ -681,6 +738,21 @@ export async function buildCapabilities(
         advanceMetric: ADVANCE_METRIC_VERSION,
         metricSource: ADVANCE_METRIC_SOURCES,
         directiveTypes: ["sequence", "state", "entity", "class"],
+        availability: bundled,
+      },
+      control: {
+        layout: CONTROL_LAYOUT_VERSION,
+        elkjs: ELKJS_VERSION,
+        emitter: CONTROL_EMITTER_VERSION,
+        eval: CONTROL_EVALUATOR_VERSION,
+        advanceMetric: ADVANCE_METRIC_VERSION,
+        metricSource: ADVANCE_METRIC_SOURCES,
+        availability: bundled,
+      },
+      freeBody: {
+        emitter: FREE_BODY_EMITTER_VERSION,
+        eval: FREE_BODY_EVALUATOR_VERSION,
+        scale: FREE_BODY_SCALE_POLICY_VERSION,
         availability: bundled,
       },
       fonts: [

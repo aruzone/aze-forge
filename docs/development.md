@@ -93,6 +93,19 @@ node --test test/equation.test.mjs
   per-scope activation balance, per-scope state reachability, reference
   resolution, key and inheritance checks, content identity across Themes and
   formats, and the four contract scenarios).
+- The engineering diagrams family has one seam per layer, because the layers
+  are independently replaceable: `test/engineering-block.test.mjs` (both
+  directive grammars — `control` and `free-body` — with their diagnostic
+  namespaces, the four bounded control topology rules, the ordered summing
+  signs, the free-body scale switch and both ceiling matrices),
+  `test/engineering-layout.test.mjs` (the pinned-elkjs control projection:
+  totality, determinism, quantized coordinates, measured node boxes and
+  fail-closed refusal), `test/engineering-render.test.mjs` (both SVG emitters,
+  positional ids, Theme-driven layout, escaping, the accessibility order and
+  the two dependency closures), and `test/engineering.test.mjs` (the compiler
+  path: two-pass reference resolution, warning-only floating ports, the
+  corrective-sampler codes, content identity across Themes and formats, and
+  the three contract scenarios).
 - `test/advance-metric.test.mjs` is the Advance metric seam: the generated
   character-advance table over both pinned font packages, its
   uncovered-code-point rule, and the script scale that sizes diagram boxes

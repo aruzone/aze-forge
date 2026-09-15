@@ -28,9 +28,13 @@ import { circuitPlugin } from "./circuit.js";
 import { circuitHtmlBlockRenderer } from "./circuit-render.js";
 import { timingPlugin } from "./timing.js";
 import { diagramPlugin } from "./diagram.js";
+import { controlPlugin } from "./control.js";
+import { freeBodyPlugin } from "./free-body.js";
 import { classPlugin, entityPlugin, sequencePlugin, statePlugin } from "./models.js";
 import { timingHtmlBlockRenderer } from "./timing-render.js";
 import { diagramHtmlBlockRenderer } from "./diagram-render.js";
+import { controlHtmlBlockRenderer } from "./control-render.js";
+import { freeBodyHtmlBlockRenderer } from "./free-body-render.js";
 import {
   classHtmlBlockRenderer,
   entityHtmlBlockRenderer,
@@ -65,7 +69,7 @@ const RENDERER_CAPABILITY: Readonly<Record<string, true>> = {
   filesystem: true,
   subprocess: true,
 };
-const NAMESPACE = /^[a-z][a-z0-9]*(?:\.[a-z][a-z0-9]*)*$/;
+const NAMESPACE = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*(?:\.[a-z][a-z0-9]*(?:-[a-z0-9]+)*)*$/;
 
 export interface ResolvedRegistry {
   readonly plugins: readonly AzeBlockPlugin[];
@@ -94,6 +98,8 @@ export function getBuiltInRegistry(): ResolvedRegistry {
       statePlugin,
       entityPlugin,
       classPlugin,
+      controlPlugin,
+      freeBodyPlugin,
     ]),
     blockRenderers: Object.freeze([
       equationHtmlBlockRenderer,
@@ -114,6 +120,8 @@ export function getBuiltInRegistry(): ResolvedRegistry {
       stateHtmlBlockRenderer,
       entityHtmlBlockRenderer,
       classHtmlBlockRenderer,
+      controlHtmlBlockRenderer,
+      freeBodyHtmlBlockRenderer,
       ...svgBlockRenderers,
       ...pngBlockRenderers,
       ...pdfBlockRenderers,

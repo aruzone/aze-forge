@@ -30,10 +30,6 @@ import type {
   CircuitBlock,
   DiagramBlock,
   TimingBlock,
-  SequenceBlock,
-  StateBlock,
-  EntityBlock,
-  ClassBlock,
   SequenceTimelineItem,
   StateScopedItem,
   StateTransition,
@@ -80,6 +76,9 @@ import { MERMAID_PLUGIN_TYPE } from "./mermaid-schemas.js";
 import { DIAGRAM_PLUGIN_TYPE } from "./diagram-schemas.js";
 import { DiagramRenderError, diagramDependencyClosure } from "./diagram-render.js";
 import { DiagramLayoutError } from "./diagram-layout.js";
+import { ControlRenderError, controlDependencyClosure } from "./control-render.js";
+import { ControlLayoutError } from "./control-layout.js";
+import { FreeBodyRenderError, freeBodyDependencyClosure } from "./free-body-render.js";
 import { ModelsRenderError } from "./models-render.js";
 import { isTypedTableData } from "./table.js";
 import { DERIVATION_PLUGIN_TYPE } from "./derivation-schemas.js";
@@ -595,6 +594,73 @@ function collectRenderText(blocks: readonly AzeBlock[], out: string[]): void {
           }
           if (declaration.label !== undefined) {
             for (const line of declaration.label) texts.push(line);
+          }
+        }
+        for (const text of texts) {
+          for (const run of text) {
+            out.push(run.kind === "quantity" ? `${run.coefficient} ${run.prefix}${run.unit}` : run.value);
+          }
+        }
+        break;
+      }
+      case "control": {
+        if (block.id !== undefined) out.push(block.id);
+        const texts: CircuitText[] = [];
+        const push = (value: CircuitText | undefined): void => {
+          if (value !== undefined) texts.push(value);
+        };
+        push(block.title);
+        push(block.description);
+        for (const declaration of block.declarations) {
+          if (declaration.kind === "block") {
+            texts.push(declaration.tf);
+            push(declaration.label);
+            continue;
+          }
+          if (declaration.kind === "edge") {
+            push(declaration.label);
+            continue;
+          }
+          if (declaration.kind === "sum") continue;
+          texts.push(declaration.label);
+        }
+        for (const text of texts) {
+          for (const run of text) {
+            out.push(run.kind === "quantity" ? `${run.coefficient} ${run.prefix}${run.unit}` : run.value);
+          }
+        }
+        break;
+      }
+      case "free-body": {
+        if (block.id !== undefined) out.push(block.id);
+        const texts: CircuitText[] = [];
+        const push = (value: CircuitText | undefined): void => {
+          if (value !== undefined) texts.push(value);
+        };
+        push(block.title);
+        push(block.description);
+        for (const declaration of block.declarations) {
+          switch (declaration.kind) {
+            case "point":
+              push(declaration.label);
+              break;
+            case "force":
+              push(declaration.label);
+              break;
+            case "moment":
+              push(declaration.label);
+              break;
+            case "axes":
+              texts.push(declaration.xLabel, declaration.yLabel);
+              break;
+            case "angle-mark":
+              push(declaration.label);
+              break;
+            case "dimension":
+              texts.push(declaration.label);
+              break;
+            default:
+              break;
           }
         }
         for (const text of texts) {
@@ -1459,46 +1525,61 @@ async function renderMermaidFragments(
   return { fragments, diagnostics };
 }
 
-interface ModelTarget {
-  readonly kind: "sequence" | "state" | "entity" | "class";
-  readonly block: SequenceBlock | StateBlock | EntityBlock | ClassBlock;
+/**
+ * One Block awaiting a family Fragment, tagged with the kind whose registered
+ * Block renderer resolves it. Each family walks its own Blocks, but the
+ * preflight below treats every family identically.
+ */
+interface FragmentTarget {
+  readonly kind: string;
+  readonly block: AzeBlock & { readonly pluginVersion: string };
 }
 
-const MODEL_KINDS = ["sequence", "state", "entity", "class"] as const;
-
-function modelTargets(document: AzeDocument): readonly ModelTarget[] {
-  const targets: ModelTarget[] = [];
-  walkBlocks(document.blocks, (block) => {
-    if (
-      block.kind === "sequence" ||
-      block.kind === "state" ||
-      block.kind === "entity" ||
-      block.kind === "class"
-    ) {
-      targets.push({ kind: block.kind, block });
-    }
-  });
-  return targets;
+/** The diagnostic fields a family's own render error carries. */
+interface FragmentRenderFailure {
+  readonly code: string;
+  readonly message: string;
+  readonly remedy: string;
 }
 
 /**
- * Model fragments are produced ahead of HTML assembly so each figure receives
- * its per-kind positional ordinal and this Document's Theme: the emitter sizes
- * every box through the Advance metric, so layout and paint must agree on one
- * Theme. A failure here publishes no Artifact.
+ * The per-family inputs of the shared Fragment preflight. `selectTargets`
+ * walks the Document in order, so every kind's ordinal reproduces the emission
+ * order; `synchronous` records whether that family's Block renderers must
+ * answer without yielding to the microtask queue.
  */
-async function renderModelsFragments(
+interface FragmentFamily {
+  readonly blockType: string;
+  readonly label: string;
+  readonly kinds: readonly string[];
+  readonly selectTargets: (document: AzeDocument) => readonly FragmentTarget[];
+  readonly synchronous: boolean;
+  readonly failure: (error: unknown) => FragmentRenderFailure | undefined;
+}
+
+/**
+ * The positional Fragment families share this preflight: each figure receives
+ * its per-kind ordinal and this Document's Theme, because the emitter sizes
+ * every box through the Advance metric, so layout and paint must agree on one
+ * Theme. Running it before HTML assembly means a failure here publishes no
+ * Artifact. Renderer, Block renderer and version compatibility are resolved
+ * before any Block is rendered, so a family with no Block emits nothing while
+ * a family whose Blocks cannot be resolved emits bounded adapter diagnostics
+ * instead of a partial figure.
+ */
+async function renderFamilyFragments(
   document: AzeDocument,
   rendererId: string,
   registry: ResolvedRegistry,
   policy: CompilerPolicy,
   sourceName: string | undefined,
   theme: Theme,
+  family: FragmentFamily,
 ): Promise<{
   readonly fragments: ReadonlyMap<AzeBlock, string>;
   readonly diagnostics: readonly Diagnostic[];
 }> {
-  const targets = modelTargets(document);
+  const targets = family.selectTargets(document);
   if (targets.length === 0) {
     return { fragments: new Map(), diagnostics: [] };
   }
@@ -1510,12 +1591,12 @@ async function renderModelsFragments(
       diagnostics: [
         groupedAdapterDiagnostic(
           "azeforge.renderer#adapter-missing",
-          `No ${rendererName} Renderer is registered for model Blocks.`,
+          `No ${rendererName} Renderer is registered for ${family.label} Blocks.`,
           targets,
           sourceName,
-          { blockType: "models", rendererId },
+          { blockType: family.blockType, rendererId },
           `Register the built-in ${rendererName} Renderer.`,
-          "models",
+          family.blockType,
         ),
       ],
     };
@@ -1531,14 +1612,14 @@ async function renderModelsFragments(
           sourceName,
           { rendererId: renderer.id },
           "Enable the Renderer in Compiler policy.",
-          "models",
+          family.blockType,
         ),
       ],
     };
   }
   const fragments = new Map<AzeBlock, string>();
   const diagnostics: Diagnostic[] = [];
-  for (const kind of MODEL_KINDS) {
+  for (const kind of family.kinds) {
     const kindTargets = targets.filter((target) => target.kind === kind);
     if (kindTargets.length === 0) continue;
     const candidates = registry.blockRenderers.filter(
@@ -1611,30 +1692,36 @@ async function renderModelsFragments(
       continue;
     }
     const render = chosen.render as (
-      block: SequenceBlock | StateBlock | EntityBlock | ClassBlock,
+      block: AzeBlock & { readonly pluginVersion: string },
       context: Readonly<{ sourceName?: string; ordinal?: number; theme?: Theme }>,
     ) => string | Promise<string>;
     let ordinal = 0;
     for (const target of kindTargets) {
       const location =
-        sourceName === undefined ? { range: target.block.range } : { source: sourceName, range: target.block.range };
+        sourceName === undefined
+          ? { range: target.block.range }
+          : { source: sourceName, range: target.block.range };
       try {
-        const markup = render(target.block, {
+        const rendered = render(target.block, {
           ...(sourceName === undefined ? {} : { sourceName }),
           ordinal,
           theme,
         });
+        // A synchronous family must not let the microtask queue launder a
+        // Promise into a string, so its result is inspected before any await.
+        const markup = family.synchronous ? rendered : await Promise.resolve(rendered);
         if (typeof markup !== "string") {
           throw new BlockRendererSyncError(chosen.descriptor.id, kind);
         }
         fragments.set(target.block, markup);
       } catch (error) {
-        if (error instanceof ModelsRenderError) {
+        const failure = family.failure(error);
+        if (failure !== undefined) {
           diagnostics.push(
-            createDiagnostic(error.code, "error", error.message, {
+            createDiagnostic(failure.code, "error", failure.message, {
               location,
               data: { adapterId: chosen.descriptor.id, blockType: kind },
-              suggestion: error.remedy,
+              suggestion: failure.remedy,
             }),
           );
         } else if (error instanceof BlockRendererSyncError) {
@@ -1665,6 +1752,100 @@ async function renderModelsFragments(
     }
   }
   return { fragments, diagnostics };
+}
+
+const MODEL_KINDS = ["sequence", "state", "entity", "class"] as const;
+
+function modelTargets(document: AzeDocument): readonly FragmentTarget[] {
+  const targets: FragmentTarget[] = [];
+  walkBlocks(document.blocks, (block) => {
+    if (
+      block.kind === "sequence" ||
+      block.kind === "state" ||
+      block.kind === "entity" ||
+      block.kind === "class"
+    ) {
+      targets.push({ kind: block.kind, block });
+    }
+  });
+  return targets;
+}
+
+/**
+ * Model fragments are produced ahead of HTML assembly so each figure receives
+ * its per-kind positional ordinal and this Document's Theme: the emitter sizes
+ * every box through the Advance metric, so layout and paint must agree on one
+ * Theme. A failure here publishes no Artifact.
+ */
+async function renderModelsFragments(
+  document: AzeDocument,
+  rendererId: string,
+  registry: ResolvedRegistry,
+  policy: CompilerPolicy,
+  sourceName: string | undefined,
+  theme: Theme,
+): Promise<{
+  readonly fragments: ReadonlyMap<AzeBlock, string>;
+  readonly diagnostics: readonly Diagnostic[];
+}> {
+  return renderFamilyFragments(document, rendererId, registry, policy, sourceName, theme, {
+    blockType: "models",
+    label: "model",
+    kinds: MODEL_KINDS,
+    selectTargets: modelTargets,
+    synchronous: true,
+    failure: (error) =>
+      error instanceof ModelsRenderError
+        ? { code: error.code, message: error.message, remedy: error.remedy }
+        : undefined,
+  });
+}
+
+const ENGINEERING_KINDS = ["control", "free-body"] as const;
+
+function engineeringTargets(document: AzeDocument): readonly FragmentTarget[] {
+  const targets: FragmentTarget[] = [];
+  walkBlocks(document.blocks, (block) => {
+    if (block.kind === "control") {
+      targets.push({ kind: "control", block });
+    } else if (block.kind === "free-body") {
+      targets.push({ kind: "free-body", block });
+    }
+  });
+  return targets;
+}
+
+/**
+ * Engineering fragments are produced ahead of HTML assembly: the control
+ * layout engine is asynchronous, and both directives need their per-kind
+ * positional ordinal and this Document's Theme (the Advance metric sizes every
+ * control box, so layout and paint must agree on one Theme). A failure here
+ * publishes no Artifact and never falls back to Mermaid.
+ */
+async function renderEngineeringFragments(
+  document: AzeDocument,
+  rendererId: string,
+  registry: ResolvedRegistry,
+  policy: CompilerPolicy,
+  sourceName: string | undefined,
+  theme: Theme,
+): Promise<{
+  readonly fragments: ReadonlyMap<AzeBlock, string>;
+  readonly diagnostics: readonly Diagnostic[];
+}> {
+  return renderFamilyFragments(document, rendererId, registry, policy, sourceName, theme, {
+    blockType: "engineering",
+    label: "engineering",
+    kinds: ENGINEERING_KINDS,
+    selectTargets: engineeringTargets,
+    synchronous: false,
+    failure: (error) =>
+      error instanceof ControlLayoutError ||
+      error instanceof ControlRenderError ||
+      error instanceof FreeBodyRenderError
+        ? { code: error.code, message: error.message, remedy: error.remedy }
+        : undefined,
+  });
 }
 
 /**
@@ -2573,6 +2754,14 @@ export function createCompiler(options: CompilerOptions = {}): Compiler {
           compileOptions.sourceName,
           theme,
         );
+        const engineeringPreflight = await renderEngineeringFragments(
+          validation.document,
+          selectedRenderer.id,
+          registry,
+          policy,
+          compileOptions.sourceName,
+          theme,
+        );
         const pluginPreflight = checkPluginAdapters(
           validation.document,
           selectedRenderer.id,
@@ -2586,6 +2775,7 @@ export function createCompiler(options: CompilerOptions = {}): Compiler {
           ...mermaidPreflight.diagnostics,
           ...diagramPreflight.diagnostics,
           ...modelsPreflight.diagnostics,
+          ...engineeringPreflight.diagnostics,
           ...pluginPreflight.diagnostics,
         ];
         if (preflightDiagnostics.length > 0) {
@@ -2679,6 +2869,9 @@ export function createCompiler(options: CompilerOptions = {}): Compiler {
           diagramPreflight.fragments,
           diagramDependencyClosure(),
           modelsPreflight.fragments,
+          engineeringPreflight.fragments,
+          controlDependencyClosure(),
+          freeBodyDependencyClosure(),
           pluginRenderers,
         ] as const;
         const htmlLayout = createHtmlLayout(
@@ -2693,6 +2886,9 @@ export function createCompiler(options: CompilerOptions = {}): Compiler {
           renderArguments[9],
           renderArguments[10],
           renderArguments[11],
+          renderArguments[12],
+          renderArguments[13],
+          renderArguments[14],
         );
         const artifact =
           compileOptions.format === "html"

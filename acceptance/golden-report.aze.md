@@ -692,3 +692,136 @@ title: Payment classes
   to: Order
   label: charges
 ::::
+
+## Engineering diagrams
+
+The engineering family is exercised with both directives. The feedback
+controller draws a takeoff as the two `plant` out-edges, pairs `[+, -]` with
+`ref -> err` then `plant -> err` in authored edge order, and renders plain-text
+transfer functions. The inclined-plane free body authors an explicit scale, so
+every force length is derived from its magnitude; the wedge corners and the
+contact point stay invisible anchors, the slope face is an invisible-by-default
+line, and `N` and `f` resolve their rays from that line instead of author
+angles.
+
+:::: control
+id: pitch-loop
+number: true
+title: Feedback controller
+flow: left-to-right
+----
+- kind: input
+  name: ref
+  label: Θ_c(s)
+- kind: sum
+  name: err
+  signs: [+, -]
+- kind: block
+  name: ctrl
+  tf: K_p (1 + 1/(T_i s))
+- kind: block
+  name: plant
+  tf: 1/(s(s+2))
+- kind: output
+  name: out
+  label: Θ(s)
+- kind: edge
+  from: ref
+  to: err
+  label: Θ_c(s)
+- kind: edge
+  from: err
+  to: ctrl
+  label: e(s)
+- kind: edge
+  from: ctrl
+  to: plant
+  label: u(s)
+- kind: edge
+  from: plant
+  to: out
+  label: Θ(s)
+- kind: edge
+  from: plant
+  to: err
+  label: Θ(s)
+::::
+
+:::: free-body
+id: incline-block
+number: true
+title: Block on an inclined plane
+scale: 0.15
+----
+- kind: point
+  name: toe
+  x: 0
+  y: 0
+  visible: false
+- kind: point
+  name: heel
+  x: 6
+  y: 0
+  visible: false
+- kind: point
+  name: top
+  x: 6
+  y: 2.18
+  visible: false
+- kind: polygon
+  name: wedge
+  vertices:
+    - toe
+    - heel
+    - top
+- kind: block
+  name: slider
+  x: 2.83
+  y: 1.56
+  width: 1.6
+  height: 1
+  angle: 20
+- kind: point
+  name: com
+  label: G
+  x: 2.83
+  y: 1.56
+- kind: point
+  name: contact
+  x: 3
+  y: 1.09
+  visible: false
+- kind: line
+  name: slope-face
+  from: toe
+  to: top
+- kind: force
+  at: com
+  angle: 270
+  magnitude: 19.6
+  label: mg
+- kind: force
+  at: contact
+  perpendicular-to: slope-face
+  magnitude: 18.4
+  label: N
+- kind: force
+  at: contact
+  parallel-to: slope-face
+  magnitude: 6.7
+  label: f
+- kind: axes
+  at: com
+  angle: 20
+  x-label: x′
+  y-label: y′
+- kind: angle-mark
+  first: heel
+  vertex: toe
+  third: top
+  label: θ
+- kind: dimension
+  from: (2.08, 1.29)
+  to: (3.58, 1.83)
+  label: L
+::::

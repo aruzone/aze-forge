@@ -33,6 +33,7 @@ no build chain, no runtime dependencies in your output.
 | Analog and digital circuits | `circuit` |
 | Digital timing | `timing` |
 | Software and data models | `sequence`, `state`, `entity`, `class` |
+| Engineering diagrams | `control`, `free-body` |
 
 See the [native plugin family tree](docs/native-plugin-family-tree.md) for the
 full catalog and family relationships.

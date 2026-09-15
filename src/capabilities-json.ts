@@ -185,7 +185,7 @@ export const capabilitiesJsonSchema: JsonValue = Object.freeze({
     security: { type: "object" },
     engines: {
       type: "object",
-      required: ["browser", "katex", "mermaid", "plot", "geometry", "chemistry", "timing", "diagram", "models", "fonts"],
+      required: ["browser", "katex", "mermaid", "plot", "geometry", "chemistry", "timing", "diagram", "models", "control", "freeBody", "fonts"],
       additionalProperties: false,
       properties: {
         browser: {
@@ -309,6 +309,43 @@ export const capabilitiesJsonSchema: JsonValue = Object.freeze({
               minItems: 1,
               items: { type: "string", minLength: 1 },
             },
+            availability,
+          },
+        },
+        control: {
+          type: "object",
+          required: [
+            "layout",
+            "elkjs",
+            "emitter",
+            "eval",
+            "advanceMetric",
+            "metricSource",
+            "availability",
+          ],
+          additionalProperties: false,
+          properties: {
+            layout: { type: "string", minLength: 1 },
+            elkjs: { type: "string", minLength: 1 },
+            emitter: { type: "string", minLength: 1 },
+            eval: { type: "string", minLength: 1 },
+            advanceMetric: { type: "string", minLength: 1 },
+            metricSource: {
+              type: "array",
+              minItems: 1,
+              items: { type: "string", minLength: 1 },
+            },
+            availability,
+          },
+        },
+        freeBody: {
+          type: "object",
+          required: ["emitter", "eval", "scale", "availability"],
+          additionalProperties: false,
+          properties: {
+            emitter: { type: "string", minLength: 1 },
+            eval: { type: "string", minLength: 1 },
+            scale: { type: "string", minLength: 1 },
             availability,
           },
         },

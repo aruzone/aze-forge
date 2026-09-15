@@ -154,6 +154,7 @@ interface RenderContext {
     context: BlockRendererContext,
   ) => string;
   readonly modelsFragments: ReadonlyMap<AzeBlock, string>;
+  readonly engineeringFragments: ReadonlyMap<AzeBlock, string>;
 }
 
 export function documentTitle(document: AzeDocument): string {
@@ -263,6 +264,9 @@ function renderBlock(block: AzeBlock, context: RenderContext): string {
     case "entity":
     case "class":
       return context.modelsFragments.get(block) ?? `<figure class="aze-${block.kind}"></figure>`;
+    case "control":
+    case "free-body":
+      return context.engineeringFragments.get(block) ?? `<figure class="aze-${block.kind}"></figure>`;
     case "structure":
       return context.renderStructure(block, {
         ...(context.sourceName === undefined ? {} : { sourceName: context.sourceName }),
@@ -326,6 +330,23 @@ function diagramCss(theme: Theme): string {
  * classes by italic names, static members by an underline, and aggregation by
  * a hollow diamond.
  */
+/**
+ * Engineering-diagram CSS. The figures carry their own geometry and their own
+ * token-driven stroke and fill inline, because control measures through the
+ * Advance metric and free-body resolves an authored frame; what the document
+ * must still supply is the ink for control's label text and the block-level
+ * sizing both figures share. `fill:currentColor` mirrors the diagram and model
+ * families, so a label is legible under every Theme without a colour token.
+ */
+function engineeringCss(theme: Theme): string {
+  const tokens = theme.control;
+  return [
+    ".aze-control,.aze-free-body{margin:1em 0}",
+    ".aze-control svg,.aze-free-body svg{display:block;max-width:100%;height:auto;margin:0 auto}",
+    `.aze-control-label{font-family:"${tokens.labelFontFamily}";fill:currentColor}`,
+  ].join("");
+}
+
 function modelsCss(theme: Theme): string {
   const tokens = theme.models;
   const typography = modelsLabelTypography(theme);
@@ -425,6 +446,9 @@ export function createHtmlLayout(
   diagramFragments: ReadonlyMap<DiagramBlock, string> = new Map(),
   diagramDependencyClosure: JsonValue = {},
   modelsFragments: ReadonlyMap<AzeBlock, string> = new Map(),
+  engineeringFragments: ReadonlyMap<AzeBlock, string> = new Map(),
+  controlDependencyClosureValue: JsonValue = {},
+  freeBodyDependencyClosureValue: JsonValue = {},
   pluginRenderers: HtmlPluginRenderers = {},
 ): HtmlLayout {
   const renderCallout =
@@ -462,12 +486,13 @@ export function createHtmlLayout(
     renderCircuit,
     renderTiming,
     modelsFragments,
+    engineeringFragments,
     renderTable,
   };
   return {
     title: escapeHtml(documentTitle(document)),
     description: "AzeForge whole-Document Artifact",
-    css: `${embeddedFontCss(fontFaces)}${themeCss(theme)}${diagramCss(theme)}${modelsCss(theme)}${getKatexCss()}.aze-equation{margin:1em 0;text-align:center}.aze-equation[data-align="left"]{text-align:left}.aze-equation[data-align="right"]{text-align:right}.aze-derivation{margin:1em 0}.aze-derivation ol{list-style:none;padding:0;margin:0}.aze-derivation li{display:block;text-align:center;margin:.35em 0}.aze-derivation[data-align="left"] li{text-align:left}.aze-derivation[data-align="right"] li{text-align:right}.aze-derivation .aze-derivation-annotation{display:block;font-style:italic;color:#666;font-size:.9em}.aze-mermaid{margin:1em 0}.aze-mermaid svg{display:block;max-width:100%;max-height:520px;width:auto;height:auto;margin:0 auto}.aze-plot{margin:1em 0}.aze-plot svg{display:block;max-width:100%;height:auto;margin:0 auto}.aze-chart{margin:1em 0}.aze-chart svg{display:block;max-width:100%;height:auto;margin:0 auto}.aze-geometry{margin:1em 0}.aze-geometry svg{display:block;max-width:100%;height:auto;margin:0 auto}.aze-circuit{margin:1em 0;color:inherit}.aze-circuit svg{display:block;max-width:100%;height:auto}.aze-timing{margin:1em 0;color:inherit}.aze-timing svg{display:block;max-width:100%;height:auto;margin:0 auto}.aze-formula{margin:1em 0;text-align:center}.aze-formula .aze-formula-expression{font-size:1.05em}.aze-reaction{margin:1em 0;text-align:center}.aze-reaction .aze-reaction-arrow{font-size:1.1em}.aze-reaction .aze-reaction-conditions{display:inline-block;font-size:.85em;font-style:italic;color:#666}.aze-structure{margin:1em 0}.aze-structure svg{display:block;max-width:100%;height:auto;margin:0 auto}`,
+    css: `${embeddedFontCss(fontFaces)}${themeCss(theme)}${diagramCss(theme)}${modelsCss(theme)}${engineeringCss(theme)}${getKatexCss()}.aze-equation{margin:1em 0;text-align:center}.aze-equation[data-align="left"]{text-align:left}.aze-equation[data-align="right"]{text-align:right}.aze-derivation{margin:1em 0}.aze-derivation ol{list-style:none;padding:0;margin:0}.aze-derivation li{display:block;text-align:center;margin:.35em 0}.aze-derivation[data-align="left"] li{text-align:left}.aze-derivation[data-align="right"] li{text-align:right}.aze-derivation .aze-derivation-annotation{display:block;font-style:italic;color:#666;font-size:.9em}.aze-mermaid{margin:1em 0}.aze-mermaid svg{display:block;max-width:100%;max-height:520px;width:auto;height:auto;margin:0 auto}.aze-plot{margin:1em 0}.aze-plot svg{display:block;max-width:100%;height:auto;margin:0 auto}.aze-chart{margin:1em 0}.aze-chart svg{display:block;max-width:100%;height:auto;margin:0 auto}.aze-geometry{margin:1em 0}.aze-geometry svg{display:block;max-width:100%;height:auto;margin:0 auto}.aze-circuit{margin:1em 0;color:inherit}.aze-circuit svg{display:block;max-width:100%;height:auto}.aze-timing{margin:1em 0;color:inherit}.aze-timing svg{display:block;max-width:100%;height:auto;margin:0 auto}.aze-formula{margin:1em 0;text-align:center}.aze-formula .aze-formula-expression{font-size:1.05em}.aze-reaction{margin:1em 0;text-align:center}.aze-reaction .aze-reaction-arrow{font-size:1.1em}.aze-reaction .aze-reaction-conditions{display:inline-block;font-size:.85em;font-style:italic;color:#666}.aze-structure{margin:1em 0}.aze-structure svg{display:block;max-width:100%;height:auto;margin:0 auto}`,
     body: `<main><article>${renderBlocks(document.blocks, context)}</article></main>`,
     fingerprintDependencies: {
       theme: theme as unknown as JsonValue,
@@ -504,6 +529,14 @@ export function createHtmlLayout(
         callout: "1.0.0",
         table: "1.0.0",
       },
+      ...(document.blocks.some((block) => block.kind === "control" || block.kind === "free-body")
+        ? {
+            engineering: {
+              control: controlDependencyClosureValue,
+              freeBody: freeBodyDependencyClosureValue,
+            },
+          }
+        : {}),
     },
   };
 }
@@ -521,6 +554,9 @@ export async function renderHtml(
   diagramFragments: ReadonlyMap<DiagramBlock, string> = new Map(),
   diagramDependencyClosure: JsonValue = {},
   modelsFragments: ReadonlyMap<AzeBlock, string> = new Map(),
+  engineeringFragments: ReadonlyMap<AzeBlock, string> = new Map(),
+  controlDependencyClosureValue: JsonValue = {},
+  freeBodyDependencyClosureValue: JsonValue = {},
   pluginRenderers: HtmlPluginRenderers = {},
   assetManifest: readonly AssetManifestEntry[] = [],
 ): Promise<Artifact> {
@@ -536,6 +572,9 @@ export async function renderHtml(
     diagramFragments,
     diagramDependencyClosure,
     modelsFragments,
+    engineeringFragments,
+    controlDependencyClosureValue,
+    freeBodyDependencyClosureValue,
     pluginRenderers,
   );
   const rendererFingerprint = sha256(

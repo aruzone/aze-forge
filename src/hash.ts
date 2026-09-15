@@ -6,9 +6,12 @@ import type {
   ArtifactHash,
   AzeBlock,
   AzeDocument,
+  CircuitText,
   ContentHash,
   DiagramEndpoint,
   DiagramLabel,
+  FreeBodyAttachment,
+  FreeBodyDirection,
   Inline,
   JsonValue,
   ParsedBlock,
@@ -687,6 +690,188 @@ export function documentContentHash(document: AzeDocument): ContentHash {
       if (block.id !== undefined) projected.id = block.id;
       if (block.number !== undefined) projected.number = block.number;
       if (block.labels !== undefined) projected.labels = block.labels as unknown as JsonValue;
+      return projected;
+    }
+    if (block.kind === "control") {
+      // Parsed semantics only: the flow, the declaration list in authored
+      // order, every name and reference, the decoded `tf:`/label run lists, the
+      // `signs:` list order and length, and edge authored order. No coordinate,
+      // rank, bend point or positional id ever reaches identity.
+      const runs = (text: CircuitText): JsonValue => text as unknown as JsonValue;
+      const projected: Record<string, JsonValue> = {
+        kind: block.kind,
+        pluginVersion: block.pluginVersion,
+        flow: block.flow,
+        declarations: block.declarations.map((declaration): JsonValue => {
+          if (declaration.kind === "block") {
+            return {
+              kind: declaration.kind,
+              name: declaration.name,
+              tf: runs(declaration.tf),
+              ...(declaration.label === undefined ? {} : { label: runs(declaration.label) }),
+            };
+          }
+          if (declaration.kind === "sum") {
+            return {
+              kind: declaration.kind,
+              name: declaration.name,
+              signs: [...declaration.signs],
+            };
+          }
+          if (declaration.kind === "edge") {
+            return {
+              kind: declaration.kind,
+              from: declaration.from,
+              to: declaration.to,
+              ...(declaration.label === undefined ? {} : { label: runs(declaration.label) }),
+            };
+          }
+          return {
+            kind: declaration.kind,
+            name: declaration.name,
+            label: runs(declaration.label),
+          };
+        }),
+      };
+      if (block.id !== undefined) projected.id = block.id;
+      if (block.number !== undefined) projected.number = block.number;
+      if (block.title !== undefined) projected.title = block.title as unknown as JsonValue;
+      if (block.description !== undefined) {
+        projected.description = block.description as unknown as JsonValue;
+      }
+      return projected;
+    }
+    if (block.kind === "free-body") {
+      // Parsed semantics only: authored declaration order and kinds, names,
+      // exact-decimal coordinates, angles, attach values, direction forms and
+      // targets, magnitude/length numbers, the scale switch, `visible:`/`style:`
+      // and the canvas. Resolved rays, arrow endpoints, the auto-fit viewBox,
+      // the y-flip and positional ids stay out of identity, and coincident
+      // points are never merged.
+      const attachment = (value: FreeBodyAttachment): JsonValue =>
+        value.kind === "point"
+          ? { kind: value.kind, name: value.name }
+          : { kind: value.kind, x: value.x, y: value.y };
+      const direction = (value: FreeBodyDirection): JsonValue =>
+        value.kind === "angle"
+          ? { kind: value.kind, degrees: value.degrees }
+          : { kind: value.kind, line: value.line };
+      const label = (value: CircuitText | undefined): Record<string, JsonValue> =>
+        value === undefined ? {} : { label: value as unknown as JsonValue };
+      const projected: Record<string, JsonValue> = {
+        kind: block.kind,
+        pluginVersion: block.pluginVersion,
+        width: block.width,
+        height: block.height,
+        declarations: block.declarations.map((declaration): JsonValue => {
+          switch (declaration.kind) {
+            case "block":
+              return {
+                kind: declaration.kind,
+                name: declaration.name,
+                x: declaration.x,
+                y: declaration.y,
+                width: declaration.width,
+                height: declaration.height,
+                angle: declaration.angle,
+                visible: declaration.visible,
+              };
+            case "circle":
+              return {
+                kind: declaration.kind,
+                name: declaration.name,
+                x: declaration.x,
+                y: declaration.y,
+                radius: declaration.radius,
+                visible: declaration.visible,
+              };
+            case "particle":
+              return {
+                kind: declaration.kind,
+                name: declaration.name,
+                x: declaration.x,
+                y: declaration.y,
+                visible: declaration.visible,
+              };
+            case "polygon":
+              return {
+                kind: declaration.kind,
+                name: declaration.name,
+                vertices: [...declaration.vertices],
+                visible: declaration.visible,
+              };
+            case "point":
+              return {
+                kind: declaration.kind,
+                name: declaration.name,
+                x: declaration.x,
+                y: declaration.y,
+                visible: declaration.visible,
+                ...label(declaration.label),
+              };
+            case "line":
+              return {
+                kind: declaration.kind,
+                name: declaration.name,
+                from: declaration.from,
+                to: declaration.to,
+                visible: declaration.visible,
+                style: declaration.style,
+              };
+            case "force":
+              return {
+                kind: declaration.kind,
+                at: attachment(declaration.at),
+                direction: direction(declaration.direction),
+                ...(declaration.magnitude === undefined
+                  ? {}
+                  : { magnitude: declaration.magnitude }),
+                ...(declaration.length === undefined ? {} : { length: declaration.length }),
+                ...label(declaration.label),
+              };
+            case "moment":
+              return {
+                kind: declaration.kind,
+                at: attachment(declaration.at),
+                direction: declaration.direction,
+                ...label(declaration.label),
+              };
+            case "axes":
+              return {
+                kind: declaration.kind,
+                at: attachment(declaration.at),
+                angle: declaration.angle,
+                xLabel: declaration.xLabel as unknown as JsonValue,
+                yLabel: declaration.yLabel as unknown as JsonValue,
+              };
+            case "angle-mark":
+              return {
+                kind: declaration.kind,
+                first: declaration.first,
+                vertex: declaration.vertex,
+                third: declaration.third,
+                ...label(declaration.label),
+              };
+            default:
+              return {
+                kind: declaration.kind,
+                from: attachment(declaration.from),
+                to: attachment(declaration.to),
+                label: declaration.label as unknown as JsonValue,
+              };
+          }
+        }),
+      };
+      if (block.scale !== undefined) projected.scale = block.scale;
+      if (block.bounds !== undefined) {
+        projected.bounds = { ...block.bounds } as unknown as JsonValue;
+      }
+      if (block.id !== undefined) projected.id = block.id;
+      if (block.number !== undefined) projected.number = block.number;
+      if (block.title !== undefined) projected.title = block.title as unknown as JsonValue;
+      if (block.description !== undefined) {
+        projected.description = block.description as unknown as JsonValue;
+      }
       return projected;
     }
     if (block.kind === "invalid") {

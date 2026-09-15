@@ -15,6 +15,8 @@ import {
 import { circuitHtmlBlockRenderer } from "./circuit-render.js";
 import { timingHtmlBlockRenderer } from "./timing-render.js";
 import { diagramHtmlBlockRenderer } from "./diagram-render.js";
+import { controlHtmlBlockRenderer } from "./control-render.js";
+import { freeBodyHtmlBlockRenderer } from "./free-body-render.js";
 import {
   classHtmlBlockRenderer,
   entityHtmlBlockRenderer,
@@ -91,6 +93,8 @@ export const pngBlockRenderers: readonly AnyBlockRenderer[] = Object.freeze([
   pngBlockRenderer(stateHtmlBlockRenderer),
   pngBlockRenderer(entityHtmlBlockRenderer),
   pngBlockRenderer(classHtmlBlockRenderer),
+  pngBlockRenderer(controlHtmlBlockRenderer),
+  pngBlockRenderer(freeBodyHtmlBlockRenderer),
 ]);
 
 export interface PngBrowserCapability {

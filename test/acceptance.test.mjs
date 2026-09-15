@@ -56,6 +56,8 @@ const SUITE_EVIDENCE = [
   ["P0-DIA-002", "test/diagram-block.test.mjs"],
   ["P0-MOD-001", "test/models.test.mjs"],
   ["P0-MOD-002", "test/models-block.test.mjs"],
+  ["P0-ENG-001", "test/engineering.test.mjs"],
+  ["P0-ENG-002", "test/engineering-block.test.mjs"],
   ["P0-MMD-001", "test/mermaid.test.mjs"],
   ["P0-OUT-001", "test/acceptance.test.mjs"],
   ["P0-OUT-002", "test/acceptance.test.mjs"],
@@ -167,6 +169,31 @@ function goldenFailures(html) {
   ]) {
     if (!html.includes(needle)) failures.push(label);
   }
+  // Native Engineering: the feedback controller and the inclined-plane free
+  // body reach HTML as real figures with their authored structure intact.
+  for (const [kind, id, title] of [
+    ["control", "pitch-loop", "Feedback controller"],
+    ["free-body", "incline-block", "Block on an inclined plane"],
+  ]) {
+    if (!html.includes(`data-${kind}-id="${id}"`)) failures.push(`engineering-${kind}-figure`);
+    if (!html.includes(`>${title}<`)) failures.push(`engineering-${kind}-title`);
+  }
+  for (const [needle, label] of [
+    ["aze-control-block", "engineering-control-block"],
+    ["aze-control-sum", "engineering-control-sum"],
+    ["aze-control-input", "engineering-control-stub"],
+    ["aze-control-edge", "engineering-control-edge"],
+    ["aze-control-takeoff", "engineering-control-takeoff"],
+    ["aze-free-body-polygon", "engineering-free-body-polygon"],
+    ["aze-free-body-block", "engineering-free-body-block"],
+    ["aze-free-body-force", "engineering-free-body-force"],
+    ["aze-free-body-axes", "engineering-free-body-axes"],
+    ["aze-free-body-angle-mark", "engineering-free-body-angle-mark"],
+    ["aze-free-body-dimension", "engineering-free-body-dimension"],
+    ["1/(s(s+2))", "engineering-transfer-function"],
+  ]) {
+    if (!html.includes(needle)) failures.push(label);
+  }
   return failures;
 }
 
@@ -187,7 +214,7 @@ test("acceptance catalog is canonical and coverage rejects missing or unknown ID
   const onDisk = JSON.parse(await readFile(new URL("../acceptance/catalog.json", import.meta.url), "utf8"));
   assert.deepEqual(onDisk, JSON.parse(JSON.stringify(canonical)));
   assert.equal(canonical.catalog.id, "azeforge.acceptance/v1");
-  assert.equal(canonical.entries.filter((item) => item.gate === "p0").length, 45);
+  assert.equal(canonical.entries.filter((item) => item.gate === "p0").length, 47);
 
   const declared = SUITE_EVIDENCE.map(([id]) => id);
   assert.deepEqual(checkAcceptanceCoverage(declared), { missing: [], unknown: [] });

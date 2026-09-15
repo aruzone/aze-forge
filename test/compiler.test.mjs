@@ -260,7 +260,7 @@ After
   assert.deepEqual(invalid?.diagnosticIndexes, [0]);
   assert.deepEqual(parsed.diagnostics[0]?.data, {
     type: "mystery",
-    availableTypes: ["callout", "chart", "circuit", "class", "derivation", "diagram", "entity", "equation", "formula", "geometry", "mermaid", "plot", "reaction", "sequence", "state", "structure", "table", "timing"],
+    availableTypes: ["callout", "chart", "circuit", "class", "control", "derivation", "diagram", "entity", "equation", "formula", "free-body", "geometry", "mermaid", "plot", "reaction", "sequence", "state", "structure", "table", "timing"],
   });
   assert.equal(
     parsed.diagnostics[0]?.code,
@@ -433,14 +433,14 @@ azemark: 2
         code: "azeforge.source#unknown-directive",
         data: {
           type: "one",
-          availableTypes: ["callout", "chart", "circuit", "class", "derivation", "diagram", "entity", "equation", "formula", "geometry", "mermaid", "plot", "reaction", "sequence", "state", "structure", "table", "timing"],
+          availableTypes: ["callout", "chart", "circuit", "class", "control", "derivation", "diagram", "entity", "equation", "formula", "free-body", "geometry", "mermaid", "plot", "reaction", "sequence", "state", "structure", "table", "timing"],
         },
       },
       {
         code: "azeforge.source#unknown-directive",
         data: {
           type: "two",
-          availableTypes: ["callout", "chart", "circuit", "class", "derivation", "diagram", "entity", "equation", "formula", "geometry", "mermaid", "plot", "reaction", "sequence", "state", "structure", "table", "timing"],
+          availableTypes: ["callout", "chart", "circuit", "class", "control", "derivation", "diagram", "entity", "equation", "formula", "free-body", "geometry", "mermaid", "plot", "reaction", "sequence", "state", "structure", "table", "timing"],
         },
       },
       {

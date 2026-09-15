@@ -29,7 +29,16 @@ AzeForge
 ├── Electrical engineering
 │   └── circuit
 ├── Diagrams
+│   ├── diagram
 │   └── mermaid
+├── Engineering diagrams
+│   ├── control
+│   └── free-body
+├── Software and data models
+│   ├── sequence
+│   ├── state
+│   ├── entity
+│   └── class
 ├── Data and composition
 │   ├── table
 │   └── callout
@@ -350,6 +359,117 @@ Signals, groups, markers, and arrows keep their authored order in the
 Document. The family registers no warnings: every unsupported or
 contradictory declaration is an error, and arrows and markers describe the
 claimed transaction rather than certifying it.
+
+## Engineering diagrams
+
+### `control`
+
+Native control-system diagrams author one flat, ordered declaration list of
+SISO function blocks, summing junctions, directional boundary stubs and
+anonymous signal edges. A block carries a plain-text transfer function, a
+junction carries its signs as a bounded domain expression, and every reference
+resolves in two passes, so forward references are legal and an undeclared name
+is never guessed. A takeoff is implicit fan-out — several out-edges from one
+item render as a dot — never a nameable entity. The compiler checks four
+bounded structural rules and nothing else: feedback, reachability and topology
+plausibility are the author's claim, not the compiler's judgement.
+
+```text
+:::: control
+id: pitch-loop
+flow: left-to-right
+----
+- kind: input
+  name: ref
+  label: Θ_c(s)
+- kind: sum
+  name: err
+  signs: [+, -]
+- kind: block
+  name: ctrl
+  tf: K_p (1 + 1/(T_i s))
+- kind: block
+  name: plant
+  tf: 1/(s(s+2))
+- kind: output
+  name: out
+  label: Θ(s)
+- kind: edge
+  from: ref
+  to: err
+- kind: edge
+  from: err
+  to: ctrl
+- kind: edge
+  from: ctrl
+  to: plant
+- kind: edge
+  from: plant
+  to: out
+- kind: edge
+  from: plant
+  to: err
+::::
+
+```
+
+`signs:` pairs positionally with the junction's in-edges in authored order, so
+its length and order are hash-significant. Layout is the pinned elkjs layered
+engine over the shared Advance metric: deterministic, total over every valid
+Block, and never serialized — only the derived geometry is projected.
+
+### `free-body`
+
+Native free-body diagrams author bodies, anchored vectors and display marks in
+one y-up unitless exact-decimal frame. Bodies are `block`, `circle`, `polygon`
+and `particle`; records are `point`, `line`, `force`, `moment`, `axes`,
+`angle-mark` and `dimension`. `name:` lives only on referenceables, so forces,
+moments, axes and marks are anonymous. An attachment is exactly one point name
+or a bounded `(x, y)` pair, and a force carries exactly one direction form:
+`angle:`, or `parallel-to:`/`perpendicular-to:` naming a `line`, whose from–to
+order picks the ray.
+
+```text
+:::: free-body
+id: incline-block
+scale: 0.15
+----
+- kind: polygon
+  name: wedge
+  vertices:
+    - toe
+    - heel
+    - top
+- kind: point
+  name: contact
+  x: 3
+  y: 1.09
+  visible: false
+- kind: line
+  name: slope-face
+  from: toe
+  to: top
+- kind: force
+  at: contact
+  perpendicular-to: slope-face
+  magnitude: 18.4
+  label: N
+- kind: axes
+  at: contact
+  angle: 20
+- kind: dimension
+  from: (2.08, 1.29)
+  to: (3.58, 1.83)
+  label: L
+::::
+
+```
+
+`scale:` is the frame-units-per-force-unit switch: with it every force authors
+`magnitude:` and its length is derived; without it every force authors a
+schematic `length:` and no magnitude is permitted. Nothing in the Block is
+computed into the Document and no `measure:` field exists — the compiler
+renders the physics the author claims and judges nothing.
 
 ## Diagrams
 

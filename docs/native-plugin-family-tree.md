@@ -64,6 +64,7 @@ A native capability uses controlled AzeMark declarations, retains its domain mea
 - Engineering diagrams
   - Control-system blocks, summing junctions, takeoff points, labeled signals, and feedback connections
   - Two-dimensional free-body diagrams with simple bodies, force vectors, moments, axes, dimensions, and angle annotations
+  - [Implemented with the native Engineering family](https://github.com/aruzone/aze-forge/issues/78). The detailed contract is in [issue #65](https://github.com/aruzone/aze-forge/issues/65#issuecomment-5584266572).
 - Structured technical content
   - Typed tables with declared column types, units, missing values, and grouped headers
   - Algorithms and pseudocode with procedures, assignments, branches, loops, and return statements

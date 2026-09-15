@@ -310,7 +310,7 @@ async function stepCatalog() {
     `azeforge.acceptance/v1 with ${canonical.entries.length} entries`,
   );
   const p0 = canonical.entries.filter((item) => item.gate === "p0");
-  check("P0-CLI-007", "catalog covers every required P0 contract", p0.length === 45 && p0.every((item) => item.required), `${p0.length} P0 entries`);
+  check("P0-CLI-007", "catalog covers every required P0 contract", p0.length === 47 && p0.every((item) => item.required), `${p0.length} P0 entries`);
   const ids = new Set(canonical.entries.map((item) => item.id));
   check("P0-CLI-007", "catalog IDs are unique", ids.size === canonical.entries.length, `${ids.size} unique IDs`);
   const coverage = checkAcceptanceCoverage(AUTOMATED_P0_IDS);
@@ -342,6 +342,40 @@ function assertGoldenHtml(id, html) {
   failures.push(...timingFailures(html).map((failure) => `timing:${failure}`));
   failures.push(...diagramFailures(html).map((failure) => `diagram:${failure}`));
   failures.push(...modelsFailures(html).map((failure) => `models:${failure}`));
+  failures.push(...engineeringFailures(html).map((failure) => `engineering:${failure}`));
+  return failures;
+}
+
+// The native Engineering family proves itself through inspectable structure:
+// the feedback controller must render its SISO boxes, summing junction, stub
+// glyphs, the takeoff dot of the `plant` fan-out and every labelled signal
+// edge, and the inclined-plane free body its wedge, rotated block, derived
+// force arrows, tilted axes, angle mark and dimension.
+const CONTROL_FIGURES = [["control", "pitch-loop", "Feedback controller"]];
+const FREE_BODY_FIGURES = [["free-body", "incline-block", "Block on an inclined plane"]];
+
+function engineeringFailures(markup) {
+  const failures = [];
+  for (const [kind, id, title] of [...CONTROL_FIGURES, ...FREE_BODY_FIGURES]) {
+    if (!markup.includes(`data-${kind}-id="${id}"`)) failures.push(`${kind}-figure`);
+    if (!markup.includes(`>${title}<`)) failures.push(`${kind}-title`);
+  }
+  for (const [needle, label] of [
+    ["aze-control-block", "control-block"],
+    ["aze-control-sum", "control-sum"],
+    ["aze-control-input", "control-stub"],
+    ["aze-control-edge", "control-edge"],
+    ["aze-control-takeoff", "control-takeoff"],
+    ["aze-free-body-polygon", "free-body-polygon"],
+    ["aze-free-body-block", "free-body-block"],
+    ["aze-free-body-force", "free-body-force"],
+    ["aze-free-body-axes", "free-body-axes"],
+    ["aze-free-body-angle-mark", "free-body-angle-mark"],
+    ["aze-free-body-dimension", "free-body-dimension"],
+    ["1/(s(s+2))", "transfer-function"],
+  ]) {
+    if (!markup.includes(needle)) failures.push(label);
+  }
   return failures;
 }
 
@@ -500,7 +534,7 @@ async function stepGoldenMatrix(live) {
         if (format === "html") {
           const html = bytes.toString("utf8");
           const failures = assertGoldenHtml(cell, html);
-          check("P0-OUT-001", `${cell} carries every semantic object`, failures.length === 0, failures.join(",") || "h1,h2,equations,table,mermaid,link,timing");
+          check("P0-OUT-001", `${cell} carries every semantic object`, failures.length === 0, failures.join(",") || "h1,h2,equations,table,mermaid,link,timing,diagram,models,engineering");
           const tampered = html.replace("gaussian-integral", "missing-integral");
           check("P0-OUT-001", `${cell} mismatch always fails`, assertGoldenHtml(cell, tampered).length > 0, "tampered id detected");
         }
@@ -515,7 +549,8 @@ async function stepGoldenMatrix(live) {
           failures.push(...timingFailures(svg).map((failure) => `timing:${failure}`));
           failures.push(...diagramFailures(svg).map((failure) => `diagram:${failure}`));
           failures.push(...modelsFailures(svg).map((failure) => `models:${failure}`));
-          check("P0-OUT-001", `${cell} carries every semantic object`, failures.length === 0, failures.join(",") || "equations,mermaid,table,plot,chart,timing");
+          failures.push(...engineeringFailures(svg).map((failure) => `engineering:${failure}`));
+          check("P0-OUT-001", `${cell} carries every semantic object`, failures.length === 0, failures.join(",") || "equations,mermaid,table,plot,chart,timing,diagram,models,engineering");
         }
         if (format === "png") {
           const chunks = pngChunks(bytes);
@@ -559,6 +594,10 @@ async function stepGoldenMatrix(live) {
           }
           if (!/\/Title \(Diagrams/.test(latin1)) failures.push("diagram-bookmark");
           if (!/\/Title \(Software and data models/.test(latin1)) failures.push("models-bookmark");
+          if (!/\/Title \(Engineering diagrams/.test(latin1)) failures.push("engineering-bookmark");
+          for (const alt of ["Feedback controller", "Block on an inclined plane"]) {
+            if (!pdfCarriesText(latin1, alt)) failures.push("engineering-figure-alt");
+          }
           for (const alt of ["Login exchange", "Payment classes"]) {
             if (!pdfCarriesText(latin1, alt)) failures.push("models-figure-alt");
           }
@@ -569,7 +608,7 @@ async function stepGoldenMatrix(live) {
           ]) {
             if (!latin1.includes(alt)) failures.push("diagram-figure-alt");
           }
-          check("P0-OUT-001", `${cell} carries title, authors, links, bookmarks, geometry, page text, and both timing figures`, failures.length === 0, failures.join(",") || `${pages} pages`);
+          check("P0-OUT-001", `${cell} carries title, authors, links, bookmarks, geometry, page text, and every timing, diagram, model and engineering figure`, failures.length === 0, failures.join(",") || `${pages} pages`);
         }
       } finally {
         await rm(directory, { recursive: true, force: true });

@@ -821,6 +821,230 @@ export interface ClassBlock {
   readonly items: readonly (ClassClassifier | ClassRelationship)[];
 }
 
+/* ------------------------------------------------------------------ *
+ * Native engineering diagrams (contract: issue #65)
+ * ------------------------------------------------------------------ */
+
+/** Authored control flow direction; the versioned built-in default is left-to-right. */
+export type ControlFlow =
+  | "top-to-bottom"
+  | "bottom-to-top"
+  | "left-to-right"
+  | "right-to-left";
+
+/** The closed summing-sign vocabulary; the list pairs positionally with in-edges. */
+export type ControlSign = "+" | "-";
+
+/** A SISO function block: one implicit input, one implicit output, plain-text `tf:`. */
+export interface ControlBlockItem {
+  readonly kind: "block";
+  readonly name: string;
+  readonly label?: CircuitText;
+  readonly tf: CircuitText;
+  readonly range: SourceRange;
+}
+
+/**
+ * A summing junction. `signs` pairs positionally with the junction's in-edges
+ * in authored declaration order, so its length and order are hash-significant.
+ */
+export interface ControlSumItem {
+  readonly kind: "sum";
+  readonly name: string;
+  readonly signs: readonly ControlSign[];
+  readonly range: SourceRange;
+}
+
+/** A directional boundary stub: an input only feeds edges, an output only receives them. */
+export interface ControlStubItem {
+  readonly kind: "input" | "output";
+  readonly name: string;
+  readonly label: CircuitText;
+  readonly range: SourceRange;
+}
+
+/** An anonymous signal edge; nothing references an edge, so it carries no `name:`. */
+export interface ControlEdgeItem {
+  readonly kind: "edge";
+  readonly from: string;
+  readonly to: string;
+  readonly label?: CircuitText;
+  readonly range: SourceRange;
+}
+
+export type ControlDeclaration =
+  | ControlBlockItem
+  | ControlSumItem
+  | ControlStubItem
+  | ControlEdgeItem;
+
+export interface ControlBlock {
+  readonly kind: "control";
+  readonly pluginVersion: "1.0.0";
+  readonly range: SourceRange;
+  readonly id?: string;
+  readonly number?: boolean;
+  readonly title?: CircuitText;
+  readonly description?: CircuitText;
+  readonly flow: ControlFlow;
+  readonly declarations: readonly ControlDeclaration[];
+}
+
+/** One attachment value: exactly one point name or a bounded `(x, y)` pair. */
+export type FreeBodyAttachment =
+  | { readonly kind: "point"; readonly name: string }
+  | { readonly kind: "coordinates"; readonly x: string; readonly y: string };
+
+/**
+ * The three closed direction forms. A relative form names a `line` record and
+ * resolves by the ray rule; exactly one form is authored per vector.
+ */
+export type FreeBodyDirection =
+  | { readonly kind: "angle"; readonly degrees: string }
+  | { readonly kind: "parallel-to"; readonly line: string }
+  | { readonly kind: "perpendicular-to"; readonly line: string };
+
+export type FreeBodyBodyKind = "block" | "circle" | "polygon" | "particle";
+
+/** An axis-aligned box body, optionally rotated about its center. */
+export interface FreeBodyBoxBody {
+  readonly kind: "block";
+  readonly name: string;
+  readonly x: string;
+  readonly y: string;
+  readonly width: string;
+  readonly height: string;
+  readonly angle: string;
+  readonly visible: boolean;
+  readonly range: SourceRange;
+}
+
+export interface FreeBodyCircleBody {
+  readonly kind: "circle";
+  readonly name: string;
+  readonly x: string;
+  readonly y: string;
+  readonly radius: string;
+  readonly visible: boolean;
+  readonly range: SourceRange;
+}
+
+export interface FreeBodyPolygonBody {
+  readonly kind: "polygon";
+  readonly name: string;
+  readonly vertices: readonly string[];
+  readonly visible: boolean;
+  readonly range: SourceRange;
+}
+
+/** A massless body at one authored coordinate. */
+export interface FreeBodyParticleBody {
+  readonly kind: "particle";
+  readonly name: string;
+  readonly x: string;
+  readonly y: string;
+  readonly visible: boolean;
+  readonly range: SourceRange;
+}
+
+export type FreeBodyBody =
+  | FreeBodyBoxBody
+  | FreeBodyCircleBody
+  | FreeBodyPolygonBody
+  | FreeBodyParticleBody;
+
+export interface FreeBodyPoint {
+  readonly kind: "point";
+  readonly name: string;
+  readonly label?: CircuitText;
+  readonly x: string;
+  readonly y: string;
+  readonly visible: boolean;
+  readonly range: SourceRange;
+}
+
+/** A finite segment, invisible by default: its from–to order picks the ray. */
+export interface FreeBodyLine {
+  readonly kind: "line";
+  readonly name: string;
+  readonly from: string;
+  readonly to: string;
+  readonly visible: boolean;
+  readonly style: "solid" | "dashed";
+  readonly range: SourceRange;
+}
+
+export interface FreeBodyForce {
+  readonly kind: "force";
+  readonly at: FreeBodyAttachment;
+  readonly direction: FreeBodyDirection;
+  readonly magnitude?: string;
+  readonly length?: string;
+  readonly label?: CircuitText;
+  readonly range: SourceRange;
+}
+
+/** Moments are always schematic and exempt from `scale:`; `direction` is cw or ccw. */
+export interface FreeBodyMoment {
+  readonly kind: "moment";
+  readonly at: FreeBodyAttachment;
+  readonly direction: "cw" | "ccw";
+  readonly label?: CircuitText;
+  readonly range: SourceRange;
+}
+
+export interface FreeBodyAxes {
+  readonly kind: "axes";
+  readonly at: FreeBodyAttachment;
+  readonly angle: string;
+  readonly xLabel: CircuitText;
+  readonly yLabel: CircuitText;
+  readonly range: SourceRange;
+}
+
+export interface FreeBodyAngleMark {
+  readonly kind: "angle-mark";
+  readonly first: string;
+  readonly vertex: string;
+  readonly third: string;
+  readonly label?: CircuitText;
+  readonly range: SourceRange;
+}
+
+export interface FreeBodyDimension {
+  readonly kind: "dimension";
+  readonly from: FreeBodyAttachment;
+  readonly to: FreeBodyAttachment;
+  readonly label: CircuitText;
+  readonly range: SourceRange;
+}
+
+export type FreeBodyDeclaration =
+  | FreeBodyBody
+  | FreeBodyPoint
+  | FreeBodyLine
+  | FreeBodyForce
+  | FreeBodyMoment
+  | FreeBodyAxes
+  | FreeBodyAngleMark
+  | FreeBodyDimension;
+
+export interface FreeBodyBlock {
+  readonly kind: "free-body";
+  readonly pluginVersion: "1.0.0";
+  readonly range: SourceRange;
+  readonly id?: string;
+  readonly number?: boolean;
+  readonly title?: CircuitText;
+  readonly description?: CircuitText;
+  /** Frame units per force unit; present only when every force authors `magnitude:`. */
+  readonly scale?: string;
+  readonly width: number;
+  readonly height: number;
+  readonly bounds?: GeometryBounds;
+  readonly declarations: readonly FreeBodyDeclaration[];
+}
+
 export type ParsedBlock =
   | HeadingBlock
   | ParagraphBlock
@@ -846,6 +1070,8 @@ export type ParsedBlock =
   | EntityBlock
   | ClassBlock
   | CircuitBlock
+  | ControlBlock
+  | FreeBodyBlock
   | InvalidBlock;
 
 export type AzeBlock =
@@ -872,7 +1098,9 @@ export type AzeBlock =
   | EntityBlock
   | ClassBlock
   | CircuitBlock
-  | StructureBlock;
+  | StructureBlock
+  | ControlBlock
+  | FreeBodyBlock;
 export type ArtifactFormat = "html" | "svg" | "png" | "pdf";
 
 export interface DocumentMetadata {
@@ -1058,6 +1286,68 @@ export interface Theme {
     diamondSizePx: number;
     minimumFontSizePx: number;
   }>;
+  /**
+   * Control-system diagram tokens (contract: issue #65 §14). `blockLabel*`
+   * (`tf:` text) and `signalLabel*` (edge and stub labels) are two distinct
+   * typographic sets, and both are layout inputs measured through the Advance
+   * metric, so a Theme change re-lays-out control Blocks.
+   */
+  readonly control: Readonly<{
+    blockFill: string;
+    blockStroke: string;
+    blockStrokeWidthPx: number;
+    blockLabelFontSizePx: number;
+    blockLabelLineHeightPx: number;
+    signalLabelFontSizePx: number;
+    signalLabelLineHeightPx: number;
+    edgeStroke: string;
+    edgeStrokeWidthPx: number;
+    edgeLabelBackground: string;
+    arrowFill: string;
+    sumFill: string;
+    sumStroke: string;
+    sumStrokeWidthPx: number;
+    sumSignFontSizePx: number;
+    takeoffFill: string;
+    takeoffRadiusPx: number;
+    stubFill: string;
+    stubStroke: string;
+    stubStrokeWidthPx: number;
+    stubLabelFontSizePx: number;
+    stubLabelLineHeightPx: number;
+    labelFontFamily: "Inter";
+    minimumLabelFontSizePx: number;
+  }>;
+  /**
+   * Free-body diagram tokens (contract: issue #65 §14). One body fill/stroke
+   * set is shared by every body kind; axes are visually distinct from force
+   * arrows by token, never by author choice.
+   */
+  readonly freeBody: Readonly<{
+    bodyFill: string;
+    bodyStroke: string;
+    bodyStrokeWidthPx: number;
+    pointRadiusPx: number;
+    pointFill: string;
+    pointStroke: string;
+    forceStroke: string;
+    forceStrokeWidthPx: number;
+    forceArrowFill: string;
+    arrowheadMinLengthPx: number;
+    momentStroke: string;
+    momentStrokeWidthPx: number;
+    momentFill: string;
+    axisStroke: string;
+    axisStrokeWidthPx: number;
+    axisDash: string;
+    dimensionStroke: string;
+    dimensionStrokeWidthPx: number;
+    tickSizePx: number;
+    labelFontFamily: "Inter";
+    labelFontSizePx: number;
+    markFontSizePx: number;
+    minimumLabelFontSizePx: number;
+  }>;
 }
 
 export interface AssetManifestEntry {
@@ -1222,6 +1512,24 @@ export interface AzeBlockRenderer<TBlock extends object = AzeBlock> {
   ) => string | Promise<string>;
 }
 
+/**
+ * A Block renderer whose figure needs the Document-wide per-kind ordinal and
+ * the resolved Theme, i.e. families that emit positional ids. The engineering
+ * family's two directives both receive the ordinal assigned by the fragment
+ * preflight.
+ */
+export interface FigureBlockRenderer<TBlock extends object> {
+  readonly descriptor: BlockRendererDescriptor;
+  readonly render: (
+    block: TBlock,
+    context: Readonly<{
+      sourceName?: string;
+      ordinal?: number;
+      theme?: Theme;
+    }>,
+  ) => string | Promise<string>;
+}
+
 export type AnyBlockRenderer =
   | AzeBlockRenderer<AzeBlock>
   | AzeBlockRenderer<EquationBlock>
@@ -1241,6 +1549,8 @@ export type AnyBlockRenderer =
   | AzeBlockRenderer<EntityBlock>
   | AzeBlockRenderer<ClassBlock>
   | DiagramBlockRenderer
+  | FigureBlockRenderer<ControlBlock>
+  | FigureBlockRenderer<FreeBodyBlock>
   | MermaidBlockRenderer;
 export type BlockRenderer = AnyBlockRenderer;
 export interface CompilerPolicy {

@@ -378,6 +378,8 @@
         "timing",
         "diagram",
         "models",
+        "control",
+        "freeBody",
         "fonts"
       ],
       "additionalProperties": false,
@@ -676,6 +678,87 @@
                 "type": "string",
                 "minLength": 1
               }
+            },
+            "availability": {
+              "enum": [
+                "unknown",
+                "available",
+                "unavailable"
+              ]
+            }
+          }
+        },
+        "control": {
+          "type": "object",
+          "required": [
+            "layout",
+            "elkjs",
+            "emitter",
+            "eval",
+            "advanceMetric",
+            "metricSource",
+            "availability"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "layout": {
+              "type": "string",
+              "minLength": 1
+            },
+            "elkjs": {
+              "type": "string",
+              "minLength": 1
+            },
+            "emitter": {
+              "type": "string",
+              "minLength": 1
+            },
+            "eval": {
+              "type": "string",
+              "minLength": 1
+            },
+            "advanceMetric": {
+              "type": "string",
+              "minLength": 1
+            },
+            "metricSource": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "availability": {
+              "enum": [
+                "unknown",
+                "available",
+                "unavailable"
+              ]
+            }
+          }
+        },
+        "freeBody": {
+          "type": "object",
+          "required": [
+            "emitter",
+            "eval",
+            "scale",
+            "availability"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "emitter": {
+              "type": "string",
+              "minLength": 1
+            },
+            "eval": {
+              "type": "string",
+              "minLength": 1
+            },
+            "scale": {
+              "type": "string",
+              "minLength": 1
             },
             "availability": {
               "enum": [
