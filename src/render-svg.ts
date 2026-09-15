@@ -14,6 +14,7 @@ import {
 } from "./chemistry.js";
 import { circuitHtmlBlockRenderer } from "./circuit-render.js";
 import { timingHtmlBlockRenderer } from "./timing-render.js";
+import { diagramHtmlBlockRenderer } from "./diagram-render.js";
 
 import { assetManifestHash } from "./assets.js";
 import { artifactBytesHash, canonicalJson, sha256 } from "./hash.js";
@@ -76,6 +77,7 @@ export const svgBlockRenderers: readonly AnyBlockRenderer[] = Object.freeze([
   svgBlockRenderer(structureHtmlBlockRenderer),
   svgBlockRenderer(circuitHtmlBlockRenderer),
   svgBlockRenderer(timingHtmlBlockRenderer),
+  svgBlockRenderer(diagramHtmlBlockRenderer),
 ]);
 
 export interface SvgBrowserCapability {

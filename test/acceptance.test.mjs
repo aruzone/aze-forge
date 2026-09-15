@@ -52,6 +52,8 @@ const SUITE_EVIDENCE = [
   ["P0-CHE-002", "test/chemistry.test.mjs"],
   ["P0-TIM-001", "test/timing.test.mjs"],
   ["P0-TIM-002", "test/timing.test.mjs"],
+  ["P0-DIA-001", "test/diagram.test.mjs"],
+  ["P0-DIA-002", "test/diagram-block.test.mjs"],
   ["P0-MMD-001", "test/mermaid.test.mjs"],
   ["P0-OUT-001", "test/acceptance.test.mjs"],
   ["P0-OUT-002", "test/acceptance.test.mjs"],
@@ -114,11 +116,29 @@ function goldenFailures(html) {
   for (const state of ["low", "high", "unknown", "impedance", "bus", "continue", "rise", "fall"]) {
     if (!html.includes(`aze-timing-${state}`)) failures.push(`timing-${state}`);
   }
+  // Native Diagrams: one figure per mode, so the cyclic flowchart, the
+  // forward-referenced tree and the nested-group architecture all reach HTML
+  // with nodes, groups, ports, edges, arrowheads and labels present.
+  for (const [id, mode, title] of [
+    ["branching-process", "flowchart", "Request branching process"],
+    ["compiler-tree", "tree", "Compiler component tree"],
+    ["service-architecture", "architecture", "Service architecture"],
+  ]) {
+    if (!html.includes(`data-diagram-id="${id}"`)) failures.push(`${id}-figure`);
+    if (!html.includes(`data-diagram-mode="${mode}"`)) failures.push(`${id}-mode`);
+    if (!html.includes(`>${title}<`)) failures.push(`${id}-name`);
+  }
+  for (const shape of ["rectangle", "rounded", "diamond", "parallelogram", "circle", "hexagon", "cylinder"]) {
+    if (!html.includes(`aze-diagram-shape-${shape}`)) failures.push(`diagram-shape-${shape}`);
+  }
   for (const [needle, label] of [
-    [">A5<", "timing-bus-value"],
-    [">D0<", "timing-impedance-bus-value"],
-    [">Reset<", "timing-marker-label"],
-    [">Transaction<", "timing-group-label"],
+    ['class="aze-diagram-node-shape', "diagram-nodes"],
+    ['class="aze-diagram-group', "diagram-groups"],
+    ['class="aze-diagram-port"', "diagram-ports"],
+    ['class="aze-diagram-edge"', "diagram-edges"],
+    ['class="aze-diagram-arrow"', "diagram-arrowheads"],
+    [">API gateway<", "diagram-grouped-node-label"],
+    [">Read replica<", "diagram-nested-group-node-label"],
   ]) {
     if (!html.includes(needle)) failures.push(label);
   }
@@ -142,7 +162,7 @@ test("acceptance catalog is canonical and coverage rejects missing or unknown ID
   const onDisk = JSON.parse(await readFile(new URL("../acceptance/catalog.json", import.meta.url), "utf8"));
   assert.deepEqual(onDisk, JSON.parse(JSON.stringify(canonical)));
   assert.equal(canonical.catalog.id, "azeforge.acceptance/v1");
-  assert.equal(canonical.entries.filter((item) => item.gate === "p0").length, 41);
+  assert.equal(canonical.entries.filter((item) => item.gate === "p0").length, 43);
 
   const declared = SUITE_EVIDENCE.map(([id]) => id);
   assert.deepEqual(checkAcceptanceCoverage(declared), { missing: [], unknown: [] });

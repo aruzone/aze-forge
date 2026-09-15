@@ -310,7 +310,7 @@ async function stepCatalog() {
     `azeforge.acceptance/v1 with ${canonical.entries.length} entries`,
   );
   const p0 = canonical.entries.filter((item) => item.gate === "p0");
-  check("P0-CLI-007", "catalog covers every required P0 contract", p0.length === 41 && p0.every((item) => item.required), `${p0.length} P0 entries`);
+  check("P0-CLI-007", "catalog covers every required P0 contract", p0.length === 43 && p0.every((item) => item.required), `${p0.length} P0 entries`);
   const ids = new Set(canonical.entries.map((item) => item.id));
   check("P0-CLI-007", "catalog IDs are unique", ids.size === canonical.entries.length, `${ids.size} unique IDs`);
   const coverage = checkAcceptanceCoverage(AUTOMATED_P0_IDS);
@@ -340,6 +340,7 @@ function assertGoldenHtml(id, html) {
   if (!/<table id="materials">[\s\S]*?<caption>Representative material properties/.test(html)) failures.push("caption");
   if (!/text-align:left/.test(html) || !/text-align:center/.test(html) || !/text-align:right/.test(html)) failures.push("align");
   failures.push(...timingFailures(html).map((failure) => `timing:${failure}`));
+  failures.push(...diagramFailures(html).map((failure) => `diagram:${failure}`));
   return failures;
 }
 
@@ -381,6 +382,50 @@ function countOccurrences(text, needle) {
   return text.split(needle).length - 1;
 }
 
+// The native Diagram family proves itself through one figure per mode, so every
+// mode's structural feature must reach every format: the cyclic flowchart, the
+// forward-referenced tree, and the nested groups with ports and undirected
+// multi-edges of the architecture. Node, group, port, edge, arrow and label
+// geometry all have to be present for the figures to be more than names.
+const DIAGRAM_FIGURES = [
+  ["branching-process", "flowchart", "Request branching process"],
+  ["compiler-tree", "tree", "Compiler component tree"],
+  ["service-architecture", "architecture", "Service architecture"],
+];
+
+function diagramFailures(markup) {
+  const failures = [];
+  for (const [id, mode, title] of DIAGRAM_FIGURES) {
+    if (!markup.includes(`data-diagram-id="${id}"`)) failures.push(`${id}-figure`);
+    if (!markup.includes(`data-diagram-mode="${mode}"`)) failures.push(`${id}-mode`);
+    if (!markup.includes(`>${title}<`)) failures.push(`${id}-name`);
+  }
+  for (const [needle, label] of [
+    ['class="aze-diagram-node-shape', "nodes"],
+    ['class="aze-diagram-group', "groups"],
+    ['class="aze-diagram-port"', "ports"],
+    ['class="aze-diagram-edge"', "edges"],
+    ['class="aze-diagram-arrow"', "arrowhead"],
+    ['class="aze-diagram-label aze-diagram-edge-label"', "edge-label"],
+    [">API gateway<", "grouped-node-label"],
+    [">Read replica<", "nested-group-node-label"],
+  ]) {
+    if (!markup.includes(needle)) failures.push(label);
+  }
+  for (const shape of [
+    "rectangle",
+    "rounded",
+    "diamond",
+    "parallelogram",
+    "circle",
+    "hexagon",
+    "cylinder",
+  ]) {
+    if (!markup.includes(`aze-diagram-shape-${shape}`)) failures.push(`shape:${shape}`);
+  }
+  return failures;
+}
+
 async function stepGoldenMatrix(live) {
   for (const theme of THEMES) {
     for (const format of FORMATS) {
@@ -420,6 +465,7 @@ async function stepGoldenMatrix(live) {
           if (!svg.includes("aze-chart")) failures.push("chart");
           if (!/Representative material properties/.test(svg)) failures.push("caption");
           failures.push(...timingFailures(svg).map((failure) => `timing:${failure}`));
+          failures.push(...diagramFailures(svg).map((failure) => `diagram:${failure}`));
           check("P0-OUT-001", `${cell} carries every semantic object`, failures.length === 0, failures.join(",") || "equations,mermaid,table,plot,chart,timing");
         }
         if (format === "png") {
@@ -461,6 +507,14 @@ async function stepGoldenMatrix(live) {
             "/Alt (Clocked bus transaction time scale single handshake)",
           ]) {
             if (!latin1.includes(alt)) failures.push("timing-figure-alt");
+          }
+          if (!/\/Title \(Diagrams/.test(latin1)) failures.push("diagram-bookmark");
+          for (const alt of [
+            "/Alt (Request branching process",
+            "/Alt (Compiler component tree",
+            "/Alt (Service architecture",
+          ]) {
+            if (!latin1.includes(alt)) failures.push("diagram-figure-alt");
           }
           check("P0-OUT-001", `${cell} carries title, authors, links, bookmarks, geometry, page text, and both timing figures`, failures.length === 0, failures.join(",") || `${pages} pages`);
         }

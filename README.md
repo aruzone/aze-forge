@@ -27,10 +27,11 @@ no build chain, no runtime dependencies in your output.
 | --- | --- |
 | Mathematics | `equation`, `derivation` |
 | Technical content | `callout`, `table` |
-| Diagrams and geometry | `mermaid`, `geometry` |
+| Diagrams and geometry | `diagram`, `mermaid`, `geometry` |
 | Data graphics | `plot`, `chart` |
 | Chemistry | `formula`, `reaction`, `structure` |
 | Analog and digital circuits | `circuit` |
+| Digital timing | `timing` |
 
 See the [native plugin family tree](docs/native-plugin-family-tree.md) for the
 full catalog and family relationships.

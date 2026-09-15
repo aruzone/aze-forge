@@ -33,6 +33,11 @@ import {
   timingDataSchema,
   timingSourceSchema,
 } from "./timing-schemas.js";
+import {
+  DIAGRAM_PLUGIN_VERSION,
+  diagramDataSchema,
+  diagramSourceSchema,
+} from "./diagram-schemas.js";
 import type { JsonValue } from "./model.js";
 import {
   FORMULA_PLUGIN_VERSION,
@@ -103,6 +108,8 @@ export function publicSchemaVersions(): readonly VersionedSchema[] {
     { id: schemaId(circuitDataSchema), version: CIRCUIT_PLUGIN_VERSION },
     { id: schemaId(timingSourceSchema), version: TIMING_PLUGIN_VERSION },
     { id: schemaId(timingDataSchema), version: TIMING_PLUGIN_VERSION },
+    { id: schemaId(diagramSourceSchema), version: DIAGRAM_PLUGIN_VERSION },
+    { id: schemaId(diagramDataSchema), version: DIAGRAM_PLUGIN_VERSION },
   ]);
 }
 

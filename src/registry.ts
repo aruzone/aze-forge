@@ -27,7 +27,9 @@ import {
 import { circuitPlugin } from "./circuit.js";
 import { circuitHtmlBlockRenderer } from "./circuit-render.js";
 import { timingPlugin } from "./timing.js";
+import { diagramPlugin } from "./diagram.js";
 import { timingHtmlBlockRenderer } from "./timing-render.js";
+import { diagramHtmlBlockRenderer } from "./diagram-render.js";
 import {
   svgBlockRenderers,
   svgRendererDescriptor,
@@ -80,6 +82,7 @@ export function getBuiltInRegistry(): ResolvedRegistry {
       structurePlugin,
       circuitPlugin,
       timingPlugin,
+      diagramPlugin,
     ]),
     blockRenderers: Object.freeze([
       equationHtmlBlockRenderer,
@@ -95,6 +98,7 @@ export function getBuiltInRegistry(): ResolvedRegistry {
       structureHtmlBlockRenderer,
       circuitHtmlBlockRenderer,
       timingHtmlBlockRenderer,
+      diagramHtmlBlockRenderer,
       ...svgBlockRenderers,
       ...pngBlockRenderers,
       ...pdfBlockRenderers,

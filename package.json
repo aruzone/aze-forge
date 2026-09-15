@@ -56,6 +56,7 @@
     "test:compiler": "npm run build --silent && node --test test/compiler.test.mjs",
     "test:cli": "npm run build --silent && node --test test/cli.test.mjs",
     "test:acceptance": "npm run build --silent && node --test test/acceptance.test.mjs",
+    "advance-metric": "node scripts/generate-advance-metric.mjs",
     "acceptance": "node scripts/acceptance.mjs",
     "acceptance:refresh": "node scripts/acceptance.mjs --refresh"
   },
@@ -66,6 +67,7 @@
     "d3-array": "3.2.4",
     "d3-scale": "4.0.2",
     "d3-shape": "3.2.0",
+    "elkjs": "0.12.0",
     "katex": "0.18.5",
     "mermaid": "11.17.2",
     "puppeteer": "25.10.0",

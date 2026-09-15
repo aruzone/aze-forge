@@ -353,6 +353,56 @@ claimed transaction rather than certifying it.
 
 ## Diagrams
 
+### `diagram`
+
+Native general diagrams author one flat, ordered declaration list of nodes,
+groups, ports, and edges over one shared model. A required `mode:` selects the
+structural rules and the layout regime — `flowchart`, `graph`, `tree`, or
+`architecture` — and an optional `flow:` overrides the mode's default
+direction. Node names and group names share one Block-local namespace, ports
+live inside their node as `node.port`, and every reference resolves in two
+passes, so forward references are legal and an undeclared name is never
+guessed. Layout is deterministic and total: it is computed for every valid
+Block, and placement never becomes connectivity.
+
+```text
+:::: diagram
+id: auth-flow
+number: true
+title: Authentication flow
+mode: flowchart
+flow: top-to-bottom
+----
+- kind: node
+  name: start
+  label: Start
+  shape: circle
+- kind: node
+  name: check-token
+  label: Valid token?
+  shape: diamond
+- kind: node
+  name: home
+  label: Show home
+- kind: edge
+  from: start
+  to: check-token
+- kind: edge
+  from: check-token
+  to: home
+  label: yes
+::::
+```
+
+Groups nest up to four deep and are containers only — never edge endpoints —
+while ports are named attachment points with no direction and no electrical
+meaning. Shapes are a closed, semantically neutral vocabulary
+(`rectangle`, `rounded`, `diamond`, `parallelogram`, `circle`, `hexagon`,
+`cylinder`); a `diamond` does not demand two branches. `direction: undirected`
+is permitted in `graph` and `architecture` and refused in `flowchart` and
+`tree`. Four warnings report structure without failing a Block: an isolated
+node, a disconnected component, an unused port, and an empty group.
+
 ### `mermaid`
 
 The Mermaid plugin accepts bounded Mermaid source, such as flowcharts. It is

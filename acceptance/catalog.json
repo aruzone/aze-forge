@@ -494,6 +494,42 @@
       ]
     },
     {
+      "id": "P0-DIA-001",
+      "gate": "p0",
+      "area": "diagram",
+      "given": "Native general-diagram Blocks in the four registered modes",
+      "when": "they are compiled",
+      "then": [
+        "one flat ordered declaration list resolves nodes, groups, ports and edges in two passes, so forward references are legal and an undeclared name is never guessed",
+        "group containment, the closed shape vocabulary, authored-order edges and the Block-level flow hint parse into inspectable semantics while ports stay undirected attachment points",
+        "layout is total and deterministic, and renderer-derived coordinates stay fingerprint-only so connectivity never comes from placement"
+      ],
+      "evidence": "automated",
+      "required": true,
+      "contracts": [
+        "#51",
+        "#60"
+      ]
+    },
+    {
+      "id": "P0-DIA-002",
+      "gate": "p0",
+      "area": "diagram",
+      "given": "Invalid or over-limit diagram declarations",
+      "when": "they are compiled",
+      "then": [
+        "unknown modes, shapes, sides and flows, duplicate names and ports, unresolved and qualified references, group endpoints and cycles, forbidden undirected edges and the invalid-tree reasons diagnose with stable sub-ranged azeforge.diagram codes",
+        "every exceeded ceiling diagnoses in the same sub-ranged namespace and an invalid Block never yields a partial diagram",
+        "the four mode-scoped warnings report isolated nodes, disconnected components, unused ports and empty groups without failing the Block"
+      ],
+      "evidence": "automated",
+      "required": true,
+      "contracts": [
+        "#51",
+        "#60"
+      ]
+    },
+    {
       "id": "P0-OUT-001",
       "gate": "p0",
       "area": "artifact",
