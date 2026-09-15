@@ -1,9 +1,9 @@
 import { readFile, realpath } from "node:fs/promises";
 import { extname, isAbsolute, relative, resolve, sep } from "node:path";
 
+import { blockGroups, blockInlineRuns } from "./block-content.js";
 import { createDiagnostic } from "./diagnostics.js";
 import { canonicalJson, sha256 } from "./hash.js";
-import { isTypedTableData } from "./table.js";
 import type {
   AssetManifestEntry,
   AzeBlock,
@@ -60,60 +60,13 @@ function collectInlineImages(
 
 function collectBlockImages(blocks: readonly AzeBlock[], out: ImageTarget[]): void {
   for (const block of blocks) {
-    switch (block.kind) {
-      case "heading":
-      case "paragraph":
-        collectInlineImages(block.children, block.range, out);
-        break;
-      case "blockquote":
-        collectBlockImages(block.children as readonly AzeBlock[], out);
-        break;
-      case "callout":
-        if (block.title !== undefined) {
-          collectInlineImages(block.title, block.range, out);
-        }
-        collectBlockImages(block.children as readonly AzeBlock[], out);
-        break;
-      case "list":
-        for (const item of block.items) {
-          collectBlockImages(item.blocks as readonly AzeBlock[], out);
-        }
-        break;
-      case "table":
-        if (block.caption !== undefined) {
-          collectInlineImages(block.caption, block.range, out);
-        }
-        if (isTypedTableData(block.data)) {
-          for (const row of block.data.rows) {
-            for (const cell of Object.values(row)) {
-              if (Array.isArray(cell)) {
-                collectInlineImages(cell, block.range, out);
-              }
-            }
-          }
-        } else {
-          for (const cell of block.data.header) {
-            collectInlineImages(cell, block.range, out);
-          }
-          for (const row of block.data.rows) {
-            for (const cell of row) {
-              collectInlineImages(cell, block.range, out);
-            }
-          }
-        }
-        break;
-      case "equation":
-      case "mermaid":
-      case "code":
-      case "thematicBreak":
-        break;
-      case "derivation":
-        for (const step of block.steps) {
-          if (step.annotation !== undefined) {
-            collectInlineImages(step.annotation, block.range, out);
-          }
-        }
-        break;
+    // One shape walk: inline runs plus contained Blocks, so a new Block kind
+    // can never hide an image from the asset manifest.
+    for (const run of blockInlineRuns(block)) {
+      collectInlineImages(run, block.range, out);
+    }
+    for (const group of blockGroups(block)) {
+      collectBlockImages(group as readonly AzeBlock[], out);
     }
   }
 }
@@ -376,28 +329,22 @@ function embedBlockImages(
         });
       case "table":
         {
-          const nextData = isTypedTableData(block.data)
-            ? Object.freeze({
-                ...block.data,
-                rows: block.data.rows.map((row) => {
-                  const next: Record<string, TypedTableCell> = {};
-                  for (const [key, cell] of Object.entries(row)) {
-                    next[key] = Array.isArray(cell)
-                      ? embedInlineImages(cell, embedded)
-                      : cell;
-                  }
-                  return Object.freeze(next);
-                }),
-              })
-            : Object.freeze({
-                ...block.data,
-                header: block.data.header.map((cell) => embedInlineImages(cell, embedded)),
-                rows: block.data.rows.map((row) =>
-                  Object.freeze(
-                    row.map((cell) => embedInlineImages(cell, embedded)),
-                  ),
-                ),
-              });
+          const nextData = Object.freeze({
+            ...block.data,
+            rows: block.data.rows.map((row) => {
+              const next: Record<string, TypedTableCell> = {};
+              for (const [key, cell] of Object.entries(row)) {
+                next[key] =
+                  cell.kind === "prose"
+                    ? Object.freeze({
+                        kind: "prose" as const,
+                        value: embedInlineImages(cell.value, embedded),
+                      })
+                    : cell;
+              }
+              return Object.freeze(next);
+            }),
+          });
           return Object.freeze({
             ...block,
             ...(block.caption === undefined
@@ -417,6 +364,61 @@ function embedBlockImages(
                 : { annotation: embedInlineImages(step.annotation, embedded) }),
             }),
           ),
+        });
+      case "figure": {
+        const groups = blockGroups(block);
+        return Object.freeze({
+          ...block,
+          ...(block.caption === undefined
+            ? {}
+            : { caption: embedInlineImages(block.caption, embedded) }),
+          children: embedBlockImages(groups[0] as readonly AzeBlock[], embedded),
+        });
+      }
+      case "statement": {
+        const groups = blockGroups(block);
+        return Object.freeze({
+          ...block,
+          ...(block.caption === undefined
+            ? {}
+            : { caption: embedInlineImages(block.caption, embedded) }),
+          text: embedBlockImages(groups[0] as readonly AzeBlock[], embedded),
+          ...(groups[1] === undefined
+            ? {}
+            : { proof: embedBlockImages(groups[1] as readonly AzeBlock[], embedded) }),
+        });
+      }
+      case "example": {
+        const groups = blockGroups(block);
+        const result = groups[groups.length - 1];
+        const hasResult = block.result !== undefined;
+        return Object.freeze({
+          ...block,
+          ...(block.caption === undefined
+            ? {}
+            : { caption: embedInlineImages(block.caption, embedded) }),
+          problem: embedBlockImages(groups[0] as readonly AzeBlock[], embedded),
+          steps: block.steps.map((step, index) => {
+            const group = groups[index + 1];
+            return Object.freeze({
+              ...step,
+              text:
+                group === undefined
+                  ? step.text
+                  : embedBlockImages(group as readonly AzeBlock[], embedded),
+            });
+          }),
+          ...(hasResult
+            ? { result: embedBlockImages(result as readonly AzeBlock[], embedded) }
+            : {}),
+        });
+      }
+      case "bibliography":
+        return Object.freeze({
+          ...block,
+          ...(block.caption === undefined
+            ? {}
+            : { caption: embedInlineImages(block.caption, embedded) }),
         });
       default:
         return block;

@@ -2,7 +2,7 @@ import { realpath } from "node:fs/promises";
 import { extname, resolve } from "node:path";
 
 import { isAbsoluteSource, isContained, isRemoteSource } from "./assets.js";
-import { isTypedTableData } from "./table.js";
+import { blockGroups, blockInlineRuns } from "./block-content.js";
 import type { AzeDocument, Inline, ParsedBlock } from "./model.js";
 
 
@@ -22,44 +22,10 @@ function collectInlineSources(nodes: readonly Inline[], out: string[]): void {
 
 function collectBlockSources(blocks: readonly ParsedBlock[], out: string[]): void {
   for (const block of blocks) {
-    switch (block.kind) {
-      case "heading":
-      case "paragraph":
-        collectInlineSources(block.children, out);
-        break;
-      case "blockquote":
-        collectBlockSources(block.children, out);
-        break;
-      case "list":
-        for (const item of block.items) collectBlockSources(item.blocks, out);
-        break;
-      case "callout":
-        collectBlockSources(block.children, out);
-        if (block.title !== undefined) collectInlineSources(block.title, out);
-        break;
-      case "table":
-        if (isTypedTableData(block.data)) {
-          for (const row of block.data.rows) {
-            for (const cell of Object.values(row)) {
-              if (Array.isArray(cell)) collectInlineSources(cell, out);
-            }
-          }
-        } else {
-          for (const row of block.data.header) collectInlineSources(row, out);
-          for (const row of block.data.rows) {
-            for (const cell of row) collectInlineSources(cell, out);
-          }
-        }
-        if (block.caption !== undefined) collectInlineSources(block.caption, out);
-        break;
-      case "derivation":
-        for (const step of block.steps) {
-          if (step.annotation !== undefined) collectInlineSources(step.annotation, out);
-        }
-        break;
-      default:
-        break;
-    }
+    // One shape walk: inline runs plus contained Blocks, so a new Block kind
+    // can never hide an image from the watch dependency list.
+    for (const run of blockInlineRuns(block)) collectInlineSources(run, out);
+    for (const group of blockGroups(block)) collectBlockSources(group, out);
   }
 }
 

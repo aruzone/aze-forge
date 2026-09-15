@@ -77,9 +77,10 @@ These capabilities apply across the tree. They are composition features, not add
 
 - Object captions
 - Stable identifiers
-- Automatic numbering and cross-references
-- Footnotes
-- Document-local bibliography records with numeric and author-year citations and locators
+- One flat numbering class per object kind, and the `figure` wrapper that makes ordinary Markdown content numberable
+- Prose references and citations through `@`-tokens, with parenthetical groups and bounded locators
+- Endnote-rendered footnotes
+- The `bibliography` directive: document-local records with numeric and author-year styles
 
 ## Boundaries
 

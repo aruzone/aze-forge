@@ -16,6 +16,7 @@ export const tableSourceSchema: JsonValue = Object.freeze({
       type: "string",
       pattern: "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$",
     },
+    number: { type: "boolean" },
     caption: { type: "string", minLength: 1, maxLength: 500 },
   },
 });
@@ -43,9 +44,18 @@ export const tableDataSchema: JsonValue = Object.freeze({
           name: { type: "string", minLength: 1 },
           type: {
             type: "string",
-            enum: ["text", "prose", "number", "quantity", "boolean"],
+            enum: [
+              "prose",
+              "text",
+              "integer",
+              "decimal",
+              "quantity",
+              "boolean",
+              "math",
+            ],
           },
           unit: { type: "string", minLength: 1 },
+          align: { type: "string", enum: ["left", "center", "right"] },
         },
       },
     },
@@ -69,7 +79,24 @@ export const tableDataSchema: JsonValue = Object.freeze({
       type: "array",
       items: {
         type: "object",
-        additionalProperties: true,
+        additionalProperties: {
+          type: "object",
+          required: ["kind"],
+          properties: {
+            kind: {
+              type: "string",
+              enum: [
+                "prose",
+                "text",
+                "integer",
+                "decimal",
+                "quantity",
+                "boolean",
+                "math",
+              ],
+            },
+          },
+        },
       },
     },
   },

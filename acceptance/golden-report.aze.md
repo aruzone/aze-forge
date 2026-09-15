@@ -825,3 +825,75 @@ scale: 0.15
   to: (3.58, 1.83)
   label: L
 ::::
+
+## Structured content and composition
+
+See @golden-algorithm for the procedure and [@knuth-1984, page 23].[^golden-note]
+
+:::: table
+id: golden-typed-table
+number: true
+caption: Typed trial summary
+----
+columns:
+  - key: trial
+    name: Trial
+    type: text
+  - key: reading
+    name: Reading
+    type: decimal
+    align: center
+  - key: note
+    name: Observation
+    type: prose
+rows:
+  - trial: A1
+    reading: 344.2
+    note: lid on
+  - trial: A2
+    reading: 344.5
+::::
+
+:::: algorithm
+id: golden-algorithm
+number: true
+caption: Binary search over a sorted array
+----
+procedure: BinarySearch
+parameters:
+  - A
+  - target
+steps:
+  - assign: lo = 0
+  - while: lo <= hi
+    do:
+      - assign: mid = floor((lo + hi) / 2)
+      - if: A[mid] == target
+        then:
+          - return: mid
+::::
+
+:::: figure
+id: golden-figure
+number: true
+caption: Wrapped prediction
+----
+:: equation
+id: golden-figure-equation
+----
+T(600) = 295 + 49.2 * exp(-0.00334 * 600)
+::
+::::
+
+:::: bibliography
+----
+- key: knuth-1984
+  type: book
+  title: The TeXbook
+  authors:
+    - name: Donald E. Knuth
+      family: Knuth
+  year: 1984
+::::
+
+[^golden-note]: One endnote-rendered footnote definition.

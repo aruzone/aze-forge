@@ -24,6 +24,7 @@ alpha catalog is sequenced.
 | `07-timing-scenarios.aze.md` | Clocked bus transaction on the cycle scale and its duration-equivalent time-scale twin. |
 | `08-diagram-scenarios.aze.md` | Branching flowchart with a cycle, tree with forward references, and a grouped service architecture with nested groups, ports and undirected multi-edges. |
 | `09-models-scenarios.aze.md` | Login exchange, order lifecycle, order/customer schema, and a small class hierarchy: the four typed software and data model directives, per the resolved [issue #61](https://github.com/aruzone/aze-forge/issues/61#issuecomment-5580464259) contract. |
+| `11-composition-forms.aze.md` | Numbered figures, typed tables, algorithms, statements and worked examples beside prose references, a page-specific citation, a bibliography and an endnote-rendered footnote, per the resolved [issue #66](https://github.com/aruzone/aze-forge/issues/66#issuecomment-5584708809) and [issue #67](https://github.com/aruzone/aze-forge/issues/67#issuecomment-5585959344) contracts. |
 | `10-engineering-scenarios.aze.md` | Feedback controller and a floating trim loop, the inclined-plane free body with the explicit scale, and a schematic cantilever end: the two Engineering diagram directives, per the resolved [issue #65](https://github.com/aruzone/aze-forge/issues/65#issuecomment-5584266572) contract. |
 
 ## Approved constraints

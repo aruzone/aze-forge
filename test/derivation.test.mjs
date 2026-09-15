@@ -79,7 +79,10 @@ test("typed quantity table cells choose the shared exact-decimal style", async (
   });
   assert.deepEqual(result.diagnostics, []);
   const html = new TextDecoder().decode(result.artifact.bytes);
-  assert.match(html, /<th scope="col">Density \[kg\/m<sup>3<\/sup>\]<\/th>/);
+  assert.match(
+    html,
+    /<th scope="col" id="[^"]+">Density \[kg\/m<sup>3<\/sup>\]<\/th>/,
+  );
   assert.match(html, /2700 <span class="aze-unit">kg\/m<sup>3<\/sup><\/span>/);
   assert.match(html, /7850 <span class="aze-unit">kg\/m<sup>3<\/sup><\/span>/);
   assert.doesNotMatch(html, /kg\/m\^3 kg\/m\^3/);
@@ -118,7 +121,7 @@ test("table rejects a quantity column with an unknown unit", () => {
   const parsed = compiler.parse(bad);
   assert.ok(
     parsed.diagnostics.some(
-      ({ code }) => code === "azeforge.table#invalid-quantity-unit",
+      ({ code }) => code === "azeforge.table#invalid-quantity",
     ),
   );
 });

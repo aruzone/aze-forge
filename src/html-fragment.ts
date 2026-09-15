@@ -53,6 +53,15 @@ export function escapeAttribute(value: string): string {
   return escapeHtml(value).replaceAll("'", "&#39;");
 }
 
+/**
+ * The versioned built-in numbering label. The Theme owns display words,
+ * number punctuation and placement (contract: issue #67 §13).
+ */
+export function numberingLabelHtml(label: string | undefined): string {
+  if (label === undefined || label === "") return "";
+  return `<span class="aze-number">${escapeHtml(label)}</span> `;
+}
+
 export function renderInlineHtml(nodes: readonly Inline[]): string {
   return nodes
     .map((node) => {
@@ -78,6 +87,30 @@ export function renderInlineHtml(nodes: readonly Inline[]): string {
           const title =
             image.title === undefined ? "" : ` title="${escapeAttribute(image.title)}"`;
           return `<img src="${escapeAttribute(checkedImageSource(image.src))}" alt="${escapeAttribute(image.alt)}"${title}>`;
+        }
+        // A reference is always an `<a>` to its target's anchor; only an
+        // errored Document could leave `resolved` unset, and errors gate
+        // rendering (contract: issue #67 §10).
+        case "reference": {
+          const label = node.resolved?.label ?? node.target;
+          const href = node.resolved?.href;
+          if (href === undefined) return escapeHtml(label);
+          return `<a class="aze-reference" href="${escapeAttribute(href)}">${escapeHtml(label)}</a>`;
+        }
+        case "referenceGroup": {
+          const group = node.resolved;
+          if (group === undefined) {
+            return escapeHtml(node.targets.map((target) => target.target).join("; "));
+          }
+          const inner = node.targets
+            .map((target) => renderInlineHtml([target]))
+            .join(escapeHtml(group.separator));
+          return `<span class="aze-citation-group">${escapeHtml(group.open)}${inner}${escapeHtml(group.close)}</span>`;
+        }
+        case "footnote": {
+          const resolved = node.resolved;
+          if (resolved === undefined) return "";
+          return `<sup id="fnref-${escapeAttribute(node.label)}-${resolved.marker}" class="aze-footnote-ref"><a href="${escapeAttribute(resolved.href)}" role="doc-noteref">${resolved.number}</a></sup>`;
         }
       }
     })

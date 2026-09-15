@@ -3,8 +3,28 @@ import { isAlias, isScalar, parseDocument, visit } from "yaml";
 import { createDiagnostic } from "./diagnostics.js";
 import { derivationPlugin, parseDerivationHeader, validateDerivationBody } from "./derivation.js";
 import { DERIVATION_PLUGIN_TYPE } from "./derivation-schemas.js";
-import { validateUnitExpression, QuantityError } from "./quantity.js";
 import { calloutPlugin } from "./callout.js";
+import { parseCompositionHeader } from "./block-header.js";
+import { algorithmPlugin, parseAlgorithmBody, parseAlgorithmHeader } from "./algorithm.js";
+import {
+  ALGORITHM_PLUGIN_TYPE,
+  ALGORITHM_PLUGIN_VERSION,
+} from "./algorithm-schemas.js";
+import { statementPlugin, parseStatementBody, parseStatementHeader } from "./statement.js";
+import {
+  STATEMENT_PLUGIN_TYPE,
+  STATEMENT_PLUGIN_VERSION,
+} from "./statement-schemas.js";
+import { examplePlugin, parseExampleBody, parseExampleHeader } from "./example.js";
+import {
+  EXAMPLE_PLUGIN_TYPE,
+  EXAMPLE_PLUGIN_VERSION,
+} from "./example-schemas.js";
+import { figurePlugin } from "./figure.js";
+import { FIGURE_PLUGIN_TYPE, FIGURE_PLUGIN_VERSION } from "./figure-schemas.js";
+import { bibliographyPlugin, parseBibliographyBody, parseBibliographyHeader } from "./bibliography.js";
+import { BIBLIOGRAPHY_PLUGIN_TYPE, BIBLIOGRAPHY_PLUGIN_VERSION } from "./bibliography-schemas.js";
+import { migrateGfmTable, parseTypedTableData } from "./table-parse.js";
 import { CALLOUT_PLUGIN_TYPE, CALLOUT_PLUGIN_VERSION, CALLOUT_VARIANTS } from "./callout-schemas.js";
 import { tablePlugin } from "./table.js";
 import { TABLE_PLUGIN_TYPE, TABLE_PLUGIN_VERSION } from "./table-schemas.js";
@@ -14,7 +34,13 @@ import {
   validateEquationBody,
 } from "./equation.js";
 import { EQUATION_PLUGIN_TYPE } from "./equation-schemas.js";
-import { isGfmTableStart, parseInlineFragment, splitTableRow, tryParseGfmTable } from "./markdown.js";
+import {
+  isGfmTableStart,
+  parseInlineFragment,
+  splitTableRow,
+  tryParseGfmTable,
+  type InlineRangeFor,
+} from "./markdown.js";
 import {
   mermaidPlugin,
   parseMermaidHeader,
@@ -62,14 +88,19 @@ import {
   type ModelsInputLine,
 } from "./models.js";
 import type {
+  AlgorithmBlock,
   ArtifactFormat,
+  BibliographyBlock,
   CalloutBlock,
   ChartBlock,
+  CitationStyle,
   Diagnostic,
   DiagnosticFix,
   DiagnosticLocation,
   DiagnosticSeverity,
   DocumentMetadata,
+  ExampleBlock,
+  FigureBlock,
   Inline,
   JsonValue,
   ParsedBlock,
@@ -77,13 +108,10 @@ import type {
   ParseResult,
   RelatedLocation,
   SourceRange,
+  StatementBlock,
   PlotBlock,
   TableBlock,
-  TableColumn,
   TableData,
-  TableGroup,
-  TypedTableCell,
-  TypedTableData,
 } from "./model.js";
 import {
   rangeFromLineSlice,
@@ -109,6 +137,7 @@ const KNOWN_METADATA_KEYS: Readonly<Record<string, true>> = {
   theme: true,
   outputs: true,
   defaults: true,
+  "citation-style": true,
 };
 const BLANK = /^[ \t]*$/;
 const STRUCTURAL_COMMENT = /^[ \t]*\/[\/](?:[ \t].*)?$/;
@@ -439,6 +468,7 @@ function parseFrontMatter(
     title?: string;
     theme?: string;
     outputs?: readonly ArtifactFormat[];
+    citationStyle?: CitationStyle;
   } = { authors: [], extensions: {} };
   const metadataLine = lines[1] ?? firstLine;
 
@@ -454,6 +484,24 @@ if (record.azemark !== undefined && record.azemark !== 2) {
   }
   if (record.author !== undefined) {
     metadata.authors = parseAuthors(record.author, options, metadataLine, diagnostics);
+  }
+  if (record["citation-style"] !== undefined) {
+    const style = record["citation-style"];
+    if (style !== "numeric" && style !== "author-year") {
+      diagnostics.push(
+        diagnostic(
+          "azeforge.metadata#invalid-citation-style",
+          'Front matter "citation-style" must be numeric or author-year.',
+          options,
+          metadataLine,
+          "error",
+          rangeFromLines(metadataLine, metadataLine),
+          { data: { value: typeof style === "string" ? style : null } },
+        ),
+      );
+    } else {
+      metadata.citationStyle = style;
+    }
   }
   for (const key of ["title", "theme"] as const) {
     const item = record[key];
@@ -829,11 +877,19 @@ function parseEquationEnvelope(
 }
 export const MAX_NESTING_DEPTH = 8;
 
-function inlineSourceFromLines(lines: readonly SourceLine[]): string {
+interface InlineSource {
+  readonly text: string;
+  /** Map a fragment-relative offset back to a real Source range. */
+  readonly rangeFor: (offset: number, length: number) => SourceRange;
+}
+
+function inlineSourceWithRanges(lines: readonly SourceLine[]): InlineSource {
+  const bases: { readonly outStart: number; readonly line: SourceLine; readonly indent: number; readonly text: string }[] = [];
   let out = "";
   let hardBreak = false;
   for (let index = 0; index < lines.length; index += 1) {
-    const raw = lineText(lines[index] as SourceLine);
+    const line = lines[index] as SourceLine;
+    const raw = lineText(line);
     const last = index === lines.length - 1;
     let stripped = raw;
     let hard = false;
@@ -846,11 +902,40 @@ function inlineSourceFromLines(lines: readonly SourceLine[]): string {
         stripped = raw.replace(/[ \t]+$/, "");
       }
     }
+    const indent = /^[ \t]*/.exec(stripped)?.[0].length ?? 0;
     stripped = stripped.replace(/^[ \t]+|[ \t]+$/g, "");
     out += (index === 0 ? "" : hardBreak ? "\n" : " ") + stripped;
+    bases.push({ outStart: out.length - stripped.length, line, indent, text: stripped });
     hardBreak = hard;
   }
-  return out;
+  const locate = (offset: number): { readonly base: (typeof bases)[number]; readonly column: number } | undefined => {
+    for (const base of bases) {
+      if (offset >= base.outStart && offset <= base.outStart + base.text.length) {
+        return { base, column: offset - base.outStart };
+      }
+    }
+    const lastBase = bases[bases.length - 1];
+    if (lastBase === undefined) return undefined;
+    return { base: lastBase, column: lastBase.text.length };
+  };
+  return {
+    text: out,
+    rangeFor(offset: number, length: number): SourceRange {
+      const from = locate(offset);
+      const to = locate(offset + Math.max(1, length) - 1);
+      if (from === undefined || to === undefined) {
+        return rangeFromLines(lines[0] as SourceLine, lines[lines.length - 1] as SourceLine);
+      }
+      if (from.base.line === to.base.line) {
+        return rangeFromLineSlice(
+          from.base.line,
+          from.base.indent + from.column,
+          to.base.indent + to.column + 1,
+        );
+      }
+      return rangeFromLines(from.base.line, to.base.line);
+    },
+  };
 }
 
 function parseInlineNodes(
@@ -859,8 +944,9 @@ function parseInlineNodes(
   last: SourceLine,
   options: ParseOptions,
   diagnostics: Diagnostic[],
+  rangeFor?: InlineRangeFor,
 ): Inline[] | undefined {
-  const parsed = parseInlineFragment(text);
+  const parsed = parseInlineFragment(text, rangeFor);
   if (parsed.unsafeTargets.length > 0) {
     const target = parsed.unsafeTargets[0] ?? "";
     diagnostics.push(
@@ -930,6 +1016,55 @@ function invalidBlockFor(
       (_, offset) => startIndex + offset,
     ),
     ...(originalType === undefined ? {} : { originalType }),
+  };
+}
+
+const FOOTNOTE_DEFINITION =
+  /^ {0,3}\[\^([a-z][a-z0-9]*(?:-[a-z0-9]+)*)\]:[ \t]*(.*)$/;
+
+/**
+ * One `[^label]: text` definition: a top-level Block in any document position
+ * whose paragraph runs to the next blank line and joins to one inline
+ * paragraph (contract: issue #67 §6).
+ */
+function parseFootnoteDefinition(
+  source: string,
+  lines: readonly SourceLine[],
+  index: number,
+  options: ParseOptions,
+  diagnostics: Diagnostic[],
+): { readonly block: ParsedBlock; readonly next: number } | undefined {
+  const first = lines[index];
+  if (first === undefined) return undefined;
+  const match = FOOTNOTE_DEFINITION.exec(lineText(first));
+  if (match === null) return undefined;
+  const label = match[1] as string;
+  const parts: string[] = [match[2] ?? ""];
+  let cursor = index + 1;
+  while (cursor < lines.length) {
+    const candidate = lines[cursor];
+    if (candidate === undefined) break;
+    const text = lineText(candidate);
+    if (/^[ \t]*$/.test(text)) break;
+    if (FOOTNOTE_DEFINITION.exec(text) !== null) break;
+    if (OUTER_DIRECTIVE_OPEN.exec(text) !== null) break;
+    if (NESTED_DIRECTIVE_OPEN.exec(text) !== null) break;
+    parts.push(text.trim());
+    cursor += 1;
+  }
+  const last = lines[cursor - 1] ?? first;
+  const startIndex = diagnostics.length;
+  const children = parseInlineNodes(parts.join(" "), first, last, options, diagnostics);
+  const range = rangeFromLines(first, last);
+  if (children === undefined) {
+    return {
+      block: invalidBlockFor(source, first, last, startIndex, diagnostics),
+      next: cursor,
+    };
+  }
+  return {
+    block: { kind: "footnoteDefinition", label, children, range },
+    next: cursor,
   };
 }
 
@@ -1500,504 +1635,47 @@ function parseCalloutEnvelope(
   return block;
 }
 
-const TABLE_COLUMN_KEY = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
-const TABLE_COLUMN_TYPES = Object.freeze([
-  "text",
-  "prose",
-  "number",
-  "quantity",
-  "boolean",
-] as const);
-
-function isPlainRecord(value: unknown): value is Record<string, unknown> {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    !Array.isArray(value)
-  );
-}
-
-function parseTableDeclarationBody(
-  bodyText: string,
-  options: ParseOptions,
-  first: SourceLine,
-  diagnostics: Diagnostic[],
-): Record<string, unknown> | undefined {
-  const parsed = parseDocument(bodyText, {
-    prettyErrors: false,
-    strict: true,
-    uniqueKeys: true,
-  });
-  for (const error of parsed.errors) {
-    diagnostics.push(
-      diagnostic(
-        "azeforge.table#invalid-yaml",
-        "The table Block body contains invalid structural declarations.",
-        options,
-        first,
-        "error",
-        rangeFromLines(first, first),
-        { data: { detail: typeof error.message === "string" ? error.message : String(error) } },
-      ),
-    );
-  }
-  if (parsed.errors.length > 0) return undefined;
-  let valid = true;
-  visit(parsed, {
-    Alias() {
-      valid = false;
-      diagnostics.push(
-        diagnostic(
-          "azeforge.table#alias-disabled",
-          "Table declarations cannot use YAML aliases.",
-          options,
-          first,
-          "error",
-          rangeFromLines(first, first),
-        ),
-      );
-    },
-    Pair(_key, pair) {
-      if (
-        isScalar(pair.key) &&
-        pair.key.value === "<<" &&
-        pair.key.type === "PLAIN"
-      ) {
-        valid = false;
-        diagnostics.push(
-          diagnostic(
-            "azeforge.table#merge-key-disabled",
-            "Table declarations cannot use YAML merge keys.",
-            options,
-            first,
-            "error",
-            rangeFromLines(first, first),
-          ),
-        );
-      }
-    },
-    Node(_key, node) {
-      if (!isAlias(node) && node.anchor !== undefined) {
-        valid = false;
-        diagnostics.push(
-          diagnostic(
-            "azeforge.table#anchor-disabled",
-            "Table declarations cannot use YAML anchors.",
-            options,
-            first,
-            "error",
-            rangeFromLines(first, first),
-          ),
-        );
-      }
-      if (node.tag !== undefined) {
-        valid = false;
-        diagnostics.push(
-          diagnostic(
-            "azeforge.table#tag-disabled",
-            "Table declarations cannot use YAML tags.",
-            options,
-            first,
-            "error",
-            rangeFromLines(first, first),
-          ),
-        );
-      }
-    },
-  });
-  if (!valid) return undefined;
-  try {
-    const value = parsed.toJS({ maxAliasCount: 0 });
-    if (!isPlainRecord(value)) {
-      diagnostics.push(
-        diagnostic(
-          "azeforge.table#body-must-be-records",
-          "A table Block body must be a declaration record, not a scalar or list.",
-          options,
-          first,
-          "error",
-          rangeFromLines(first, first),
-        ),
-      );
-      return undefined;
-    }
-    return value;
-  } catch {
-    diagnostics.push(
-      diagnostic(
-        "azeforge.table#invalid-yaml",
-        "The table Block body contains invalid structural declarations.",
-        options,
-        first,
-        "error",
-        rangeFromLines(first, first),
-      ),
-    );
-    return undefined;
-  }
-}
-
-function tableColumnFromValue(
-  item: unknown,
-  first: SourceLine,
+/** Inline parsing at an explicit source range, for declaration-shaped bodies. */
+function parseInlineNodesInRange(
+  text: string,
+  range: SourceRange,
   options: ParseOptions,
   diagnostics: Diagnostic[],
-): TableColumn | undefined {
-  if (!isPlainRecord(item)) {
+): Inline[] | undefined {
+  const parsed = parseInlineFragment(text, (offset, length) => ({
+    start: {
+      line: range.start.line,
+      column: range.start.column + offset,
+      offset: range.start.offset + offset,
+    },
+    end: {
+      line: range.start.line,
+      column: range.start.column + offset + Math.max(1, length),
+      offset: range.start.offset + offset + Math.max(1, length),
+    },
+  }));
+  if (parsed.unsafeTargets.length > 0) {
+    const target = parsed.unsafeTargets[0] ?? "";
     diagnostics.push(
-      diagnostic(
-        "azeforge.table#invalid-column",
-        "Each table column must be a record with a lowercase-kebab `key`.",
-        options,
-        first,
+      createDiagnostic(
+        "azeforge.link#unsafe-protocol",
         "error",
-        rangeFromLines(first, first),
+        `Link target "${target}" uses a disallowed protocol.`,
+        {
+          location: {
+            ...(options.sourceName === undefined
+              ? {}
+              : { source: options.sourceName }),
+            range,
+          },
+          data: { href: target },
+          suggestion: "Use an https:, http:, mailto:, or #fragment link.",
+        },
       ),
     );
     return undefined;
   }
-  const key = item.key;
-  if (typeof key !== "string" || !TABLE_COLUMN_KEY.test(key)) {
-    diagnostics.push(
-      diagnostic(
-        "azeforge.table#invalid-column",
-        "Table column `key` must be lowercase-kebab.",
-        options,
-        first,
-        "error",
-        rangeFromLines(first, first),
-        { data: { key: typeof key === "string" ? key : null } },
-      ),
-    );
-    return undefined;
-  }
-  for (const [field, label] of [
-    ["name", "column name"],
-    ["unit", "column unit"],
-  ] as const) {
-    const raw = item[field];
-    if (raw === undefined) continue;
-    if (typeof raw !== "string" || raw.length === 0) {
-      diagnostics.push(
-        diagnostic(
-          "azeforge.table#invalid-column",
-          `Table column ${label} must be a non-empty string.`,
-          options,
-          first,
-          "error",
-          rangeFromLines(first, first),
-          { data: { key } },
-        ),
-      );
-      return undefined;
-    }
-  }
-  if (item.type !== undefined) {
-    if (
-      typeof item.type !== "string" ||
-      !(TABLE_COLUMN_TYPES as readonly string[]).includes(item.type)
-    ) {
-      diagnostics.push(
-        diagnostic(
-          "azeforge.table#invalid-column",
-          `Table column type must be one of ${(TABLE_COLUMN_TYPES as readonly string[]).join(", ")}.`,
-          options,
-          first,
-          "error",
-          rangeFromLines(first, first),
-          { data: { key } },
-        ),
-      );
-      return undefined;
-    }
-    if (
-      item.type === "quantity" &&
-      item.unit !== undefined &&
-      typeof item.unit === "string"
-    ) {
-      try {
-        validateUnitExpression(item.unit);
-      } catch (error) {
-        diagnostics.push(
-          diagnostic(
-            "azeforge.table#invalid-quantity-unit",
-            `Table column quantity unit "${item.unit}" is not registered.`,
-            options,
-            first,
-            "error",
-            rangeFromLines(first, first),
-            {
-              data: { key, unit: item.unit },
-              ...(error instanceof QuantityError
-                ? { suggestion: error.message }
-                : {}),
-            },
-          ),
-        );
-        return undefined;
-      }
-    }
-  }
-  for (const keyName of Object.keys(item)) {
-    if (keyName === "key" || keyName === "name" || keyName === "type" || keyName === "unit") continue;
-    diagnostics.push(
-      diagnostic(
-        "azeforge.table#unknown-column-field",
-        `Table column field "${keyName}" is not supported.`,
-        options,
-        first,
-        "error",
-        rangeFromLines(first, first),
-        { data: { key } },
-      ),
-    );
-    return undefined;
-  }
-  const name = typeof item.name === "string" ? item.name : undefined;
-  const type = typeof item.type === "string" ? item.type : undefined;
-  const unit = typeof item.unit === "string" ? item.unit : undefined;
-  const column: TableColumn = { key };
-  return {
-    ...column,
-    ...(name === undefined ? {} : { name }),
-    ...(type === undefined ? {} : { type }),
-    ...(unit === undefined ? {} : { unit }),
-  };
-}
-
-function parseTypedTableBody(
-  bodyLines: readonly SourceLine[],
-  first: SourceLine,
-  last: SourceLine,
-  blockRange: SourceRange,
-  options: ParseOptions,
-  diagnostics: Diagnostic[],
-): TypedTableData | undefined {
-  const bodyText = bodyLines.map((line) => lineText(line)).join("\n").trim();
-  if (bodyText.length === 0) {
-    diagnostics.push(
-      diagnostic(
-        "azeforge.table#empty-body",
-        "A table Block body must declare `columns:` and `rows:` records.",
-        options,
-        first,
-        "error",
-        blockRange,
-        { suggestion: "Declare typed columns followed by typed rows." },
-      ),
-    );
-    return undefined;
-  }
-  const value = parseTableDeclarationBody(bodyText, options, first, diagnostics);
-  if (value === undefined) return undefined;
-  if (value.columns === undefined || value.rows === undefined) {
-    diagnostics.push(
-      diagnostic(
-        "azeforge.table#missing-columns-or-rows",
-        "A table Block body must declare both `columns:` and `rows:`.",
-        options,
-        first,
-        "error",
-        blockRange,
-      ),
-    );
-    return undefined;
-  }
-  if (!Array.isArray(value.columns) || !Array.isArray(value.rows)) {
-    diagnostics.push(
-      diagnostic(
-        "azeforge.table#missing-columns-or-rows",
-        "A table Block body must declare `columns` and `rows` as collections.",
-        options,
-        first,
-        "error",
-        blockRange,
-      ),
-    );
-    return undefined;
-  }
-  const columns: TableColumn[] = [];
-  const seenKeys = new Set<string>();
-  for (const item of value.columns) {
-    const column = tableColumnFromValue(item, first, options, diagnostics);
-    if (column === undefined) return undefined;
-    if (seenKeys.has(column.key)) {
-      diagnostics.push(
-        diagnostic(
-          "azeforge.table#duplicate-column",
-          `Table column key "${column.key}" is declared more than once.`,
-          options,
-          first,
-          "error",
-          blockRange,
-          { data: { key: column.key } },
-        ),
-      );
-      return undefined;
-    }
-    seenKeys.add(column.key);
-    columns.push(column);
-  }
-  if (columns.length === 0) {
-    diagnostics.push(
-      diagnostic(
-        "azeforge.table#no-columns",
-        "A table Block must declare at least one column.",
-        options,
-        first,
-        "error",
-        blockRange,
-      ),
-    );
-    return undefined;
-  }
-  let groups: TableGroup[] | undefined;
-  if (value.groups !== undefined) {
-    if (!Array.isArray(value.groups)) {
-      diagnostics.push(
-        diagnostic(
-          "azeforge.table#invalid-groups",
-          "Table `groups` must be a collection.",
-          options,
-          first,
-          "error",
-          blockRange,
-        ),
-      );
-      return undefined;
-    }
-    groups = [];
-    const seenGroupNames = new Set<string>();
-    for (const item of value.groups) {
-      if (!isPlainRecord(item) || typeof item.name !== "string" || !Array.isArray(item.columns)) {
-        diagnostics.push(
-          diagnostic(
-            "azeforge.table#invalid-group",
-            "Each table group needs a `name` string and a `columns` collection.",
-            options,
-            first,
-            "error",
-            blockRange,
-          ),
-        );
-        return undefined;
-      }
-      if (seenGroupNames.has(item.name)) {
-        diagnostics.push(
-          diagnostic(
-            "azeforge.table#duplicate-group",
-            `Table group name "${item.name}" is declared more than once.`,
-            options,
-            first,
-            "error",
-            blockRange,
-            { data: { name: item.name } },
-          ),
-        );
-        return undefined;
-      }
-      const groupColumns: string[] = [];
-      for (const key of item.columns) {
-        if (typeof key !== "string" || !seenKeys.has(key)) {
-          diagnostics.push(
-            diagnostic(
-              "azeforge.table#unknown-group-column",
-              `Table group references an unknown column "${String(key)}".`,
-              options,
-              first,
-              "error",
-              blockRange,
-              { data: { name: item.name, column: typeof key === "string" ? key : null } },
-            ),
-          );
-          return undefined;
-        }
-        groupColumns.push(key);
-      }
-      const extra = Object.keys(item).filter(
-        (keyName) => keyName !== "name" && keyName !== "columns",
-      );
-      if (extra.length > 0) {
-        diagnostics.push(
-          diagnostic(
-            "azeforge.table#unknown-group-field",
-            `Unknown table group field "${extra[0] ?? ""}".`,
-            options,
-            first,
-            "error",
-            blockRange,
-            { data: { name: item.name } },
-          ),
-        );
-        return undefined;
-      }
-      seenGroupNames.add(item.name);
-      groups.push({ name: item.name, columns: groupColumns });
-    }
-  }
-  const rows: (Readonly<Record<string, TypedTableCell>>)[] = [];
-  for (const [rowIndex, item] of value.rows.entries()) {
-    if (!isPlainRecord(item)) {
-      diagnostics.push(
-        diagnostic(
-          "azeforge.table#invalid-row",
-          "Each table row must be a record keyed by column keys.",
-          options,
-          first,
-          "error",
-          blockRange,
-          { data: { row: rowIndex + 1 } },
-        ),
-      );
-      return undefined;
-    }
-    const row: Record<string, TypedTableCell> = {};
-    for (const key of columns) {
-      const raw = item[key.key];
-      if (raw === undefined) continue;
-      if (typeof raw === "string") {
-        const nodes = parseInlineNodes(raw, first, last, options, diagnostics);
-        if (nodes === undefined) return undefined;
-        row[key.key] = nodes;
-      } else if (typeof raw === "number" || typeof raw === "boolean") {
-        row[key.key] = raw;
-      } else {
-        diagnostics.push(
-          diagnostic(
-            "azeforge.table#invalid-cell",
-            `Table cell for column "${key.key}" must be text, a number, or a boolean.`,
-            options,
-            first,
-            "error",
-            blockRange,
-            { data: { row: rowIndex + 1, column: key.key } },
-          ),
-        );
-        return undefined;
-      }
-    }
-    for (const keyName of Object.keys(item)) {
-      if (seenKeys.has(keyName)) continue;
-      diagnostics.push(
-        diagnostic(
-          "azeforge.table#unknown-row-column",
-          `Table row references unknown column "${keyName}".`,
-          options,
-          first,
-          "error",
-          blockRange,
-          { data: { row: rowIndex + 1, column: keyName } },
-        ),
-      );
-      return undefined;
-    }
-    rows.push(row);
-  }
-  return {
-    columns,
-    rows,
-    ...(groups === undefined || groups.length === 0 ? {} : { groups }),
-  };
+  return [...parsed.nodes];
 }
 
 function parseTableEnvelope(
@@ -2019,42 +1697,14 @@ function parseTableEnvelope(
     missingSeparatorDiagnostic(lines, openIndex, closingIndex, first, options, diagnostics);
     return finishInvalid();
   }
-  let caption: Inline[] | undefined;
-  let id: string | undefined;
-  for (const entry of entries) {
-    if (entry.key === "caption") {
-      if (entry.value === "") {
-        diagnostics.push(
-          diagnostic(
-            "azeforge.table#empty-caption",
-            "Table caption must not be empty.",
-            options,
-            first,
-            "error",
-            entry.range,
-          ),
-        );
-        return finishInvalid();
-      }
-      const nodes = parseInlineNodes(entry.value, first, last, options, diagnostics);
-      if (nodes === undefined) return finishInvalid();
-      caption = nodes;
-    } else if (entry.key === "id") {
-      id = entry.value;
-    } else {
-      diagnostics.push(
-        diagnostic(
-          "azeforge.table#unknown-header",
-          `Table header key "${entry.key}" is not supported.`,
-          options,
-          first,
-          "error",
-          entry.range,
-          { data: { key: entry.key }, suggestion: "Use caption or id." },
-        ),
-      );
-      return finishInvalid();
-    }
+  const header = parseCompositionHeader(entries, options.sourceName, {
+    namespace: "azeforge.table",
+    known: [],
+    parseCaption: (text, _range) => parseInlineNodes(text, first, last, options, diagnostics),
+  });
+  if (header.diagnostics.length > 0) {
+    diagnostics.push(...header.diagnostics);
+    return finishInvalid();
   }
   const bodyLines = lines.slice(bodyStart, closingIndex);
   const bodySourceLines = bodyLines.filter(
@@ -2074,21 +1724,20 @@ function parseTableEnvelope(
     );
     return invalidBlockFor(source, first, last, startIndex, diagnostics, TABLE_PLUGIN_TYPE);
   }
-  const data = parseTypedTableBody(
-    bodyLines,
-    first,
-    last,
-    blockRange,
-    options,
-    diagnostics,
-  );
-  if (data === undefined) return finishInvalid();
+  const parsed = parseTypedTableData(bodyLines as SourceLine[], blockRange, {
+    ...(options.sourceName === undefined ? {} : { sourceName: options.sourceName }),
+    parseInline: (text, range) =>
+      parseInlineNodesInRange(text, range, options, diagnostics),
+  });
+  diagnostics.push(...parsed.diagnostics);
+  if (parsed.data === undefined) return finishInvalid();
   const block: TableBlock = {
     kind: "table",
-    data,
+    data: parsed.data,
     range: blockRange,
-    ...(id === undefined || id === "" ? {} : { id }),
-    ...(caption === undefined ? {} : { caption }),
+    ...(header.id === undefined || header.id === "" ? {} : { id: header.id }),
+    ...(header.number === undefined ? {} : { number: header.number }),
+    ...(header.caption === undefined ? {} : { caption: header.caption }),
     pluginVersion: TABLE_PLUGIN_VERSION,
   };
   return block;
@@ -2414,6 +2063,325 @@ function parseChemistryEnvelope(
   return finishInvalid();
 }
 
+/** Shared header handling for the composition-owned directive kinds. */
+function compositionHeader(
+  entries: readonly { readonly key: string; readonly value: string; readonly range: SourceRange }[],
+  namespace: string,
+  known: readonly string[],
+  first: SourceLine,
+  last: SourceLine,
+  options: ParseOptions,
+  diagnostics: Diagnostic[],
+): ReturnType<typeof parseCompositionHeader> {
+  return parseCompositionHeader(entries, options.sourceName, {
+    namespace,
+    known,
+    parseCaption: (text, _range) =>
+      parseInlineNodes(text, first, last, options, diagnostics),
+  });
+}
+
+function parseFigureEnvelope(
+  source: string,
+  lines: readonly SourceLine[],
+  openIndex: number,
+  closingIndex: number,
+  first: SourceLine,
+  last: SourceLine,
+  options: ParseOptions,
+  diagnostics: Diagnostic[],
+  activeTypes: readonly string[],
+  allowRawLatex: boolean,
+  depth: number,
+): ParsedBlock {
+  const blockRange = rangeFromLines(first, last);
+  const startIndex = diagnostics.length;
+  const finishInvalid = (): ParsedBlock =>
+    invalidBlockFor(source, first, last, startIndex, diagnostics, FIGURE_PLUGIN_TYPE);
+  const { entries, bodyStart, separatorFound } = splitHeaderEntries(lines, openIndex, closingIndex);
+  if (!separatorFound) {
+    missingSeparatorDiagnostic(lines, openIndex, closingIndex, first, options, diagnostics);
+    return finishInvalid();
+  }
+  const header = compositionHeader(entries, "azeforge.figure", [], first, last, options, diagnostics);
+  if (header.diagnostics.length > 0) {
+    diagnostics.push(...header.diagnostics);
+    return finishInvalid();
+  }
+  const bodyLines = lines
+    .slice(bodyStart, closingIndex)
+    .filter((line) => !/^[ \t]*$/.test(lineText(line as SourceLine))) as SourceLine[];
+  if (bodyLines.length === 0) {
+    diagnostics.push(
+      diagnostic(
+        "azeforge.figure#empty-body",
+        "A figure Block body must contain at least one Block.",
+        options,
+        first,
+        "error",
+        blockRange,
+        { suggestion: "Wrap the content the figure numbers." },
+      ),
+    );
+    return finishInvalid();
+  }
+  const children = parseNestedBlocks(
+    source,
+    bodyLines,
+    first,
+    last,
+    options,
+    diagnostics,
+    activeTypes,
+    allowRawLatex,
+    depth,
+  );
+  if (children === undefined) return finishInvalid();
+  const block: FigureBlock = {
+    kind: "figure",
+    children,
+    range: blockRange,
+    ...(header.id === undefined || header.id === "" ? {} : { id: header.id }),
+    ...(header.number === undefined ? {} : { number: header.number }),
+    ...(header.caption === undefined ? {} : { caption: header.caption }),
+    pluginVersion: FIGURE_PLUGIN_VERSION,
+  };
+  return block;
+}
+
+function parseBibliographyEnvelope(
+  source: string,
+  lines: readonly SourceLine[],
+  openIndex: number,
+  closingIndex: number,
+  first: SourceLine,
+  last: SourceLine,
+  options: ParseOptions,
+  diagnostics: Diagnostic[],
+): ParsedBlock {
+  const blockRange = rangeFromLines(first, last);
+  const startIndex = diagnostics.length;
+  const finishInvalid = (): ParsedBlock =>
+    invalidBlockFor(source, first, last, startIndex, diagnostics, BIBLIOGRAPHY_PLUGIN_TYPE);
+  const { entries, bodyStart, separatorFound } = splitHeaderEntries(lines, openIndex, closingIndex);
+  if (!separatorFound) {
+    missingSeparatorDiagnostic(lines, openIndex, closingIndex, first, options, diagnostics);
+    return finishInvalid();
+  }
+  const header = parseBibliographyHeader(
+    entries,
+    blockRange,
+    options.sourceName,
+    (text, _range) => parseInlineNodes(text, first, last, options, diagnostics),
+  );
+  if (header.diagnostics.length > 0) {
+    diagnostics.push(...header.diagnostics);
+    return finishInvalid();
+  }
+  const parsed = parseBibliographyBody({
+    bodyLines: lines.slice(bodyStart, closingIndex) as SourceLine[],
+    blockRange,
+    ...(options.sourceName === undefined ? {} : { sourceName: options.sourceName }),
+  });
+  diagnostics.push(...parsed.diagnostics);
+  if (parsed.entries === undefined) return finishInvalid();
+  const block: BibliographyBlock = {
+    kind: "bibliography",
+    entries: parsed.entries,
+    range: blockRange,
+    ...(header.id === undefined || header.id === "" ? {} : { id: header.id }),
+    ...(header.number === undefined ? {} : { number: header.number }),
+    ...(header.caption === undefined ? {} : { caption: header.caption }),
+    pluginVersion: BIBLIOGRAPHY_PLUGIN_VERSION,
+  };
+  return block;
+}
+
+function parseAlgorithmEnvelope(
+  source: string,
+  lines: readonly SourceLine[],
+  openIndex: number,
+  closingIndex: number,
+  first: SourceLine,
+  last: SourceLine,
+  options: ParseOptions,
+  diagnostics: Diagnostic[],
+): ParsedBlock {
+  const blockRange = rangeFromLines(first, last);
+  const startIndex = diagnostics.length;
+  const finishInvalid = (): ParsedBlock =>
+    invalidBlockFor(source, first, last, startIndex, diagnostics, ALGORITHM_PLUGIN_TYPE);
+  const { entries, bodyStart, separatorFound } = splitHeaderEntries(lines, openIndex, closingIndex);
+  if (!separatorFound) {
+    missingSeparatorDiagnostic(lines, openIndex, closingIndex, first, options, diagnostics);
+    return finishInvalid();
+  }
+  const header = parseAlgorithmHeader(
+    entries,
+    blockRange,
+    options.sourceName,
+    (text, _range) => parseInlineNodes(text, first, last, options, diagnostics),
+  );
+  if (header.diagnostics.length > 0) {
+    diagnostics.push(...header.diagnostics);
+    return finishInvalid();
+  }
+  const parsed = parseAlgorithmBody({
+    bodyLines: lines.slice(bodyStart, closingIndex) as SourceLine[],
+    blockRange,
+    ...(options.sourceName === undefined ? {} : { sourceName: options.sourceName }),
+    parseInline: (text, line) =>
+      parseInlineNodes(text, line, line, options, diagnostics, inlineSourceWithRanges([line]).rangeFor),
+  });
+  diagnostics.push(...parsed.diagnostics);
+  if (parsed.body === undefined) return finishInvalid();
+  const block: AlgorithmBlock = {
+    kind: "algorithm",
+    procedure: parsed.body.procedure,
+    parameters: parsed.body.parameters,
+    steps: parsed.body.steps,
+    range: blockRange,
+    ...(header.id === undefined || header.id === "" ? {} : { id: header.id }),
+    ...(header.number === undefined ? {} : { number: header.number }),
+    ...(header.caption === undefined ? {} : { caption: header.caption }),
+    pluginVersion: ALGORITHM_PLUGIN_VERSION,
+  };
+  return block;
+}
+
+function parseStatementEnvelope(
+  source: string,
+  lines: readonly SourceLine[],
+  openIndex: number,
+  closingIndex: number,
+  first: SourceLine,
+  last: SourceLine,
+  options: ParseOptions,
+  diagnostics: Diagnostic[],
+  activeTypes: readonly string[],
+  allowRawLatex: boolean,
+  depth: number,
+): ParsedBlock {
+  const blockRange = rangeFromLines(first, last);
+  const startIndex = diagnostics.length;
+  const finishInvalid = (): ParsedBlock =>
+    invalidBlockFor(source, first, last, startIndex, diagnostics, STATEMENT_PLUGIN_TYPE);
+  const { entries, bodyStart, separatorFound } = splitHeaderEntries(lines, openIndex, closingIndex);
+  if (!separatorFound) {
+    missingSeparatorDiagnostic(lines, openIndex, closingIndex, first, options, diagnostics);
+    return finishInvalid();
+  }
+  const header = parseStatementHeader(
+    entries,
+    blockRange,
+    options.sourceName,
+    (text, _range) => parseInlineNodes(text, first, last, options, diagnostics),
+  );
+  if (header.diagnostics.length > 0) {
+    diagnostics.push(...header.diagnostics);
+    return finishInvalid();
+  }
+  const parsed = parseStatementBody({
+    header,
+    bodyLines: lines.slice(bodyStart, closingIndex) as SourceLine[],
+    blockRange,
+    ...(options.sourceName === undefined ? {} : { sourceName: options.sourceName }),
+    parseBlocks: (bodyLines) =>
+      parseNestedBlocks(
+        source,
+        bodyLines,
+        first,
+        last,
+        options,
+        diagnostics,
+        activeTypes,
+        allowRawLatex,
+        depth,
+      ),
+  });
+  diagnostics.push(...parsed.diagnostics);
+  if (parsed.body === undefined) return finishInvalid();
+  const block: StatementBlock = {
+    kind: "statement",
+    statementKind: parsed.body.statementKind,
+    text: parsed.body.text,
+    ...(parsed.body.proof === undefined ? {} : { proof: parsed.body.proof }),
+    range: blockRange,
+    ...(header.id === undefined || header.id === "" ? {} : { id: header.id }),
+    ...(header.number === undefined ? {} : { number: header.number }),
+    ...(header.caption === undefined ? {} : { caption: header.caption }),
+    pluginVersion: STATEMENT_PLUGIN_VERSION,
+  };
+  return block;
+}
+
+function parseExampleEnvelope(
+  source: string,
+  lines: readonly SourceLine[],
+  openIndex: number,
+  closingIndex: number,
+  first: SourceLine,
+  last: SourceLine,
+  options: ParseOptions,
+  diagnostics: Diagnostic[],
+  activeTypes: readonly string[],
+  allowRawLatex: boolean,
+  depth: number,
+): ParsedBlock {
+  const blockRange = rangeFromLines(first, last);
+  const startIndex = diagnostics.length;
+  const finishInvalid = (): ParsedBlock =>
+    invalidBlockFor(source, first, last, startIndex, diagnostics, EXAMPLE_PLUGIN_TYPE);
+  const { entries, bodyStart, separatorFound } = splitHeaderEntries(lines, openIndex, closingIndex);
+  if (!separatorFound) {
+    missingSeparatorDiagnostic(lines, openIndex, closingIndex, first, options, diagnostics);
+    return finishInvalid();
+  }
+  const header = parseExampleHeader(
+    entries,
+    blockRange,
+    options.sourceName,
+    (text, _range) => parseInlineNodes(text, first, last, options, diagnostics),
+  );
+  if (header.diagnostics.length > 0) {
+    diagnostics.push(...header.diagnostics);
+    return finishInvalid();
+  }
+  const parsed = parseExampleBody({
+    header,
+    bodyLines: lines.slice(bodyStart, closingIndex) as SourceLine[],
+    blockRange,
+    ...(options.sourceName === undefined ? {} : { sourceName: options.sourceName }),
+    parseBlocks: (bodyLines) =>
+      parseNestedBlocks(
+        source,
+        bodyLines,
+        first,
+        last,
+        options,
+        diagnostics,
+        activeTypes,
+        allowRawLatex,
+        depth,
+      ),
+  });
+  diagnostics.push(...parsed.diagnostics);
+  if (parsed.body === undefined) return finishInvalid();
+  const block: ExampleBlock = {
+    kind: "example",
+    problem: parsed.body.problem,
+    givens: parsed.body.givens,
+    steps: parsed.body.steps,
+    ...(parsed.body.result === undefined ? {} : { result: parsed.body.result }),
+    range: blockRange,
+    ...(header.id === undefined || header.id === "" ? {} : { id: header.id }),
+    ...(header.number === undefined ? {} : { number: header.number }),
+    ...(header.caption === undefined ? {} : { caption: header.caption }),
+    pluginVersion: EXAMPLE_PLUGIN_VERSION,
+  };
+  return block;
+}
+
 function parseBlocks(
   source: string,
   lines: readonly SourceLine[],
@@ -2588,6 +2556,110 @@ function parseBlocks(
             last,
             options,
             diagnostics,
+          ),
+        );
+        continue;
+      }
+      if (
+        closed &&
+        originalType === FIGURE_PLUGIN_TYPE &&
+        activeTypes.includes(FIGURE_PLUGIN_TYPE)
+      ) {
+        blocks.push(
+          parseFigureEnvelope(
+            source,
+            lines,
+            openIndex,
+            closingIndex,
+            first,
+            last,
+            options,
+            diagnostics,
+            activeTypes,
+            allowRawLatex,
+            depth,
+          ),
+        );
+        continue;
+      }
+      if (
+        closed &&
+        originalType === BIBLIOGRAPHY_PLUGIN_TYPE &&
+        activeTypes.includes(BIBLIOGRAPHY_PLUGIN_TYPE)
+      ) {
+        blocks.push(
+          parseBibliographyEnvelope(
+            source,
+            lines,
+            openIndex,
+            closingIndex,
+            first,
+            last,
+            options,
+            diagnostics,
+          ),
+        );
+        continue;
+      }
+      if (
+        closed &&
+        originalType === ALGORITHM_PLUGIN_TYPE &&
+        activeTypes.includes(ALGORITHM_PLUGIN_TYPE)
+      ) {
+        blocks.push(
+          parseAlgorithmEnvelope(
+            source,
+            lines,
+            openIndex,
+            closingIndex,
+            first,
+            last,
+            options,
+            diagnostics,
+          ),
+        );
+        continue;
+      }
+      if (
+        closed &&
+        originalType === STATEMENT_PLUGIN_TYPE &&
+        activeTypes.includes(STATEMENT_PLUGIN_TYPE)
+      ) {
+        blocks.push(
+          parseStatementEnvelope(
+            source,
+            lines,
+            openIndex,
+            closingIndex,
+            first,
+            last,
+            options,
+            diagnostics,
+            activeTypes,
+            allowRawLatex,
+            depth,
+          ),
+        );
+        continue;
+      }
+      if (
+        closed &&
+        originalType === EXAMPLE_PLUGIN_TYPE &&
+        activeTypes.includes(EXAMPLE_PLUGIN_TYPE)
+      ) {
+        blocks.push(
+          parseExampleEnvelope(
+            source,
+            lines,
+            openIndex,
+            closingIndex,
+            first,
+            last,
+            options,
+            diagnostics,
+            activeTypes,
+            allowRawLatex,
+            depth,
           ),
         );
         continue;
@@ -2943,6 +3015,12 @@ function parseBlocks(
       index = listed.next;
       continue;
     }
+    const footnote = parseFootnoteDefinition(source, lines, index, options, diagnostics);
+    if (footnote !== undefined) {
+      blocks.push(footnote.block);
+      index = footnote.next;
+      continue;
+    }
     const gfmTable = tryGfmTableAt(lines, index);
     if (gfmTable !== undefined) {
       const tableLines = lines.slice(index, index + gfmTable.consumed);
@@ -2975,8 +3053,9 @@ function parseBlocks(
       }
       blocks.push({
         kind: "table",
-        data: gfmTable.data,
+        data: migrateGfmTable(gfmTable.data),
         range: rangeFromLines(line, tableLast),
+        pluginVersion: TABLE_PLUGIN_VERSION,
       });
       index += gfmTable.consumed;
       continue;
@@ -2998,7 +3077,14 @@ function parseBlocks(
     const atxHeading = parseAtxHeading(lineText(line));
     if (atxHeading !== undefined) {
       const startIndex = diagnostics.length;
-      const children = parseInlineNodes(atxHeading.text, line, line, options, diagnostics);
+      const children = parseInlineNodes(
+        atxHeading.text,
+        line,
+        line,
+        options,
+        diagnostics,
+        inlineSourceWithRanges([line]).rangeFor,
+      );
       if (children === undefined) {
         blocks.push(invalidBlockFor(source, line, line, startIndex, diagnostics));
         index += 1;
@@ -3061,10 +3147,18 @@ function parseBlocks(
       );
       continue;
     }
-    const text = inlineSourceFromLines(paragraphLines);
+    const inlineSource = inlineSourceWithRanges(paragraphLines);
+    const text = inlineSource.text;
     const inlineStart = diagnostics.length;
     if (setextLevel !== undefined && setextUnderline !== undefined) {
-      const headingChildren = parseInlineNodes(text, line, setextUnderline, options, diagnostics);
+      const headingChildren = parseInlineNodes(
+        text,
+        line,
+        setextUnderline,
+        options,
+        diagnostics,
+        inlineSource.rangeFor,
+      );
       if (headingChildren === undefined) {
         blocks.push(invalidBlockFor(source, line, setextUnderline, inlineStart, diagnostics));
         continue;
@@ -3225,6 +3319,11 @@ export function parseSource(source: string, options: ParseOptions = {}): ParseRe
   );
   if (versionDiagnostic !== undefined) diagnostics.push(versionDiagnostic);
   const activePlugins = options.plugins ?? [
+    figurePlugin,
+    bibliographyPlugin,
+    algorithmPlugin,
+    statementPlugin,
+    examplePlugin,
     equationPlugin,
     derivationPlugin,
     calloutPlugin,
@@ -3267,7 +3366,7 @@ export function parseSource(source: string, options: ParseOptions = {}): ParseRe
   return {
     document: {
       azemarkVersion: 2,
-      schemaVersion: 2,
+      schemaVersion: 3,
       metadata: frontMatter.metadata,
       blocks,
     },

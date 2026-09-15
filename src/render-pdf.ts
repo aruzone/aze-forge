@@ -16,6 +16,11 @@ import { timingHtmlBlockRenderer } from "./timing-render.js";
 import { diagramHtmlBlockRenderer } from "./diagram-render.js";
 import { controlHtmlBlockRenderer } from "./control-render.js";
 import { freeBodyHtmlBlockRenderer } from "./free-body-render.js";
+import { figureHtmlBlockRenderer } from "./figure.js";
+import { bibliographyHtmlBlockRenderer } from "./bibliography.js";
+import { algorithmHtmlBlockRenderer } from "./algorithm.js";
+import { statementHtmlBlockRenderer } from "./statement.js";
+import { exampleHtmlBlockRenderer } from "./example.js";
 import {
   classHtmlBlockRenderer,
   entityHtmlBlockRenderer,
@@ -106,6 +111,11 @@ export const pdfBlockRenderers: readonly AnyBlockRenderer[] = Object.freeze([
   pdfBlockRenderer(classHtmlBlockRenderer),
   pdfBlockRenderer(controlHtmlBlockRenderer),
   pdfBlockRenderer(freeBodyHtmlBlockRenderer),
+  pdfBlockRenderer(figureHtmlBlockRenderer),
+  pdfBlockRenderer(bibliographyHtmlBlockRenderer),
+  pdfBlockRenderer(algorithmHtmlBlockRenderer),
+  pdfBlockRenderer(statementHtmlBlockRenderer),
+  pdfBlockRenderer(exampleHtmlBlockRenderer),
 ]);
 
 export interface PdfBrowserCapability {
@@ -201,6 +211,15 @@ export function pdfPagedCss(theme: Theme): string {
     "pre{break-inside:auto}" +
     ".aze-equation,.aze-mermaid,.aze-plot,.aze-chart,.aze-control,.aze-free-body,figure,img{break-inside:avoid}" +
     ".aze-callout{break-inside:auto}" +
+    // Structured content and composition attachments: a table or figure body
+    // may split between its own rows, an algorithm only between statements,
+    // and a statement's proof or an example's problem keeps next to its head.
+    ".aze-figure,.aze-table-figure{break-inside:auto}" +
+    ".aze-algorithm,.aze-statement,.aze-example{break-inside:auto}" +
+    ".aze-algorithm ol>li,.aze-example .aze-example-step{break-inside:avoid}" +
+    ".aze-algorithm figcaption,.aze-example figcaption,.aze-statement figcaption,.aze-endnote{break-after:avoid}" +
+    ".aze-example .aze-example-problem,.aze-statement .aze-statement-proof{break-inside:auto}" +
+    ".aze-endnotes{break-inside:auto}" +
     sectionBreak
   );
 }

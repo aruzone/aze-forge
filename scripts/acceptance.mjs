@@ -310,7 +310,7 @@ async function stepCatalog() {
     `azeforge.acceptance/v1 with ${canonical.entries.length} entries`,
   );
   const p0 = canonical.entries.filter((item) => item.gate === "p0");
-  check("P0-CLI-007", "catalog covers every required P0 contract", p0.length === 47 && p0.every((item) => item.required), `${p0.length} P0 entries`);
+  check("P0-CLI-007", "catalog covers every required P0 contract", p0.length === 51 && p0.every((item) => item.required), `${p0.length} P0 entries`);
   const ids = new Set(canonical.entries.map((item) => item.id));
   check("P0-CLI-007", "catalog IDs are unique", ids.size === canonical.entries.length, `${ids.size} unique IDs`);
   const coverage = checkAcceptanceCoverage(AUTOMATED_P0_IDS);
@@ -325,19 +325,44 @@ function assertGoldenHtml(id, html) {
   const failures = [];
   if (!/<h1/.test(html)) failures.push("h1");
   if ((html.match(/<h2/g) ?? []).length < 3) failures.push("h2x3");
-  if ((html.match(/class="katex"/g) ?? []).length !== 8) failures.push("katex-x8");
-  if ((html.match(/<math/g) ?? []).length !== 8) failures.push("mathml-x8");
+  if ((html.match(/class="katex"/g) ?? []).length !== 9) failures.push("katex-x9");
+  if ((html.match(/<math/g) ?? []).length !== 9) failures.push("mathml-x9");
   for (const eq of ["gaussian-integral", "arithmetic-series", "heat-equation"]) {
     if (!html.includes(`data-equation-id="${eq}"`)) failures.push(eq);
   }
   if (!html.includes('data-derivation-id="geometric-series-sum"')) failures.push("geometric-series-sum");
   if (!html.includes("converges when abs(r)")) failures.push("derivation-annotation");
+  // Structured technical content and document composition: the new object
+  // kinds and every composition surface reach HTML as authored.
+  for (const [needle, label] of [
+    ['data-algorithm-id="golden-algorithm"', "algorithm-figure"],
+    ['data-table-id="golden-typed-table"', "typed-table"],
+    ['data-equation-id="golden-figure-equation"', "figure-equation"],
+    ["aze-algorithm-keyword", "algorithm-keyword"],
+    ['<figure class="aze-figure">', "figure-wrapper"],
+    ['<section class="aze-bibliography"', "bibliography"],
+    ['<li id="knuth-1984"', "bibliography-anchor"],
+    ['href="#golden-algorithm"', "forward-reference"],
+    ['href="#knuth-1984"', "citation-link"],
+    ['class="aze-endnotes"', "endnotes"],
+    ['<sup id="fnref-golden-note-1"', "footnote-marker"],
+    ['<span class="aze-anchor" id="golden-figure"></span>', "figure-anchor"],
+    ["aze-missing", "missing-value"],
+  ]) {
+    if (!html.includes(needle)) failures.push(label);
+  }
   if (!/<figure class="aze-mermaid"/.test(html)) failures.push("mermaid");
   if (!html.includes('data-plot-id="rc-step-response"')) failures.push("rc-step-response");
   if (!html.includes("analytic step response")) failures.push("plot-legend");
   if (!html.includes('data-chart-id="bench-scores"')) failures.push("bench-scores");
   if (!html.includes('href="https://example.com/engineering-notation"')) failures.push("link");
-  if (!/<table id="materials">[\s\S]*?<caption>Representative material properties/.test(html)) failures.push("caption");
+  if (
+    !/<span class="aze-anchor" id="materials"><\/span><figure class="aze-table-figure"><table class="aze-table" data-table-id="materials"[\s\S]*?<caption id="[^"]+">Representative material properties/.test(
+      html,
+    )
+  ) {
+    failures.push("caption");
+  }
   if (!/text-align:left/.test(html) || !/text-align:center/.test(html) || !/text-align:right/.test(html)) failures.push("align");
   failures.push(...timingFailures(html).map((failure) => `timing:${failure}`));
   failures.push(...diagramFailures(html).map((failure) => `diagram:${failure}`));
@@ -535,13 +560,13 @@ async function stepGoldenMatrix(live) {
           const html = bytes.toString("utf8");
           const failures = assertGoldenHtml(cell, html);
           check("P0-OUT-001", `${cell} carries every semantic object`, failures.length === 0, failures.join(",") || "h1,h2,equations,table,mermaid,link,timing,diagram,models,engineering");
-          const tampered = html.replace("gaussian-integral", "missing-integral");
+          const tampered = html.replaceAll("gaussian-integral", "missing-integral");
           check("P0-OUT-001", `${cell} mismatch always fails`, assertGoldenHtml(cell, tampered).length > 0, "tampered id detected");
         }
         if (format === "svg") {
           const svg = bytes.toString("utf8");
           const failures = [];
-          if (countOccurrences(svg, 'class="katex"') !== 8) failures.push("katex-x8");
+          if (countOccurrences(svg, 'class="katex"') !== 9) failures.push("katex-x9");
           if (!svg.includes("aze-mermaid")) failures.push("mermaid");
           if (!svg.includes("aze-plot")) failures.push("plot");
           if (!svg.includes("aze-chart")) failures.push("chart");

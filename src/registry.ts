@@ -1,4 +1,9 @@
 import { calloutHtmlBlockRenderer, calloutPlugin } from "./callout.js";
+import { figureHtmlBlockRenderer, figurePlugin } from "./figure.js";
+import { bibliographyHtmlBlockRenderer, bibliographyPlugin } from "./bibliography.js";
+import { algorithmHtmlBlockRenderer, algorithmPlugin } from "./algorithm.js";
+import { statementHtmlBlockRenderer, statementPlugin } from "./statement.js";
+import { exampleHtmlBlockRenderer, examplePlugin } from "./example.js";
 import { CompilerConfigurationError } from "./configuration-error.js";
 import {
   derivationHtmlBlockRenderer,
@@ -100,6 +105,11 @@ export function getBuiltInRegistry(): ResolvedRegistry {
       classPlugin,
       controlPlugin,
       freeBodyPlugin,
+      figurePlugin,
+      bibliographyPlugin,
+      algorithmPlugin,
+      statementPlugin,
+      examplePlugin,
     ]),
     blockRenderers: Object.freeze([
       equationHtmlBlockRenderer,
@@ -122,6 +132,11 @@ export function getBuiltInRegistry(): ResolvedRegistry {
       classHtmlBlockRenderer,
       controlHtmlBlockRenderer,
       freeBodyHtmlBlockRenderer,
+      figureHtmlBlockRenderer,
+      bibliographyHtmlBlockRenderer,
+      algorithmHtmlBlockRenderer,
+      statementHtmlBlockRenderer,
+      exampleHtmlBlockRenderer,
       ...svgBlockRenderers,
       ...pngBlockRenderers,
       ...pdfBlockRenderers,

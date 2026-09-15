@@ -58,6 +58,10 @@ const SUITE_EVIDENCE = [
   ["P0-MOD-002", "test/models-block.test.mjs"],
   ["P0-ENG-001", "test/engineering.test.mjs"],
   ["P0-ENG-002", "test/engineering-block.test.mjs"],
+  ["P0-STR-001", "test/structured-content.test.mjs"],
+  ["P0-STR-002", "test/structured-content.test.mjs"],
+  ["P0-CMP-001", "test/composition.test.mjs"],
+  ["P0-CMP-002", "test/composition.test.mjs"],
   ["P0-MMD-001", "test/mermaid.test.mjs"],
   ["P0-OUT-001", "test/acceptance.test.mjs"],
   ["P0-OUT-002", "test/acceptance.test.mjs"],
@@ -89,9 +93,10 @@ function goldenFailures(html) {
   const failures = [];
   if (!/<h1/.test(html)) failures.push("h1");
   if ((html.match(/<h2/g) ?? []).length < 3) failures.push("h2x3");
-  // Three equations plus five derivation steps each render a KaTeX pair.
-  if ((html.match(/class="katex"/g) ?? []).length !== 8) failures.push("katex-x8");
-  if ((html.match(/<math/g) ?? []).length !== 8) failures.push("mathml-x8");
+  // Three equations, five derivation steps and the equation nested in a figure
+  // body each render a KaTeX pair.
+  if ((html.match(/class="katex"/g) ?? []).length !== 9) failures.push("katex-x9");
+  if ((html.match(/<math/g) ?? []).length !== 9) failures.push("mathml-x9");
   for (const id of ["gaussian-integral", "arithmetic-series", "heat-equation"]) {
     if (!html.includes(`data-equation-id="${id}"`)) failures.push(id);
   }
@@ -99,8 +104,31 @@ function goldenFailures(html) {
   if (!html.includes("converges when abs(r) &lt; 1") && !html.includes("converges when abs(r) < 1")) {
     failures.push("derivation-annotation");
   }
-  if (!/<table id="materials">[\s\S]*?<caption>Representative material properties/.test(html)) {
+  if (
+    !/<span class="aze-anchor" id="materials"><\/span><figure class="aze-table-figure"><table class="aze-table" data-table-id="materials"[\s\S]*?<caption id="[^"]+">Representative material properties/.test(
+      html,
+    )
+  ) {
     failures.push("caption");
+  }
+  // Structured technical content and document composition: the new object
+  // kinds and every composition surface reach HTML as authored.
+  for (const [needle, label] of [
+    ['data-algorithm-id="golden-algorithm"', "algorithm-figure"],
+    ['data-table-id="golden-typed-table"', "typed-table"],
+    ['data-equation-id="golden-figure-equation"', "figure-equation"],
+    ["aze-algorithm-keyword", "algorithm-keyword"],
+    ['<figure class="aze-figure">', "figure-wrapper"],
+    ['<section class="aze-bibliography"', "bibliography"],
+    ['<li id="knuth-1984"', "bibliography-anchor"],
+    ['href="#golden-algorithm"', "forward-reference"],
+    ['href="#knuth-1984"', "citation-link"],
+    ['class="aze-endnotes"', "endnotes"],
+    ['<sup id="fnref-golden-note-1"', "footnote-marker"],
+    ['<span class="aze-anchor" id="golden-figure"></span>', "figure-anchor"],
+    ["aze-missing", "missing-value"],
+  ]) {
+    if (!html.includes(needle)) failures.push(label);
   }
   if (!/<figure class="aze-mermaid"/.test(html)) failures.push("mermaid");
   if (!html.includes('data-plot-id="rc-step-response"')) failures.push("rc-step-response");
@@ -214,7 +242,7 @@ test("acceptance catalog is canonical and coverage rejects missing or unknown ID
   const onDisk = JSON.parse(await readFile(new URL("../acceptance/catalog.json", import.meta.url), "utf8"));
   assert.deepEqual(onDisk, JSON.parse(JSON.stringify(canonical)));
   assert.equal(canonical.catalog.id, "azeforge.acceptance/v1");
-  assert.equal(canonical.entries.filter((item) => item.gate === "p0").length, 47);
+  assert.equal(canonical.entries.filter((item) => item.gate === "p0").length, 51);
 
   const declared = SUITE_EVIDENCE.map(([id]) => id);
   assert.deepEqual(checkAcceptanceCoverage(declared), { missing: [], unknown: [] });

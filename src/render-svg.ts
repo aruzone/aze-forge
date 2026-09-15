@@ -17,6 +17,11 @@ import { timingHtmlBlockRenderer } from "./timing-render.js";
 import { diagramHtmlBlockRenderer } from "./diagram-render.js";
 import { controlHtmlBlockRenderer } from "./control-render.js";
 import { freeBodyHtmlBlockRenderer } from "./free-body-render.js";
+import { figureHtmlBlockRenderer } from "./figure.js";
+import { bibliographyHtmlBlockRenderer } from "./bibliography.js";
+import { algorithmHtmlBlockRenderer } from "./algorithm.js";
+import { statementHtmlBlockRenderer } from "./statement.js";
+import { exampleHtmlBlockRenderer } from "./example.js";
 import {
   classHtmlBlockRenderer,
   entityHtmlBlockRenderer,
@@ -92,6 +97,11 @@ export const svgBlockRenderers: readonly AnyBlockRenderer[] = Object.freeze([
   svgBlockRenderer(classHtmlBlockRenderer),
   svgBlockRenderer(controlHtmlBlockRenderer),
   svgBlockRenderer(freeBodyHtmlBlockRenderer),
+  svgBlockRenderer(figureHtmlBlockRenderer),
+  svgBlockRenderer(bibliographyHtmlBlockRenderer),
+  svgBlockRenderer(algorithmHtmlBlockRenderer),
+  svgBlockRenderer(statementHtmlBlockRenderer),
+  svgBlockRenderer(exampleHtmlBlockRenderer),
 ]);
 
 export interface SvgBrowserCapability {

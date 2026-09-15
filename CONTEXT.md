@@ -305,7 +305,7 @@ One flat document-order counter of one object kind; every numbered Block consume
 _Avoid_: counter, chapter numbering, sequence
 
 **Auto label**:
-The derived text of a prose reference to its target: the caption if present, else the kind word with the derived number, else the kind word alone.
+The derived text of a prose reference to its target: the kind word with the derived number for a numbered target, and for an unnumbered target its caption if present, else the bare kind word alone.
 _Avoid_: display label, generated caption
 
 **Reference token**:

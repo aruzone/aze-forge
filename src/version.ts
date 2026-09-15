@@ -77,6 +77,31 @@ import {
   tableDataSchema,
   tableSourceSchema,
 } from "./table-schemas.js";
+import {
+  ALGORITHM_PLUGIN_VERSION,
+  algorithmDataSchema,
+  algorithmSourceSchema,
+} from "./algorithm-schemas.js";
+import {
+  STATEMENT_PLUGIN_VERSION,
+  statementDataSchema,
+  statementSourceSchema,
+} from "./statement-schemas.js";
+import {
+  EXAMPLE_PLUGIN_VERSION,
+  exampleDataSchema,
+  exampleSourceSchema,
+} from "./example-schemas.js";
+import {
+  FIGURE_PLUGIN_VERSION,
+  figureDataSchema,
+  figureSourceSchema,
+} from "./figure-schemas.js";
+import {
+  BIBLIOGRAPHY_PLUGIN_VERSION,
+  bibliographyDataSchema,
+  bibliographySourceSchema,
+} from "./bibliography-schemas.js";
 import { TOOL_VERSION } from "./tool-version.js";
 import { WATCH_EVENT_SCHEMA_ID } from "./watch-events.js";
 import { CAPABILITIES_SCHEMA_ID } from "./capabilities-json.js";
@@ -144,6 +169,16 @@ export function publicSchemaVersions(): readonly VersionedSchema[] {
     { id: schemaId(controlDataSchema), version: CONTROL_PLUGIN_VERSION },
     { id: schemaId(freeBodySourceSchema), version: FREE_BODY_PLUGIN_VERSION },
     { id: schemaId(freeBodyDataSchema), version: FREE_BODY_PLUGIN_VERSION },
+    { id: schemaId(algorithmSourceSchema), version: ALGORITHM_PLUGIN_VERSION },
+    { id: schemaId(algorithmDataSchema), version: ALGORITHM_PLUGIN_VERSION },
+    { id: schemaId(statementSourceSchema), version: STATEMENT_PLUGIN_VERSION },
+    { id: schemaId(statementDataSchema), version: STATEMENT_PLUGIN_VERSION },
+    { id: schemaId(exampleSourceSchema), version: EXAMPLE_PLUGIN_VERSION },
+    { id: schemaId(exampleDataSchema), version: EXAMPLE_PLUGIN_VERSION },
+    { id: schemaId(figureSourceSchema), version: FIGURE_PLUGIN_VERSION },
+    { id: schemaId(figureDataSchema), version: FIGURE_PLUGIN_VERSION },
+    { id: schemaId(bibliographySourceSchema), version: BIBLIOGRAPHY_PLUGIN_VERSION },
+    { id: schemaId(bibliographyDataSchema), version: BIBLIOGRAPHY_PLUGIN_VERSION },
   ]);
 }
 
@@ -153,7 +188,7 @@ export interface VersionReport {
   readonly tool: Readonly<{ name: "azeforge"; version: typeof TOOL_VERSION }>;
   readonly runtime: RuntimeSupport;
   readonly source: Readonly<{ azemarkVersions: readonly [2] }>;
-  readonly document: Readonly<{ schemaVersions: readonly [2] }>;
+  readonly document: Readonly<{ schemaVersions: readonly [3] }>;
   readonly schemas: readonly VersionedSchema[];
 }
 
@@ -168,7 +203,7 @@ export function createVersionReport(): VersionReport {
     tool: { name: "azeforge", version: TOOL_VERSION },
     runtime: RUNTIME_SUPPORT,
     source: { azemarkVersions: [2] },
-    document: { schemaVersions: [2] },
+    document: { schemaVersions: [3] },
     schemas: publicSchemaVersions(),
   };
 }

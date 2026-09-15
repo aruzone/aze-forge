@@ -1,4 +1,15 @@
-import type { Inline, TableAlignment, TableData } from "./model.js";
+import type {
+  Inline,
+  Locator,
+  LocatorWord,
+  ReferenceInline,
+  SourceRange,
+  TableAlignment,
+  TableData,
+} from "./model.js";
+
+/** Resolves a fragment-relative offset into a real Source range. */
+export type InlineRangeFor = (offset: number, length: number) => SourceRange;
 
 const SAFE_LINK_SCHEME = /^(?:https?|mailto):/i;
 
@@ -28,6 +39,129 @@ interface InlineParser {
   text: string;
   index: number;
   unsafeTargets: string[];
+  readonly rangeFor?: InlineRangeFor;
+}
+
+const REFERENCE_TOKEN = /^@([a-z][a-z0-9]*(?:-[a-z0-9]+)*)/;
+const FOOTNOTE_MARKER = /^\[\^([a-z][a-z0-9]*(?:-[a-z0-9]+)*)\]/;
+const LOCATOR_WORDS: Readonly<Record<string, LocatorWord>> = Object.freeze({
+  page: "page",
+  pages: "pages",
+  chapter: "chapter",
+  section: "section",
+  line: "line",
+  lines: "lines",
+  note: "note",
+});
+
+/**
+ * A reference token opens only at the start of the text or after whitespace or
+ * opening punctuation, so `user@example.com` never tokenizes (issue #67 §5).
+ */
+function opensReferenceToken(previous: string | undefined): boolean {
+  return previous === undefined || /[\s([{"'<]/.test(previous);
+}
+
+function tryParseFootnoteMarker(parser: InlineParser): Inline | undefined {
+  const match = FOOTNOTE_MARKER.exec(parser.text.slice(parser.index));
+  if (match === null) return undefined;
+  const start = parser.index;
+  parser.index += match[0].length;
+  return {
+    kind: "footnote",
+    label: match[1] as string,
+    ...(parser.rangeFor === undefined
+      ? {}
+      : { range: parser.rangeFor(start, match[0].length) }),
+  };
+}
+
+/** One `@target` occurrence inside a group or as a bare in-text token. */
+function tryParseReferenceToken(
+  parser: InlineParser,
+  form: "in-text" | "parenthetical",
+): ReferenceInline | undefined {
+  const match = REFERENCE_TOKEN.exec(parser.text.slice(parser.index));
+  if (match === null) return undefined;
+  const target = match[1] as string;
+  const start = parser.index;
+  parser.index += match[0].length;
+  return {
+    kind: "reference",
+    target,
+    form,
+    ...(parser.rangeFor === undefined
+      ? {}
+      : { range: parser.rangeFor(start, match[0].length) }),
+  };
+}
+
+function tryReadLocator(
+  parser: InlineParser,
+): { readonly locator: Locator; readonly length: number } | undefined {
+  const rest = parser.text.slice(parser.index);
+  const match = /^,[ \t]+([A-Za-z]+)[ \t]+([^\];\n]*)/.exec(rest);
+  if (match === null) return undefined;
+  const word = LOCATOR_WORDS[(match[1] ?? "").toLowerCase()];
+  const value = (match[2] ?? "").trim();
+  if (word === undefined || value.length === 0) return undefined;
+  return { locator: { word, value }, length: match[0].length };
+}
+
+/**
+ * `[@a; @b]` and `[@key, page 12]`: a group of one or more targets. The
+ * composition layer enforces the eight-target ceiling; parsing stays total so
+ * that over-large groups still receive a ranged diagnostic.
+ */
+function tryParseReferenceGroup(parser: InlineParser): Inline | undefined {
+  const start = parser.index;
+  const text = parser.text;
+  if (text[start] !== "[") return undefined;
+  let cursor = start + 1;
+  while (text[cursor] === " " || text[cursor] === "\t") cursor += 1;
+  if (text[cursor] !== "@") return undefined;
+  const targets: ReferenceInline[] = [];
+  for (;;) {
+    const saved = parser.index;
+    parser.index = cursor;
+    const target = tryParseReferenceToken(parser, "parenthetical");
+    if (target === undefined) {
+      parser.index = saved;
+      return undefined;
+    }
+    cursor = parser.index;
+    const locator = tryReadLocator(parser);
+    if (locator !== undefined) {
+      cursor += locator.length;
+      targets.push({ ...target, locator: locator.locator });
+    } else {
+      targets.push(target);
+    }
+    while (text[cursor] === " " || text[cursor] === "\t") cursor += 1;
+    if (text[cursor] === ";") {
+      cursor += 1;
+      while (text[cursor] === " " || text[cursor] === "\t") cursor += 1;
+      if (text[cursor] !== "@") {
+        parser.index = saved;
+        return undefined;
+      }
+      continue;
+    }
+    break;
+  }
+  if (text[cursor] !== "]") {
+    parser.index = start;
+    return undefined;
+  }
+  cursor += 1;
+  parser.index = cursor;
+  return {
+    kind: "referenceGroup",
+    targets,
+    ...(parser.rangeFor === undefined
+      ? {}
+      : { range: parser.rangeFor(start, cursor - start) }),
+  };
 }
 
 function isEscapable(char: string | undefined): boolean {
@@ -83,6 +217,39 @@ function parseInlineRecursive(parser: InlineParser, stop: string | undefined): I
       if (image !== undefined) {
         flush();
         nodes.push(image);
+        continue;
+      }
+      literal += char;
+      parser.index += 1;
+      continue;
+    }
+    if (char === "[" && text[parser.index + 1] === "^") {
+      const footnote = tryParseFootnoteMarker(parser);
+      if (footnote !== undefined) {
+        flush();
+        nodes.push(footnote);
+        continue;
+      }
+      literal += char;
+      parser.index += 1;
+      continue;
+    }
+    if (char === "[" && text[parser.index + 1] === "@") {
+      const group = tryParseReferenceGroup(parser);
+      if (group !== undefined) {
+        flush();
+        nodes.push(group);
+        continue;
+      }
+      literal += char;
+      parser.index += 1;
+      continue;
+    }
+    if (char === "@" && opensReferenceToken(text[parser.index - 1])) {
+      const reference = tryParseReferenceToken(parser, "in-text");
+      if (reference !== undefined) {
+        flush();
+        nodes.push(reference);
         continue;
       }
       literal += char;
@@ -296,8 +463,16 @@ export interface ParsedInline {
   readonly unsafeTargets: readonly string[];
 }
 
-export function parseInlineFragment(text: string): ParsedInline {
-  const parser: InlineParser = { text, index: 0, unsafeTargets: [] };
+export function parseInlineFragment(
+  text: string,
+  rangeFor?: InlineRangeFor,
+): ParsedInline {
+  const parser: InlineParser = {
+    text,
+    index: 0,
+    unsafeTargets: [],
+    ...(rangeFor === undefined ? {} : { rangeFor }),
+  };
   const nodes = parseInlineRecursive(parser, undefined);
   return { nodes, unsafeTargets: [...parser.unsafeTargets] };
 }
@@ -309,6 +484,15 @@ export function inlineTextValue(nodes: readonly Inline[]): string {
       if (node.kind === "break") return " ";
       if (node.kind === "link") return inlineTextValue(node.children);
       if (node.kind === "image") return node.alt;
+      if (node.kind === "reference") {
+        return node.resolved?.label ?? node.target;
+      }
+      if (node.kind === "referenceGroup") {
+        return node.targets.map((target) => inlineTextValue([target])).join(", ");
+      }
+      if (node.kind === "footnote") {
+        return node.resolved === undefined ? "" : `[${node.resolved.number}]`;
+      }
       return inlineTextValue(node.children);
     })
     .join("");

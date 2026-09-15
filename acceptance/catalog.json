@@ -607,6 +607,86 @@
       ]
     },
     {
+      "id": "P0-STR-001",
+      "gate": "p0",
+      "area": "structured-content",
+      "given": "Native typed tables, algorithms, statements with proofs and worked examples",
+      "when": "they are compiled",
+      "then": [
+        "the closed seven-type column system declares prose, text, integer, decimal, quantity, boolean and math columns, resolves each column's alignment from its type unless `align:` overrides it, and keeps a unitless quantity column dimensionally consistent without ever converting",
+        "missing values stay missing: a cell omitted from a row record is three-way distinct from `0`, from an empty string and from a misspelled key, and every authored declaration order, group membership and statement order stays hash-significant",
+        "one procedure per algorithm Block parses the six closed statement forms in the shared two-space record tree, and the pseudocode expression context is parsed but never evaluated, with a reflow-invariant canonical spelling so whitespace never changes identity",
+        "a statement requires one closed `kind:` and contains at most one proof, whose QED mark is renderer-derived and never authored, and a worked example composes problem, givens, ordered steps and result as one numbered object holding separate equation and derivation Blocks",
+        "all four directives render through HTML, SVG, PNG and PDF with their semantic content preserved: tables carry real `<caption>` and grouped headers, algorithms render nested ordered lists, and renderer-derived labels stay out of contentHash"
+      ],
+      "evidence": "automated",
+      "required": true,
+      "contracts": [
+        "#51",
+        "#66"
+      ]
+    },
+    {
+      "id": "P0-STR-002",
+      "gate": "p0",
+      "area": "structured-content",
+      "given": "Invalid or over-limit structured technical content",
+      "when": "they are compiled",
+      "then": [
+        "an unknown row key, an empty row, a value that does not match its column type, an unregistered column type, a unit on a non-quantity column and a column unit that is not registered all report stable-ranged azeforge.table codes, with related locations on the column declarations a grouping failure cites",
+        "a group that spans non-adjacent columns, lists one column or repeats a member reports its own code, and a quantity cell that mixes dimensions in a unitless column reports the dimension mismatch without converting anything",
+        "algorithm reports an unknown statement, a missing body, an assignment in a condition, an invalid assignment target and an unknown expression token at the token's own sub-range",
+        "statement reports an unknown or absent kind, a missing text and a present-but-empty proof, while example reports a missing problem, missing steps and a whitespace-only step",
+        "every family ceiling is fail-closed and reports through a stable limit code with its subject, count and limit, and an invalid Block never yields a partial figure"
+      ],
+      "evidence": "automated",
+      "required": true,
+      "contracts": [
+        "#51",
+        "#66"
+      ]
+    },
+    {
+      "id": "P0-CMP-001",
+      "gate": "p0",
+      "area": "composition",
+      "given": "Document numbering, references and the figure wrapper",
+      "when": "they are compiled",
+      "then": [
+        "one document-wide identifier namespace covers every Block id and every bibliography key, so a collision reports every site as a related location and an `@name` matching nothing reports an unresolved reference",
+        "one flat numbering class per object kind assigns document-order numbers, including to Blocks nested inside figure, callout, blockquote, list, statement and example content, and `number: false` consumes no counter value",
+        "a forward reference to a figure declared later resolves to the final number without a second pass by the author, and referencing an unnumbered target is legal and renders its caption or bare kind word",
+        "the `:::: figure` wrapper numbers ordinary Markdown content and escape-hatch bodies, and a figure wrapping a numbered plot consumes both a figure number and a plot number",
+        "every reference renders as a link to its target's anchor in HTML while the visible text and numbers survive unchanged in SVG, PNG and PDF"
+      ],
+      "evidence": "automated",
+      "required": true,
+      "contracts": [
+        "#51",
+        "#67"
+      ]
+    },
+    {
+      "id": "P0-CMP-002",
+      "gate": "p0",
+      "area": "composition",
+      "given": "Citations, bibliography and endnote-rendered footnotes",
+      "when": "they are compiled",
+      "then": [
+        "`@`-tokens are live only in Markdown prose contexts and inert inside code spans, mathematical payloads and literal fields, so a bare reference, a parenthetical group and a mixed group of object references and citations all resolve",
+        "a locator attaches only to a Citation record and reports its own diagnostic on any other target, and a citation with no bibliography directive in the document is refused",
+        "the numeric style numbers cited entries in first-citation order while author-year sorts by author, year and title, derives suffixes for colliding labels and errors per entry when an author has no family name",
+        "an uncited bibliography entry is excluded from the rendered list and warns, and the bibliography is the only place the document-local reference list is declared",
+        "footnote markers number in first-reference order, definitions render once in a document-end endnotes section with one backlink per marker, and missing, duplicate and nested definitions each report their own code"
+      ],
+      "evidence": "automated",
+      "required": true,
+      "contracts": [
+        "#51",
+        "#67"
+      ]
+    },
+    {
       "id": "P0-OUT-001",
       "gate": "p0",
       "area": "artifact",

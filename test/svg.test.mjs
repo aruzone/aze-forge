@@ -101,7 +101,7 @@ test("CLI renders one deterministic whole-Document SVG Artifact", async (context
   assert.match(svg, /role="img" aria-labelledby="azeforge:svg:title azeforge:svg:desc"/);
   assert.match(svg, /<title id="azeforge:svg:title">SVG report<\/title>/);
   assert.match(svg, /id="azeforge-svg-title"/);
-  assert.match(svg, /<h1>Result<\/h1>.*<table>/s);
+  assert.match(svg, /<h1>Result<\/h1>.*<table class="aze-table"/s);
   assert.doesNotMatch(svg, /<script\b/i);
   assert.doesNotMatch(svg, /\b(?:src|href)="(?:https?:|file:|\/)/i);
 

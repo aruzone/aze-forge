@@ -148,6 +148,32 @@ import {
   CHROME_HEADLESS_SHELL_VERSION,
   resolvePinnedBrowserExecutable,
 } from "./mermaid-browser.js";
+import {
+  MAX_ALGORITHM_NESTING_DEPTH,
+  MAX_ALGORITHM_PARAMETERS,
+  MAX_ALGORITHM_STATEMENTS,
+  MAX_PSEUDOCODE_EXPRESSION_LENGTH,
+} from "./algorithm.js";
+import { MAX_STATEMENT_MARKDOWN_CHARS } from "./statement.js";
+import {
+  MAX_EXAMPLE_GIVENS,
+  MAX_EXAMPLE_MARKDOWN_CHARS,
+  MAX_EXAMPLE_STEPS,
+} from "./example.js";
+import {
+  MAX_TABLE_COLUMNS,
+  MAX_TABLE_GROUPS,
+  MAX_TABLE_MATH_CELL_CHARS,
+  MAX_TABLE_ROWS,
+  MAX_TABLE_TEXT_CELL_CHARS,
+} from "./table-parse.js";
+import {
+  MAX_BIBLIOGRAPHY_ENTRIES,
+  MAX_FOOTNOTE_DEFINITIONS,
+  MAX_LOCATOR_VALUE_LENGTH,
+  MAX_REFERENCE_GROUP_TARGETS,
+  MAX_REFERENCE_TOKENS,
+} from "./composition.js";
 import type { ArtifactFormat } from "./model.js";
 import { MAX_NESTING_DEPTH } from "./parse.js";
 import { getBuiltInRegistry, validateRegistry } from "./registry.js";
@@ -269,7 +295,7 @@ export interface CapabilitiesReport {
     mimeType: "text/x-azemark";
   }>;
   readonly document: Readonly<{
-    schemaVersions: readonly [2];
+    schemaVersions: readonly [3];
     mimeType: "application/vnd.azeforge.document+json";
   }>;
   readonly plugins: readonly {
@@ -461,7 +487,7 @@ export async function buildCapabilities(
       mimeType: "text/x-azemark",
     },
     document: {
-      schemaVersions: [2],
+      schemaVersions: [3],
       mimeType: "application/vnd.azeforge.document+json",
     },
     plugins: [...registry.plugins]
@@ -665,6 +691,36 @@ export async function buildCapabilities(
           maxLabelChars: MAX_FREE_BODY_LABEL_CHARS,
           maxCoordinateMagnitude: MAX_FREE_BODY_COORDINATE_MAGNITUDE,
           maxDimensionPx: MAX_FREE_BODY_DIMENSION_PX,
+        },
+        algorithm: {
+          maxStatements: MAX_ALGORITHM_STATEMENTS,
+          maxNestingDepth: MAX_ALGORITHM_NESTING_DEPTH,
+          maxParameters: MAX_ALGORITHM_PARAMETERS,
+          maxExpressionChars: MAX_PSEUDOCODE_EXPRESSION_LENGTH,
+        },
+        statement: {
+          maxMarkdownChars: MAX_STATEMENT_MARKDOWN_CHARS,
+        },
+        example: {
+          maxSteps: MAX_EXAMPLE_STEPS,
+          maxGivens: MAX_EXAMPLE_GIVENS,
+          maxMarkdownChars: MAX_EXAMPLE_MARKDOWN_CHARS,
+        },
+        table: {
+          maxColumns: MAX_TABLE_COLUMNS,
+          maxRows: MAX_TABLE_ROWS,
+          maxGroups: MAX_TABLE_GROUPS,
+          maxTextCellChars: MAX_TABLE_TEXT_CELL_CHARS,
+          maxMathCellChars: MAX_TABLE_MATH_CELL_CHARS,
+        },
+        bibliography: {
+          maxEntries: MAX_BIBLIOGRAPHY_ENTRIES,
+        },
+        composition: {
+          maxFootnoteDefinitions: MAX_FOOTNOTE_DEFINITIONS,
+          maxReferenceGroupTargets: MAX_REFERENCE_GROUP_TARGETS,
+          maxReferenceTokens: MAX_REFERENCE_TOKENS,
+          maxLocatorChars: MAX_LOCATOR_VALUE_LENGTH,
         },
         timing: {
           maxSignals: MAX_TIMING_SIGNALS,

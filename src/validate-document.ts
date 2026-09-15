@@ -100,6 +100,33 @@ function isInlineNode(value: unknown): boolean {
       (value.range === undefined || isSourceRange(value.range))
     );
   }
+  if (value.kind === "reference") {
+    return (
+      hasOnlyKeys(value, ["kind", "target", "form", "locator", "range", "resolved"]) &&
+      typeof value.target === "string" &&
+      (value.target as string).length > 0 &&
+      (value.form === "in-text" || value.form === "parenthetical") &&
+      (value.locator === undefined || isLocator(value.locator)) &&
+      (value.range === undefined || isSourceRange(value.range))
+    );
+  }
+  if (value.kind === "referenceGroup") {
+    return (
+      hasOnlyKeys(value, ["kind", "targets", "range", "resolved"]) &&
+      Array.isArray(value.targets) &&
+      (value.targets as unknown[]).length > 0 &&
+      (value.targets as unknown[]).every((target) => isInlineNode(target)) &&
+      (value.range === undefined || isSourceRange(value.range))
+    );
+  }
+  if (value.kind === "footnote") {
+    return (
+      hasOnlyKeys(value, ["kind", "label", "range", "resolved"]) &&
+      typeof value.label === "string" &&
+      (value.label as string).length > 0 &&
+      (value.range === undefined || isSourceRange(value.range))
+    );
+  }
   if (value.kind === "image") {
     return (
       hasOnlyKeys(value, ["kind", "src", "alt", "title", "range"]) &&
@@ -1181,77 +1208,44 @@ function isParsedBlock(value: unknown): value is ParsedBlock {
     );
   }
   if (value.kind === "table") {
-    if (value.pluginVersion === "2.0.0") {
-      return (
-        hasValidCommonBlockFields(value, ["kind", "data", "range", "id", "caption", "pluginVersion"]) &&
-        isObjectRecord(value.data) &&
-        hasOnlyKeys(value.data, ["columns", "groups", "rows"]) &&
-        Array.isArray(value.data.columns) &&
-        (value.data.columns as unknown[]).length > 0 &&
-        (value.data.columns as unknown[]).every(
-          (column) =>
-            isObjectRecord(column) &&
-            hasOnlyKeys(column, ["key", "name", "type", "unit"]) &&
-            typeof column.key === "string" &&
-            (column.name === undefined || typeof column.name === "string") &&
-            (column.type === undefined ||
-              typeof column.type === "string") &&
-            (column.unit === undefined || typeof column.unit === "string"),
-        ) &&
-        Array.isArray(value.data.rows) &&
-        (value.data.rows as unknown[]).every(
-          (row) =>
-            isObjectRecord(row) &&
-            Object.values(row).every(
-              (cell) =>
-                cell === null ||
-                typeof cell === "string" ||
-                typeof cell === "number" ||
-                typeof cell === "boolean" ||
-                (Array.isArray(cell) && (cell as unknown[]).every((node) => isInlineNode(node))),
-            ),
-        ) &&
-        (value.data.groups === undefined ||
-          (Array.isArray(value.data.groups) &&
-            (value.data.groups as unknown[]).every(
-              (group) =>
-                isObjectRecord(group) &&
-                hasOnlyKeys(group, ["name", "columns"]) &&
-                typeof group.name === "string" &&
-                Array.isArray(group.columns) &&
-                (group.columns as unknown[]).every((key) => typeof key === "string"),
-            ))) &&
-        (value.caption === undefined ||
-          (Array.isArray(value.caption) &&
-            (value.caption as unknown[]).every((node) => isInlineNode(node))))
-      );
-    }
     return (
-      hasValidCommonBlockFields(value, ["kind", "data", "range", "id", "caption", "pluginVersion"]) &&
+      hasValidCommonBlockFields(value, [
+        "kind",
+        "data",
+        "range",
+        "id",
+        "caption",
+        "number",
+        "numberLabel",
+        "pluginVersion",
+      ]) &&
+      (value.number === undefined || typeof value.number === "boolean") &&
+      (value.numberLabel === undefined || typeof value.numberLabel === "string") &&
       isObjectRecord(value.data) &&
-      hasOnlyKeys(value.data, ["align", "header", "rows"]) &&
-      Array.isArray(value.data.align) &&
-      (value.data.align as unknown[]).every(
-        (entry) =>
-          entry === null || entry === "left" || entry === "center" || entry === "right",
-      ) &&
-      Array.isArray(value.data.header) &&
-      (value.data.header as unknown[]).every(
-        (cell) => Array.isArray(cell) && (cell as unknown[]).every((node) => isInlineNode(node)),
-      ) &&
+      hasOnlyKeys(value.data, ["columns", "groups", "rows"]) &&
+      Array.isArray(value.data.columns) &&
+      (value.data.columns as unknown[]).length > 0 &&
+      (value.data.columns as unknown[]).every(isTableColumn) &&
       Array.isArray(value.data.rows) &&
       (value.data.rows as unknown[]).every(
         (row) =>
-          Array.isArray(row) &&
-          (row as unknown[]).every(
-            (cell) => Array.isArray(cell) && (cell as unknown[]).every((node) => isInlineNode(node)),
-          ),
+          isObjectRecord(row) &&
+          Object.values(row).every((cell) => isTypedTableCell(cell)),
       ) &&
-      (value.data.header as unknown[]).length === (value.data.align as unknown[]).length &&
+      (value.data.groups === undefined ||
+        (Array.isArray(value.data.groups) &&
+          (value.data.groups as unknown[]).every(
+            (group) =>
+              isObjectRecord(group) &&
+              hasOnlyKeys(group, ["name", "columns"]) &&
+              typeof group.name === "string" &&
+              Array.isArray(group.columns) &&
+              (group.columns as unknown[]).every((key) => typeof key === "string"),
+          ))) &&
       (value.caption === undefined ||
         (Array.isArray(value.caption) &&
           (value.caption as unknown[]).every((node) => isInlineNode(node)))) &&
-      (value.pluginVersion === undefined || value.pluginVersion === "1.0.0")
+      (value.pluginVersion === undefined || value.pluginVersion === "2.0.0")
     );
   }
   if (value.kind === "callout") {
@@ -1535,13 +1529,338 @@ function isParsedBlock(value: unknown): value is ParsedBlock {
       (value.originalType === undefined || typeof value.originalType === "string")
     );
   }
+  if (value.kind === "algorithm") {
+    return (
+      hasValidCommonBlockFields(value, [
+        "kind",
+        "procedure",
+        "parameters",
+        "steps",
+        "range",
+        "id",
+        "number",
+        "caption",
+        "numberLabel",
+        "pluginVersion",
+      ]) &&
+      typeof value.procedure === "string" &&
+      (value.procedure as string).length > 0 &&
+      Array.isArray(value.parameters) &&
+      (value.parameters as unknown[]).every((name) => typeof name === "string") &&
+      Array.isArray(value.steps) &&
+      (value.steps as unknown[]).every(isAlgorithmStatement) &&
+      (value.number === undefined || typeof value.number === "boolean") &&
+      (value.numberLabel === undefined || typeof value.numberLabel === "string") &&
+      (value.caption === undefined || hasInlineChildren(value.caption)) &&
+      typeof value.pluginVersion === "string"
+    );
+  }
+  if (value.kind === "statement") {
+    return (
+      hasValidCommonBlockFields(value, [
+        "kind",
+        "statementKind",
+        "text",
+        "proof",
+        "range",
+        "id",
+        "number",
+        "caption",
+        "numberLabel",
+        "pluginVersion",
+      ]) &&
+      typeof value.statementKind === "string" &&
+      isBlockList(value.text) &&
+      (value.proof === undefined || isBlockList(value.proof)) &&
+      (value.number === undefined || typeof value.number === "boolean") &&
+      (value.numberLabel === undefined || typeof value.numberLabel === "string") &&
+      (value.caption === undefined || hasInlineChildren(value.caption)) &&
+      typeof value.pluginVersion === "string"
+    );
+  }
+  if (value.kind === "example") {
+    return (
+      hasValidCommonBlockFields(value, [
+        "kind",
+        "problem",
+        "givens",
+        "steps",
+        "result",
+        "range",
+        "id",
+        "number",
+        "caption",
+        "numberLabel",
+        "pluginVersion",
+      ]) &&
+      isBlockList(value.problem) &&
+      Array.isArray(value.givens) &&
+      (value.givens as unknown[]).every((item) => typeof item === "string") &&
+      Array.isArray(value.steps) &&
+      (value.steps as unknown[]).every(
+        (step) =>
+          isObjectRecord(step) &&
+          hasOnlyKeys(step, ["text", "range"]) &&
+          isSourceRange(step.range) &&
+          isBlockList(step.text),
+      ) &&
+      (value.result === undefined || isBlockList(value.result)) &&
+      (value.number === undefined || typeof value.number === "boolean") &&
+      (value.numberLabel === undefined || typeof value.numberLabel === "string") &&
+      (value.caption === undefined || hasInlineChildren(value.caption)) &&
+      typeof value.pluginVersion === "string"
+    );
+  }
+  if (value.kind === "figure") {
+    return (
+      hasValidCommonBlockFields(value, [
+        "kind",
+        "children",
+        "range",
+        "id",
+        "number",
+        "caption",
+        "numberLabel",
+        "pluginVersion",
+      ]) &&
+      isBlockList(value.children) &&
+      (value.number === undefined || typeof value.number === "boolean") &&
+      (value.numberLabel === undefined || typeof value.numberLabel === "string") &&
+      (value.caption === undefined || hasInlineChildren(value.caption)) &&
+      typeof value.pluginVersion === "string"
+    );
+  }
+  if (value.kind === "bibliography") {
+    return (
+      hasValidCommonBlockFields(value, [
+        "kind",
+        "entries",
+        "range",
+        "id",
+        "number",
+        "caption",
+        "numberLabel",
+        "worksCited",
+        "pluginVersion",
+      ]) &&
+      Array.isArray(value.entries) &&
+      (value.entries as unknown[]).every(isBibliographyEntry) &&
+      (value.worksCited === undefined ||
+        (Array.isArray(value.worksCited) &&
+          (value.worksCited as unknown[]).every(isBibliographyEntry))) &&
+      (value.number === undefined || typeof value.number === "boolean") &&
+      (value.numberLabel === undefined || typeof value.numberLabel === "string") &&
+      (value.caption === undefined || hasInlineChildren(value.caption)) &&
+      typeof value.pluginVersion === "string"
+    );
+  }
+  if (value.kind === "footnoteDefinition") {
+    return (
+      hasValidCommonBlockFields(value, ["kind", "label", "children", "range"]) &&
+      typeof value.label === "string" &&
+      (value.label as string).length > 0 &&
+      hasInlineChildren(value.children)
+    );
+  }
   return false;
+}
+
+function isLocator(value: unknown): boolean {
+  if (!isObjectRecord(value)) return false;
+  const words = ["page", "pages", "chapter", "section", "line", "lines", "note"];
+  return (
+    hasOnlyKeys(value, ["word", "value"]) &&
+    typeof value.word === "string" &&
+    words.includes(value.word as string) &&
+    typeof value.value === "string" &&
+    (value.value as string).length > 0
+  );
+}
+
+function isTableColumn(value: unknown): boolean {
+  return (
+    isObjectRecord(value) &&
+    hasOnlyKeys(value, ["key", "name", "type", "unit", "align"]) &&
+    typeof value.key === "string" &&
+    (value.name === undefined || typeof value.name === "string") &&
+    (value.type === undefined || typeof value.type === "string") &&
+    (value.unit === undefined || typeof value.unit === "string") &&
+    (value.align === undefined ||
+      value.align === "left" ||
+      value.align === "center" ||
+      value.align === "right")
+  );
+}
+
+function isTypedTableCell(value: unknown): boolean {
+  if (!isObjectRecord(value)) return false;
+  switch (value.kind) {
+    case "prose":
+      return hasOnlyKeys(value, ["kind", "value"]) && hasInlineChildren(value.value);
+    case "text":
+    case "integer":
+    case "decimal":
+      return hasOnlyKeys(value, ["kind", "value"]) && typeof value.value === "string";
+    case "quantity":
+      return (
+        hasOnlyKeys(value, ["kind", "coefficient", "unit"]) &&
+        typeof value.coefficient === "string" &&
+        (value.unit === undefined || typeof value.unit === "string")
+      );
+    case "boolean":
+      return hasOnlyKeys(value, ["kind", "value"]) && typeof value.value === "boolean";
+    case "math":
+      return hasOnlyKeys(value, ["kind", "tree"]) && isJsonValue(value.tree);
+    default:
+      return false;
+  }
+}
+
+function isBlockList(value: unknown): boolean {
+  return Array.isArray(value) && value.every((block) => isParsedBlock(block));
+}
+
+function isAlgorithmStatement(value: unknown): boolean {
+  if (!isObjectRecord(value) || !isSourceRange(value.range)) return false;
+  switch (value.kind) {
+    case "assign":
+      return (
+        hasOnlyKeys(value, ["kind", "target", "index", "expression", "range"]) &&
+        typeof value.target === "string" &&
+        typeof value.expression === "string" &&
+        (value.index === undefined || typeof value.index === "string")
+      );
+    case "if":
+      return (
+        hasOnlyKeys(value, [
+          "kind",
+          "condition",
+          "then",
+          "elseIf",
+          "else",
+          "range",
+        ]) &&
+        typeof value.condition === "string" &&
+        Array.isArray(value.then) &&
+        (value.then as unknown[]).every(isAlgorithmStatement) &&
+        Array.isArray(value.elseIf) &&
+        (value.elseIf as unknown[]).every(
+          (branch) =>
+            isObjectRecord(branch) &&
+            hasOnlyKeys(branch, ["condition", "statements", "range"]) &&
+            typeof branch.condition === "string" &&
+            isSourceRange(branch.range) &&
+            Array.isArray(branch.statements) &&
+            (branch.statements as unknown[]).every(isAlgorithmStatement),
+        ) &&
+        (value.else === undefined ||
+          (Array.isArray(value.else) &&
+            (value.else as unknown[]).every(isAlgorithmStatement)))
+      );
+    case "for":
+      return (
+        hasOnlyKeys(value, [
+          "kind",
+          "variable",
+          "from",
+          "direction",
+          "to",
+          "by",
+          "statements",
+          "range",
+        ]) &&
+        typeof value.variable === "string" &&
+        typeof value.from === "string" &&
+        typeof value.to === "string" &&
+        (value.direction === "to" || value.direction === "downto") &&
+        (value.by === undefined || typeof value.by === "string") &&
+        Array.isArray(value.statements) &&
+        (value.statements as unknown[]).every(isAlgorithmStatement)
+      );
+    case "while":
+      return (
+        hasOnlyKeys(value, ["kind", "condition", "statements", "range"]) &&
+        typeof value.condition === "string" &&
+        Array.isArray(value.statements) &&
+        (value.statements as unknown[]).every(isAlgorithmStatement)
+      );
+    case "return":
+      return (
+        hasOnlyKeys(value, ["kind", "expression", "range"]) &&
+        (value.expression === undefined || typeof value.expression === "string")
+      );
+    case "text":
+      return hasOnlyKeys(value, ["kind", "text", "range"]) && hasInlineChildren(value.text);
+    default:
+      return false;
+  }
+}
+
+function isBibliographyEntry(value: unknown): boolean {
+  return (
+    isObjectRecord(value) &&
+    hasOnlyKeys(value, [
+      "key",
+      "entryType",
+      "title",
+      "authors",
+      "year",
+      "venue",
+      "publisher",
+      "edition",
+      "pages",
+      "url",
+      "doi",
+      "note",
+      "range",
+    ]) &&
+    typeof value.key === "string" &&
+    typeof value.entryType === "string" &&
+    typeof value.title === "string" &&
+    isSourceRange(value.range) &&
+    Array.isArray(value.authors) &&
+    (value.authors as unknown[]).every(
+      (author) =>
+        isObjectRecord(author) &&
+        hasOnlyKeys(author, ["name", "family"]) &&
+        typeof author.name === "string" &&
+        (author.family === undefined || typeof author.family === "string"),
+    ) &&
+    ["year", "venue", "publisher", "edition", "pages", "url", "doi", "note"].every(
+      (field) => value[field] === undefined || typeof value[field] === "string",
+    )
+  );
+}
+
+function isDocumentComposition(value: unknown): boolean {
+  return (
+    isObjectRecord(value) &&
+    hasOnlyKeys(value, ["citationStyle", "endnotes"]) &&
+    (value.citationStyle === "numeric" || value.citationStyle === "author-year") &&
+    Array.isArray(value.endnotes) &&
+    (value.endnotes as unknown[]).every(
+      (entry) =>
+        isObjectRecord(entry) &&
+        hasOnlyKeys(entry, ["label", "number", "children", "markers"]) &&
+        typeof entry.label === "string" &&
+        typeof entry.number === "number" &&
+        typeof entry.markers === "number" &&
+        hasInlineChildren(entry.children),
+    )
+  );
 }
 
 function isMetadata(value: unknown): boolean {
   if (
     !isObjectRecord(value) ||
-    !hasOnlyKeys(value, ["authors", "extensions", "title", "theme", "outputs"]) ||
+    !hasOnlyKeys(value, [
+      "authors",
+      "extensions",
+      "title",
+      "theme",
+      "outputs",
+      "citationStyle",
+    ]) ||
     !Array.isArray(value.authors) ||
     !value.authors.every((author) => typeof author === "string") ||
     !isObjectRecord(value.extensions) ||
@@ -1550,7 +1869,10 @@ function isMetadata(value: unknown): boolean {
         /^x-[a-z0-9]+(?:-[a-z0-9]+)*$/.test(key) && isJsonValue(extension),
     ) ||
     (value.title !== undefined && typeof value.title !== "string") ||
-    (value.theme !== undefined && typeof value.theme !== "string")
+    (value.theme !== undefined && typeof value.theme !== "string") ||
+    (value.citationStyle !== undefined &&
+      value.citationStyle !== "numeric" &&
+      value.citationStyle !== "author-year")
   ) {
     return false;
   }
@@ -1567,9 +1889,16 @@ function isMetadata(value: unknown): boolean {
 export function validateDocumentSchema(document: unknown): readonly Diagnostic[] {
   const valid =
     isObjectRecord(document) &&
-    hasOnlyKeys(document, ["azemarkVersion", "schemaVersion", "metadata", "blocks"]) &&
+    hasOnlyKeys(document, [
+      "azemarkVersion",
+      "schemaVersion",
+      "metadata",
+      "blocks",
+      "composition",
+    ]) &&
     document.azemarkVersion === 2 &&
-    document.schemaVersion === 2 &&
+    document.schemaVersion === 3 &&
+    (document.composition === undefined || isDocumentComposition(document.composition)) &&
     isMetadata(document.metadata) &&
     Array.isArray(document.blocks) &&
     document.blocks.every((block) => isParsedBlock(block));
@@ -1578,7 +1907,7 @@ export function validateDocumentSchema(document: unknown): readonly Diagnostic[]
     createDiagnostic(
       "azeforge.document#schema-invalid",
       "error",
-      "ParsedDocument does not conform to AzeMark Document schema v2.",
+      "ParsedDocument does not conform to AzeMark Document schema v3.",
     ),
   ];
 }

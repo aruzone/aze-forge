@@ -27,12 +27,17 @@ import type {
   AssetManifestEntry,
   AzeBlock,
   AzeDocument,
+  AlgorithmBlock,
+  BibliographyBlock,
   BlockRendererContext,
   CalloutBlock,
   ChartBlock,
+  ExampleBlock,
+  FigureBlock,
   GeometryBlock,
   FormulaBlock,
   ReactionBlock,
+  StatementBlock,
   StructureBlock,
   ContentHash,
   DerivationBlock,
@@ -47,6 +52,12 @@ import type {
   TimingBlock,
 } from "./model.js";
 import { renderTableFragment } from "./table.js";
+import { renderAlgorithmFragment } from "./algorithm.js";
+import { renderStatementFragment } from "./statement.js";
+import { renderExampleFragment } from "./example.js";
+import { renderBibliographyFragment } from "./bibliography.js";
+import { DEFAULT_CITATION_STYLE, renderEndnotesSection } from "./composition.js";
+import { renderFigureFragment } from "./figure.js";
 
 export const HTML_MIME_TYPE = "text/html; charset=utf-8";
 export const HTML_PROFILE = "azeforge.html.self-contained/v1";
@@ -104,6 +115,22 @@ export interface HtmlPluginRenderers {
     block: TimingBlock,
     context: BlockRendererContext,
   ) => string;
+  readonly renderAlgorithm?: (
+    block: AlgorithmBlock,
+    context: BlockRendererContext,
+  ) => string;
+  readonly renderStatement?: (
+    block: StatementBlock,
+    context: BlockRendererContext,
+  ) => string;
+  readonly renderExample?: (
+    block: ExampleBlock,
+    context: BlockRendererContext,
+  ) => string;
+  readonly renderBibliography?: (
+    block: BibliographyBlock,
+    context: BlockRendererContext,
+  ) => string;
   readonly modelsFragments?: ReadonlyMap<AzeBlock, string>;
 }
 
@@ -155,6 +182,30 @@ interface RenderContext {
   ) => string;
   readonly modelsFragments: ReadonlyMap<AzeBlock, string>;
   readonly engineeringFragments: ReadonlyMap<AzeBlock, string>;
+  /** Per-kind document-order counters, so each Block learns its own ordinal. */
+  readonly kindOrdinals: Map<string, number>;
+  readonly renderFigure: (
+    block: FigureBlock,
+    context: BlockRendererContext,
+  ) => string;
+  readonly renderAlgorithm: (
+    block: AlgorithmBlock,
+    context: BlockRendererContext,
+  ) => string;
+  readonly renderStatement: (
+    block: StatementBlock,
+    context: BlockRendererContext,
+  ) => string;
+  readonly renderExample: (
+    block: ExampleBlock,
+    context: BlockRendererContext,
+  ) => string;
+  readonly renderBibliography: (
+    block: BibliographyBlock,
+    context: BlockRendererContext,
+  ) => string;
+  /** This Block's zero-based ordinal among Blocks of its own kind. */
+  readonly ordinal: number;
 }
 
 export function documentTitle(document: AzeDocument): string {
@@ -167,11 +218,30 @@ export function documentTitle(document: AzeDocument): string {
 }
 
 
-function idAttribute(id: string | undefined): string {
-  return id === undefined ? "" : ` id="${escapeHtml(id)}"`;
+/**
+ * Document composition owns anchors (contract: issue #67 §10): every Block
+ * with an authored `id` receives exactly one anchor element, so a reference,
+ * citation or footnote marker always has a target to point at regardless of
+ * which family owns the Block's opaque Fragment.
+ */
+function anchorAttribute(block: AzeBlock): string {
+  if (!("id" in block)) return "";
+  const id = block.id;
+  if (typeof id !== "string" || id.length === 0) return "";
+  return `<span class="aze-anchor" id="${escapeHtml(id)}"></span>`;
 }
 
 function renderBlock(block: AzeBlock, context: RenderContext): string {
+  const ordinal = context.kindOrdinals.get(block.kind) ?? 0;
+  context.kindOrdinals.set(block.kind, ordinal + 1);
+  return `${anchorAttribute(block)}${renderBlockBody(block, {
+    ...context,
+    ordinal,
+  })}`;
+}
+
+function renderBlockBody(block: AzeBlock, context: RenderContext): string {
+  const ordinal = context.ordinal;
   switch (block.kind) {
     case "equation":
       return (
@@ -193,13 +263,13 @@ function renderBlock(block: AzeBlock, context: RenderContext): string {
         '<figure class="aze-diagram"></figure>'
       );
     case "heading":
-      return `<h${block.level}${idAttribute(block.id)}>${renderInlineHtml(block.children)}</h${block.level}>`;
+      return `<h${block.level}>${renderInlineHtml(block.children)}</h${block.level}>`;
     case "paragraph":
-      return `<p${idAttribute(block.id)}>${renderInlineHtml(block.children)}</p>`;
+      return `<p>${renderInlineHtml(block.children)}</p>`;
     case "thematicBreak":
-      return `<hr${idAttribute(block.id)}>`;
+      return "<hr>";
     case "blockquote":
-      return `<blockquote${idAttribute(block.id)}>${renderBlocks(block.children as readonly AzeBlock[], context)}</blockquote>`;
+      return `<blockquote>${renderBlocks(block.children as readonly AzeBlock[], context)}</blockquote>`;
     case "list": {
       const tag = block.ordered ? "ol" : "ul";
       const start =
@@ -207,22 +277,52 @@ function renderBlock(block: AzeBlock, context: RenderContext): string {
       const items = block.items
         .map((item) => `<li>${renderBlocks(item.blocks as readonly AzeBlock[], context)}</li>`)
         .join("");
-      return `<${tag}${idAttribute(block.id)}${start}>${items}</${tag}>`;
+      return `<${tag}${start}>${items}</${tag}>`;
     }
     case "code": {
       const language =
         block.language === undefined ? "" : ` class="language-${escapeHtml(block.language)}"`;
-      return `<pre${idAttribute(block.id)}><code${language}>${escapeHtml(block.value)}</code></pre>`;
+      return `<pre><code${language}>${escapeHtml(block.value)}</code></pre>`;
     }
+    case "figure":
+      return context.renderFigure(block, {
+        ...(context.sourceName === undefined ? {} : { sourceName: context.sourceName }),
+        renderBlocks: (children) => renderBlocks(children, context),
+      });
+    case "algorithm":
+      return context.renderAlgorithm(block, {
+        ...(context.sourceName === undefined ? {} : { sourceName: context.sourceName }),
+        renderBlocks: (children) => renderBlocks(children, context),
+      });
+    case "statement":
+      return context.renderStatement(block, {
+        ...(context.sourceName === undefined ? {} : { sourceName: context.sourceName }),
+        renderBlocks: (children) => renderBlocks(children, context),
+      });
+    case "example":
+      return context.renderExample(block, {
+        ...(context.sourceName === undefined ? {} : { sourceName: context.sourceName }),
+        renderBlocks: (children) => renderBlocks(children, context),
+      });
+    case "bibliography":
+      return context.renderBibliography(block, {
+        ...(context.sourceName === undefined ? {} : { sourceName: context.sourceName }),
+        renderBlocks: (children) => renderBlocks(children, context),
+      });
+    case "footnoteDefinition":
+      // Definitions render once, in the document-end endnotes section.
+      return "";
     case "table":
       return context.renderTable(block, {
         ...(context.sourceName === undefined ? {} : { sourceName: context.sourceName }),
         renderBlocks: (children) => renderBlocks(children, context),
+        ordinal,
       });
     case "callout":
       return context.renderCallout(block, {
         ...(context.sourceName === undefined ? {} : { sourceName: context.sourceName }),
         renderBlocks: (children) => renderBlocks(children, context),
+        ordinal,
       });
     case "plot":
       return context.renderPlot(block, {
@@ -272,7 +372,7 @@ function renderBlock(block: AzeBlock, context: RenderContext): string {
         ...(context.sourceName === undefined ? {} : { sourceName: context.sourceName }),
         renderBlocks: (children) => renderBlocks(children, context),
       });
-}
+  }
 }
 
 function renderBlocks(blocks: readonly AzeBlock[], context: RenderContext): string {
@@ -420,6 +520,44 @@ function modelsCss(theme: Theme): string {
   ].join("");
 }
 
+/**
+ * Composition and structured-content CSS. Anchors, numbering labels, the
+ * figure wrapper, endnotes and the references list keep their full meaning in
+ * every Artifact format; print attachment rules live in the PDF page CSS.
+ */
+function compositionCss(): string {
+  return [
+    ".aze-anchor{display:inline-block;width:0;height:0;overflow:hidden}",
+    ".aze-number{font-weight:600;margin-right:.35em}",
+    ".aze-figure{margin:1em 0}",
+    ".aze-figure>figcaption{font-style:italic;margin-bottom:.35em}",
+    ".aze-algorithm{margin:1em 0}",
+    ".aze-algorithm>figcaption{font-style:italic;margin-bottom:.35em}",
+    ".aze-algorithm .aze-algorithm-procedure{font-weight:600}",
+    ".aze-algorithm ol{list-style:decimal;padding-left:1.6em;margin:.35em 0}",
+    ".aze-algorithm li{margin:.15em 0}",
+    ".aze-algorithm .aze-algorithm-keyword{font-weight:600;font-family:inherit}",
+    ".aze-algorithm .aze-algorithm-expression{font-style:normal}",
+    ".aze-statement{margin:1em 0}",
+    ".aze-statement>figcaption{font-style:italic}",
+    ".aze-statement .aze-statement-kind{font-weight:700}",
+    ".aze-statement .aze-statement-proof{margin:.5em 0 .5em 1.5em}",
+    ".aze-statement .aze-statement-qed{display:block;text-align:right;font-weight:600}",
+    ".aze-example{margin:1em 0}",
+    ".aze-example>figcaption{font-style:italic;margin-bottom:.35em}",
+    ".aze-example .aze-example-label{font-weight:600}",
+    ".aze-example .aze-example-step{margin:.5em 0 .5em 1.5em}",
+    ".aze-bibliography{margin:1em 0}",
+    ".aze-bibliography ol{padding-left:1.6em}",
+    ".aze-bibliography li{margin:.2em 0}",
+    ".aze-endnotes{margin:2em 0 0;border-top:1px solid currentColor;padding-top:.5em;font-size:.9em}",
+    ".aze-endnotes ol{padding-left:1.6em}",
+    ".aze-reference{text-decoration:inherit}",
+    ".aze-citation-group{white-space:nowrap}",
+    ".aze-footnote-ref{font-size:.75em;vertical-align:super}",
+  ].join("");
+}
+
 function themeCss(theme: Theme): string {
   const { colors, geometry, typography } = theme;
   const colorScheme = theme.colorScheme;
@@ -454,7 +592,9 @@ export function createHtmlLayout(
   const renderCallout =
     pluginRenderers.renderCallout ?? renderCalloutFragment;
   const renderTable =
-    pluginRenderers.renderTable ?? ((block: TableBlock): string => renderTableFragment(block));
+    pluginRenderers.renderTable ??
+    ((block: TableBlock, context: BlockRendererContext): string =>
+      renderTableFragment(block, context));
   const renderPlot =
     pluginRenderers.renderPlot ?? ((block: PlotBlock, context: BlockRendererContext): string => renderPlotFragment(block, context));
   const renderChart =
@@ -471,6 +611,19 @@ export function createHtmlLayout(
     pluginRenderers.renderCircuit ?? ((block: CircuitBlock, context: BlockRendererContext): string => renderCircuitFragment(block, context));
   const renderTiming =
     pluginRenderers.renderTiming ?? ((block: TimingBlock, context: BlockRendererContext): string => renderTimingFragment(block, context));
+  const renderAlgorithm =
+    pluginRenderers.renderAlgorithm ?? ((block: AlgorithmBlock, context: BlockRendererContext): string => renderAlgorithmFragment(block, context));
+  const renderStatement =
+    pluginRenderers.renderStatement ?? ((block: StatementBlock, context: BlockRendererContext): string => renderStatementFragment(block, context));
+  const renderExample =
+    pluginRenderers.renderExample ?? ((block: ExampleBlock, context: BlockRendererContext): string => renderExampleFragment(block, context));
+  // The works-cited list renders under the document's own citation style; the
+  // block itself never carries one (contract: issue #67 §8).
+  const citationStyle = document.composition?.citationStyle ?? DEFAULT_CITATION_STYLE;
+  const renderBibliography =
+    pluginRenderers.renderBibliography ??
+    ((block: BibliographyBlock, context: BlockRendererContext): string =>
+      renderBibliographyFragment(block, context, citationStyle));
   const context: RenderContext = {
     equationFragments,
     derivationFragments,
@@ -487,13 +640,20 @@ export function createHtmlLayout(
     renderTiming,
     modelsFragments,
     engineeringFragments,
+    kindOrdinals: new Map(),
+    ordinal: 0,
     renderTable,
+    renderFigure: renderFigureFragment,
+    renderAlgorithm,
+    renderStatement,
+    renderExample,
+    renderBibliography,
   };
   return {
     title: escapeHtml(documentTitle(document)),
     description: "AzeForge whole-Document Artifact",
-    css: `${embeddedFontCss(fontFaces)}${themeCss(theme)}${diagramCss(theme)}${modelsCss(theme)}${engineeringCss(theme)}${getKatexCss()}.aze-equation{margin:1em 0;text-align:center}.aze-equation[data-align="left"]{text-align:left}.aze-equation[data-align="right"]{text-align:right}.aze-derivation{margin:1em 0}.aze-derivation ol{list-style:none;padding:0;margin:0}.aze-derivation li{display:block;text-align:center;margin:.35em 0}.aze-derivation[data-align="left"] li{text-align:left}.aze-derivation[data-align="right"] li{text-align:right}.aze-derivation .aze-derivation-annotation{display:block;font-style:italic;color:#666;font-size:.9em}.aze-mermaid{margin:1em 0}.aze-mermaid svg{display:block;max-width:100%;max-height:520px;width:auto;height:auto;margin:0 auto}.aze-plot{margin:1em 0}.aze-plot svg{display:block;max-width:100%;height:auto;margin:0 auto}.aze-chart{margin:1em 0}.aze-chart svg{display:block;max-width:100%;height:auto;margin:0 auto}.aze-geometry{margin:1em 0}.aze-geometry svg{display:block;max-width:100%;height:auto;margin:0 auto}.aze-circuit{margin:1em 0;color:inherit}.aze-circuit svg{display:block;max-width:100%;height:auto}.aze-timing{margin:1em 0;color:inherit}.aze-timing svg{display:block;max-width:100%;height:auto;margin:0 auto}.aze-formula{margin:1em 0;text-align:center}.aze-formula .aze-formula-expression{font-size:1.05em}.aze-reaction{margin:1em 0;text-align:center}.aze-reaction .aze-reaction-arrow{font-size:1.1em}.aze-reaction .aze-reaction-conditions{display:inline-block;font-size:.85em;font-style:italic;color:#666}.aze-structure{margin:1em 0}.aze-structure svg{display:block;max-width:100%;height:auto;margin:0 auto}`,
-    body: `<main><article>${renderBlocks(document.blocks, context)}</article></main>`,
+    css: `${embeddedFontCss(fontFaces)}${themeCss(theme)}${diagramCss(theme)}${modelsCss(theme)}${engineeringCss(theme)}${compositionCss()}${getKatexCss()}.aze-equation{margin:1em 0;text-align:center}.aze-equation[data-align="left"]{text-align:left}.aze-equation[data-align="right"]{text-align:right}.aze-derivation{margin:1em 0}.aze-derivation ol{list-style:none;padding:0;margin:0}.aze-derivation li{display:block;text-align:center;margin:.35em 0}.aze-derivation[data-align="left"] li{text-align:left}.aze-derivation[data-align="right"] li{text-align:right}.aze-derivation .aze-derivation-annotation{display:block;font-style:italic;color:#666;font-size:.9em}.aze-mermaid{margin:1em 0}.aze-mermaid svg{display:block;max-width:100%;max-height:520px;width:auto;height:auto;margin:0 auto}.aze-plot{margin:1em 0}.aze-plot svg{display:block;max-width:100%;height:auto;margin:0 auto}.aze-chart{margin:1em 0}.aze-chart svg{display:block;max-width:100%;height:auto;margin:0 auto}.aze-geometry{margin:1em 0}.aze-geometry svg{display:block;max-width:100%;height:auto;margin:0 auto}.aze-circuit{margin:1em 0;color:inherit}.aze-circuit svg{display:block;max-width:100%;height:auto}.aze-timing{margin:1em 0;color:inherit}.aze-timing svg{display:block;max-width:100%;height:auto;margin:0 auto}.aze-formula{margin:1em 0;text-align:center}.aze-formula .aze-formula-expression{font-size:1.05em}.aze-reaction{margin:1em 0;text-align:center}.aze-reaction .aze-reaction-arrow{font-size:1.1em}.aze-reaction .aze-reaction-conditions{display:inline-block;font-size:.85em;font-style:italic;color:#666}.aze-structure{margin:1em 0}.aze-structure svg{display:block;max-width:100%;height:auto;margin:0 auto}`,
+    body: `<main><article>${renderBlocks(document.blocks, context)}</article>${renderEndnotesSection(document)}</main>`,
     fingerprintDependencies: {
       theme: theme as unknown as JsonValue,
       fonts: fontFaces.map(({ name, weight, sourceHash }) => ({
@@ -528,6 +688,11 @@ export function createHtmlLayout(
         serializer: "azeforge-prose/v1",
         callout: "1.0.0",
         table: "1.0.0",
+        algorithm: "1.0.0",
+        statement: "1.0.0",
+        example: "1.0.0",
+        figure: "1.0.0",
+        bibliography: "1.0.0",
       },
       ...(document.blocks.some((block) => block.kind === "control" || block.kind === "free-body")
         ? {

@@ -39,8 +39,14 @@ AzeForge
 │   ├── state
 │   ├── entity
 │   └── class
-├── Data and composition
+├── Structured technical content
 │   ├── table
+│   ├── algorithm
+│   ├── statement
+│   └── example
+├── Document composition
+│   ├── figure
+│   ├── bibliography
 │   └── callout
 └── Ordinary Markdown
     ├── headings and paragraphs
@@ -763,33 +769,195 @@ inheritance cycle is an error listing its path. Multiple inheritance is legal
 and unremarked, because the compiler claims no language semantics. One warning
 reports topology without failing a Block: a class in no relationship.
 
-## Data and composition
+## Structured technical content
 
 ### `table`
 
-Typed tables support text, prose, quantity, and unit-aware columns. They also
-support captions, grouped headers, missing cells, and deterministic formatting.
+Typed tables declare a closed seven-type column system — `prose` (Markdown
+Inline content), `text`, `integer`, `decimal`, `quantity`, `boolean` and
+`math` — plus optional per-column `unit:` and `align:`. Alignment defaults to
+the column type (`integer`/`decimal`/`quantity` right, `boolean` center, the
+rest left). A cell omitted from a row record is a missing value, kept
+distinct from `0`, from an empty string and from a misspelled key. One level
+of grouped headers spans adjacent columns.
 
 ```text
 :::: table
 id: measurements
+number: true
 caption: Cooling measurements
 ----
 columns:
   - key: trial
     name: Trial
     type: text
-  - key: temperature
-    name: Temperature
+  - key: start-temp
+    name: Start temp
     type: quantity
     unit: K
+  - key: note
+    name: Observation
+    type: prose
+groups:
+  - name: Temperature
+    columns:
+      - start-temp
+      - end-temp
 rows:
   - trial: A1
-    temperature: 344.2
+    start-temp: 344.2
+    note: lid on
   - trial: A2
-    temperature: 338.4
+    start-temp: 344.5
 ::::
 ```
+
+Ordinary Markdown pipe tables keep working and migrate mechanically: the
+header row becomes `prose` columns with their names verbatim and the GFM
+alignment markers become `align:` overrides.
+
+### `algorithm`
+
+One procedure per Block, with a closed six-form statement set — `assign`,
+`if` with `then:`/`else-if:`/`else:`, `for` with `to`/`downto`, `while` with
+`do:`, `return` and the authored `text:` line — nested through the shared
+two-space record tree. Expressions are parsed but never evaluated.
+
+```text
+:::: algorithm
+id: binary-search
+number: true
+caption: Binary search over a sorted array
+----
+procedure: BinarySearch
+parameters:
+  - A
+  - target
+steps:
+  - assign: lo = 0
+  - assign: hi = length(A) - 1
+  - while: lo <= hi
+    do:
+      - assign: mid = floor((lo + hi) / 2)
+      - if: A[mid] == target
+        then:
+          - return: mid
+        else-if: A[mid] < target
+        then:
+          - assign: lo = mid + 1
+        else:
+          - assign: hi = mid - 1
+  - return: -1
+::::
+```
+
+### `statement`
+
+A theorem-family statement requires one closed `kind:` (`theorem`,
+`definition`, `lemma`, `corollary`, `proposition`, `remark`) and contains at
+most one proof. The QED mark is renderer-derived and never authored.
+
+```text
+:::: statement
+id: triangle-inequality
+number: true
+kind: theorem
+caption: Triangle inequality in the plane
+----
+text: |
+  For any three points `A`, `B` and `C` in the plane, the sum of the lengths
+  of two sides of a triangle is at least the length of the third side.
+proof: |
+  Place the points in a coordinate system. Then
+
+  :: equation
+  ----
+  abs(A - C) <= abs(A - B) + abs(B - C)
+  ::
+::::
+```
+
+### `example`
+
+A worked example composes problem, givens, ordered steps and result as one
+numbered object, and composes the approved equation and derivation Blocks
+inside its steps rather than redefining mathematics.
+
+```text
+:::: example
+id: cooling-model
+number: true
+caption: Deriving the exponential cooling model
+----
+problem: |
+  Fit Newton's law and predict the temperature at `600 s`.
+givens:
+  - ambient temperature held constant
+steps:
+  - text: |
+      Evaluate at `t = 600 s`:
+
+      :: equation
+      ----
+      T(600) = 295 + 49.2 * exp(-0.00334 * 600)
+      ::
+result: |
+  `T(600) ~= 333.1 K`.
+::::
+```
+
+## Document composition
+
+### `figure`
+
+`figure` numbers ordinary Markdown content and escape-hatch bodies such as a
+Mermaid diagram. Its body holds one or more Markdown Blocks plus eligible
+nested directives, and an empty body is refused.
+
+```text
+:::: figure
+id: response
+number: true
+caption: Step response
+----
+![Step response](response.png)
+::::
+```
+
+### `bibliography`
+
+One `bibliography` directive declares the document-local reference list as
+ordered records with the closed citation field set. The rendered list appears
+where the directive stands, and uncited entries are excluded and warned.
+
+```text
+:::: bibliography
+----
+- key: knuth-1984
+  type: book
+  title: The TeXbook
+  authors:
+    - name: Donald E. Knuth
+      family: Knuth
+  year: 1984
+::::
+```
+
+### Prose references, citations and footnotes
+
+`@name` references an object or citation in one document-wide identifier
+namespace; `[@name]` renders parenthetically and `[@a; @b]` is a mixed group
+of up to eight targets. A locator attaches only to a Citation record:
+
+```text
+See @measurements for the trials and [@knuth-1984, page 23] for the source.[^method]
+
+[^method]: The trials ran on one instrument.
+```
+
+Footnotes render as one endnotes section at the document end, with a backlink
+per marker. `citation-style: numeric | author-year` in the front matter
+selects the bibliography style; `numeric` is the built-in default.
 
 ### `callout`
 

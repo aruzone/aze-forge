@@ -1,8 +1,8 @@
 import { createHash } from "node:crypto";
 
 import { addExactDecimals } from "./quantity.js";
-import { isTypedTableData } from "./table.js";
 import type {
+  AlgorithmStatement,
   ArtifactHash,
   AzeBlock,
   AzeDocument,
@@ -20,8 +20,8 @@ import type {
   Sha256Hash,
   StateScopedItem,
   StateTransition,
-  TableData,
   TimingInterval,
+  TypedTableCell,
   TypedTableData,
 } from "./model.js";
 
@@ -81,40 +81,60 @@ function projectInlineNode(node: Inline): JsonValue {
       if (node.title !== undefined) projected.title = node.title;
       return projected;
     }
+    // Authored spans only: the resolved auto label and anchor are derived and
+    // never reach identity (ADR 0007).
+    case "reference": {
+      const projected: Record<string, JsonValue> = {
+        kind: node.kind,
+        target: node.target,
+        form: node.form,
+      };
+      if (node.locator !== undefined) {
+        projected.locator = { word: node.locator.word, value: node.locator.value };
+      }
+      return projected;
+    }
+    case "referenceGroup":
+      return {
+        kind: node.kind,
+        targets: node.targets.map(projectInlineNode),
+      };
+    case "footnote":
+      return { kind: node.kind, label: node.label };
   }
 }
 
-function isInline(node: unknown): node is Inline {
-  return (
-    typeof node === "object" &&
-    node !== null &&
-    "kind" in node &&
-    typeof node.kind === "string"
-  );
-}
-
-function projectCellValue(cell: unknown): JsonValue {
-  if (Array.isArray(cell)) {
-    return cell.map((node) => {
-      if (isInline(node)) return projectInlineNode(node);
-      return String(node);
-    });
+/** One typed cell in authored column order; the column type is the claim. */
+function projectCellValue(cell: TypedTableCell): JsonValue {
+  switch (cell.kind) {
+    case "prose":
+      return { kind: "prose", value: cell.value.map(projectInlineNode) };
+    case "text":
+    case "integer":
+    case "decimal":
+      return { kind: cell.kind, value: cell.value };
+    case "quantity":
+      return {
+        kind: "quantity",
+        coefficient: cell.coefficient,
+        ...(cell.unit === undefined ? {} : { unit: cell.unit }),
+      };
+    case "boolean":
+      return { kind: "boolean", value: cell.value };
+    case "math":
+      return { kind: "math", tree: cell.tree };
   }
-  if (cell === null || cell === undefined) return null;
-  if (typeof cell === "number") return Number.isFinite(cell) ? cell : String(cell);
-  if (typeof cell === "boolean") return cell;
-  return String(cell);
 }
 
-function projectTableData(data: TableData | TypedTableData): JsonValue {
-  if (isTypedTableData(data)) {
-    return {
-      kind: "typed",
+function projectTableData(data: TypedTableData): JsonValue {
+  return {
+    kind: "typed",
       columns: data.columns.map((column) => ({
         key: column.key,
         ...(column.name === undefined ? {} : { name: column.name }),
         ...(column.type === undefined ? {} : { type: column.type }),
         ...(column.unit === undefined ? {} : { unit: column.unit }),
+        ...(column.align === undefined ? {} : { align: column.align }),
       })),
       ...(data.groups === undefined || data.groups.length === 0
         ? {}
@@ -126,17 +146,66 @@ function projectTableData(data: TableData | TypedTableData): JsonValue {
           }),
       rows: data.rows.map((row) =>
         Object.fromEntries(
-          data.columns.map((column) => [column.key, projectCellValue(row[column.key])]),
+          data.columns.map((column) => [
+            column.key,
+            row[column.key] === undefined
+              ? null
+              : projectCellValue(row[column.key] as TypedTableCell),
+          ]),
         ),
       ),
-    };
-  }
-  return {
-    kind: "gfm",
-    align: [...data.align],
-    header: data.header.map((cell) => cell.map(projectInlineNode)),
-    rows: data.rows.map((row) => row.map((cell) => cell.map(projectInlineNode))),
   };
+}
+
+/** Pseudocode statements keep authored order and branch attachment. */
+function projectAlgorithmStatement(statement: AlgorithmStatement): JsonValue {
+  switch (statement.kind) {
+    case "assign":
+      return {
+        kind: "assign",
+        target: statement.target,
+        ...(statement.index === undefined ? {} : { index: statement.index }),
+        expression: statement.expression,
+      };
+    case "if":
+      return {
+        kind: "if",
+        condition: statement.condition,
+        then: statement.then.map(projectAlgorithmStatement),
+        "else-if": statement.elseIf.map((branch) => ({
+          condition: branch.condition,
+          then: branch.statements.map(projectAlgorithmStatement),
+        })),
+        ...(statement.else === undefined
+          ? {}
+          : { else: statement.else.map(projectAlgorithmStatement) }),
+      };
+    case "for":
+      return {
+        kind: "for",
+        variable: statement.variable,
+        from: statement.from,
+        direction: statement.direction,
+        to: statement.to,
+        ...(statement.by === undefined ? {} : { by: statement.by }),
+        statements: statement.statements.map(projectAlgorithmStatement),
+      };
+    case "while":
+      return {
+        kind: "while",
+        condition: statement.condition,
+        statements: statement.statements.map(projectAlgorithmStatement),
+      };
+    case "return":
+      return {
+        kind: "return",
+        ...(statement.expression === undefined
+          ? {}
+          : { expression: statement.expression }),
+      };
+    case "text":
+      return { kind: "text", text: statement.text.map(projectInlineNode) };
+  }
 }
 
 /**
@@ -180,6 +249,9 @@ export function documentContentHash(document: AzeDocument): ContentHash {
   if (document.metadata.title !== undefined) metadata.title = document.metadata.title;
   if (document.metadata.theme !== undefined) metadata.theme = document.metadata.theme;
   if (document.metadata.outputs !== undefined) metadata.outputs = document.metadata.outputs;
+  if (document.metadata.citationStyle !== undefined) {
+    metadata["citation-style"] = document.metadata.citationStyle;
+  }
 
   function projectBlock(block: ParsedBlock | AzeBlock): JsonValue {
     /** The shared header fields every numberable Block contributes to identity. */
@@ -621,6 +693,7 @@ export function documentContentHash(document: AzeDocument): ContentHash {
         data: projectTableData(block.data),
       };
       if (block.id !== undefined) projected.id = block.id;
+      if (block.number !== undefined) projected.number = block.number;
       if (block.caption !== undefined) projected.caption = block.caption.map(projectInlineNode);
       if (block.pluginVersion !== undefined) projected.pluginVersion = block.pluginVersion;
       return projected;
@@ -873,6 +946,104 @@ export function documentContentHash(document: AzeDocument): ContentHash {
         projected.description = block.description as unknown as JsonValue;
       }
       return projected;
+    }
+    if (block.kind === "algorithm") {
+      const projected: Record<string, JsonValue> = {
+        kind: block.kind,
+        pluginVersion: block.pluginVersion,
+        procedure: block.procedure,
+        parameters: [...block.parameters],
+        steps: block.steps.map(projectAlgorithmStatement),
+      };
+      if (block.id !== undefined) projected.id = block.id;
+      if (block.number !== undefined) projected.number = block.number;
+      if (block.caption !== undefined) {
+        projected.caption = block.caption.map(projectInlineNode);
+      }
+      return projected;
+    }
+    if (block.kind === "statement") {
+      const projected: Record<string, JsonValue> = {
+        kind: block.kind,
+        pluginVersion: block.pluginVersion,
+        statementKind: block.statementKind,
+        text: block.text.map(projectBlock),
+      };
+      if (block.proof !== undefined) projected.proof = block.proof.map(projectBlock);
+      if (block.id !== undefined) projected.id = block.id;
+      if (block.number !== undefined) projected.number = block.number;
+      if (block.caption !== undefined) {
+        projected.caption = block.caption.map(projectInlineNode);
+      }
+      return projected;
+    }
+    if (block.kind === "example") {
+      const projected: Record<string, JsonValue> = {
+        kind: block.kind,
+        pluginVersion: block.pluginVersion,
+        problem: block.problem.map(projectBlock),
+        givens: [...block.givens],
+        steps: block.steps.map((step) => ({ text: step.text.map(projectBlock) })),
+      };
+      if (block.result !== undefined) projected.result = block.result.map(projectBlock);
+      if (block.id !== undefined) projected.id = block.id;
+      if (block.number !== undefined) projected.number = block.number;
+      if (block.caption !== undefined) {
+        projected.caption = block.caption.map(projectInlineNode);
+      }
+      return projected;
+    }
+    if (block.kind === "figure") {
+      const projected: Record<string, JsonValue> = {
+        kind: block.kind,
+        pluginVersion: block.pluginVersion,
+        children: block.children.map(projectBlock),
+      };
+      if (block.id !== undefined) projected.id = block.id;
+      if (block.number !== undefined) projected.number = block.number;
+      if (block.caption !== undefined) {
+        projected.caption = block.caption.map(projectInlineNode);
+      }
+      return projected;
+    }
+    if (block.kind === "bibliography") {
+      // The works-cited projection is derived; only authored records hash.
+      const projected: Record<string, JsonValue> = {
+        kind: block.kind,
+        pluginVersion: block.pluginVersion,
+        entries: block.entries.map(
+          (entry): JsonValue => ({
+            key: entry.key,
+            type: entry.entryType,
+            title: entry.title,
+            authors: entry.authors.map((author) => ({
+              name: author.name,
+              ...(author.family === undefined ? {} : { family: author.family }),
+            })),
+            ...(entry.year === undefined ? {} : { year: entry.year }),
+            ...(entry.venue === undefined ? {} : { venue: entry.venue }),
+            ...(entry.publisher === undefined ? {} : { publisher: entry.publisher }),
+            ...(entry.edition === undefined ? {} : { edition: entry.edition }),
+            ...(entry.pages === undefined ? {} : { pages: entry.pages }),
+            ...(entry.url === undefined ? {} : { url: entry.url }),
+            ...(entry.doi === undefined ? {} : { doi: entry.doi }),
+            ...(entry.note === undefined ? {} : { note: entry.note }),
+          }),
+        ),
+      };
+      if (block.id !== undefined) projected.id = block.id;
+      if (block.number !== undefined) projected.number = block.number;
+      if (block.caption !== undefined) {
+        projected.caption = block.caption.map(projectInlineNode);
+      }
+      return projected;
+    }
+    if (block.kind === "footnoteDefinition") {
+      return {
+        kind: block.kind,
+        label: block.label,
+        children: block.children.map(projectInlineNode),
+      };
     }
     if (block.kind === "invalid") {
       return { kind: block.kind, raw: block.raw };

@@ -58,7 +58,10 @@ export function renderCalloutFragment(
       ? ""
       : `<p class="aze-callout-title">${renderInlineHtml(block.title)}</p>`;
   const body = context.renderBlocks(block.children as readonly AzeBlock[]);
-  const label = block.id === undefined ? "" : ` id="${escapeHtml(block.id)}"`;
+  // The authored id is never an element id: document composition owns the one
+  // anchor per Block, so a reference target never collides with a figure id.
+  const label =
+    block.id === undefined ? "" : ` data-callout-id="${escapeHtml(block.id)}"`;
   return `<aside class="aze-callout" data-variant="${variant}"${label}>${title}<div class="aze-callout-body">${body}</div></aside>`;
 }
 

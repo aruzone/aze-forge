@@ -28,7 +28,7 @@ test("parse returns a serializable versioned Document with ordered Blocks and So
     title: "Stable systems",
   });
   assert.equal(result.document.azemarkVersion, 2);
-  assert.equal(result.document.schemaVersion, 2);
+  assert.equal(result.document.schemaVersion, 3);
   assert.deepEqual(
     result.document.blocks.map(({ kind }) => kind),
     ["heading", "paragraph"],
@@ -260,7 +260,7 @@ After
   assert.deepEqual(invalid?.diagnosticIndexes, [0]);
   assert.deepEqual(parsed.diagnostics[0]?.data, {
     type: "mystery",
-    availableTypes: ["callout", "chart", "circuit", "class", "control", "derivation", "diagram", "entity", "equation", "formula", "free-body", "geometry", "mermaid", "plot", "reaction", "sequence", "state", "structure", "table", "timing"],
+    availableTypes: ["algorithm", "bibliography", "callout", "chart", "circuit", "class", "control", "derivation", "diagram", "entity", "equation", "example", "figure", "formula", "free-body", "geometry", "mermaid", "plot", "reaction", "sequence", "state", "statement", "structure", "table", "timing"],
   });
   assert.equal(
     parsed.diagnostics[0]?.code,
@@ -433,14 +433,14 @@ azemark: 2
         code: "azeforge.source#unknown-directive",
         data: {
           type: "one",
-          availableTypes: ["callout", "chart", "circuit", "class", "control", "derivation", "diagram", "entity", "equation", "formula", "free-body", "geometry", "mermaid", "plot", "reaction", "sequence", "state", "structure", "table", "timing"],
+          availableTypes: ["algorithm", "bibliography", "callout", "chart", "circuit", "class", "control", "derivation", "diagram", "entity", "equation", "example", "figure", "formula", "free-body", "geometry", "mermaid", "plot", "reaction", "sequence", "state", "statement", "structure", "table", "timing"],
         },
       },
       {
         code: "azeforge.source#unknown-directive",
         data: {
           type: "two",
-          availableTypes: ["callout", "chart", "circuit", "class", "control", "derivation", "diagram", "entity", "equation", "formula", "free-body", "geometry", "mermaid", "plot", "reaction", "sequence", "state", "structure", "table", "timing"],
+          availableTypes: ["algorithm", "bibliography", "callout", "chart", "circuit", "class", "control", "derivation", "diagram", "entity", "equation", "example", "figure", "formula", "free-body", "geometry", "mermaid", "plot", "reaction", "sequence", "state", "statement", "structure", "table", "timing"],
         },
       },
       {
@@ -520,7 +520,7 @@ test("validation deduplicates and deterministically orders parse diagnostics", (
   const validation = createCompiler().validate({
     document: {
       azemarkVersion: 2,
-      schemaVersion: 2,
+      schemaVersion: 3,
       metadata: { authors: [], extensions: {} },
       blocks: [],
     },
@@ -593,7 +593,7 @@ test("validation rejects malformed serialized ParsedDocuments", () => {
   const malformed = {
     document: {
       azemarkVersion: 2,
-      schemaVersion: 2,
+      schemaVersion: 3,
       metadata: { authors: [], extensions: {} },
       blocks: [
         {
@@ -631,7 +631,7 @@ test("duplicate Block IDs point back to the first definition", () => {
   const parsed = {
     document: {
       azemarkVersion: 2,
-      schemaVersion: 2,
+      schemaVersion: 3,
       metadata: { authors: [], extensions: {} },
       blocks: [
         {
@@ -658,13 +658,17 @@ test("duplicate Block IDs point back to the first definition", () => {
     {
       code: "azeforge.reference#duplicate-id",
       severity: "error",
-      message: 'Block ID "shared" is used more than once.',
-      data: { id: "shared" },
-      location: { range: duplicateRange },
+      message: 'Identifier "shared" is used more than once.',
+      data: { id: "shared", count: 2 },
+      location: { range: firstRange },
       relatedLocations: [
         {
           range: firstRange,
-          message: 'Block ID "shared" was first defined here.',
+          message: 'Identifier "shared" is declared here.',
+        },
+        {
+          range: duplicateRange,
+          message: 'Identifier "shared" is also declared here.',
         },
       ],
     },
@@ -679,7 +683,7 @@ test("invalid Block IDs receive a reference diagnostic", () => {
   const validation = createCompiler().validate({
     document: {
       azemarkVersion: 2,
-      schemaVersion: 2,
+      schemaVersion: 3,
       metadata: { authors: [], extensions: {} },
       blocks: [
         {

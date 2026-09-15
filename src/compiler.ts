@@ -17,6 +17,12 @@ import { formatSource } from "./format.js";
 import { documentContentHash } from "./hash.js";
 import { inlineTextValue } from "./markdown.js";
 import type {
+  CitationStyle,
+  StatementBlock,
+  FigureBlock,
+  ExampleBlock,
+  BibliographyBlock,
+  AlgorithmBlock,
   AzeBlock,
   AzeDocument,
   BlockRendererContext,
@@ -80,7 +86,6 @@ import { ControlRenderError, controlDependencyClosure } from "./control-render.j
 import { ControlLayoutError } from "./control-layout.js";
 import { FreeBodyRenderError, freeBodyDependencyClosure } from "./free-body-render.js";
 import { ModelsRenderError } from "./models-render.js";
-import { isTypedTableData } from "./table.js";
 import { DERIVATION_PLUGIN_TYPE } from "./derivation-schemas.js";
 import { FragmentSecurityError } from "./html-fragment.js";
 import {
@@ -106,9 +111,10 @@ import {
   PngArtifactLimitError,
   renderPng,
 } from "./render-png.js";
-import { validateBlockIds } from "./reference-validation.js";
 import { builtInThemes, copyAndFreezeTheme } from "./theme.js";
 import { validateDocumentSchema } from "./validate-document.js";
+import { blockGroups, blockInlineRuns } from "./block-content.js";
+import { resolveDocumentComposition } from "./composition.js";
 const THEME_ID = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
 const SEMVER = /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$/;
 const BUILT_IN_RENDERER_VERSION_BY_FORMAT = {
@@ -123,11 +129,7 @@ function validateParsed(
   limits: DiagnosticLimits,
 ): ValidationResult {
   const schemaDiagnostics = validateDocumentSchema(parsed.document);
-  if (
-    [...parsed.diagnostics, ...schemaDiagnostics].some(
-      ({ severity }) => severity === "error",
-    )
-  ) {
+  if (schemaDiagnostics.some(({ severity }) => severity === "error")) {
     return {
       diagnostics: normalizeAndLimitDiagnostics(
         [parsed.diagnostics, schemaDiagnostics],
@@ -136,47 +138,65 @@ function validateParsed(
     };
   }
   const blockRanges = collectBlockRanges(parsed.document.blocks);
-  const referenceDiagnostics = validateBlockIds(
-    collectBlockIds(parsed.document.blocks),
-  );
-  if (referenceDiagnostics.some(({ severity }) => severity === "error")) {
-    return {
-      diagnostics: normalizeAndLimitDiagnostics(
-        [parsed.diagnostics, schemaDiagnostics, referenceDiagnostics],
-        limits,
-        blockRanges,
-      ),
-    };
-  }
-
-  const invalidBlockDiagnostics = containsInvalidBlock(parsed.document.blocks)
-    ? [
-        createDiagnostic(
-          "azeforge.document#invalid-block",
-          "error",
-          "The Source contains an invalid Block.",
-        ),
-      ]
-    : [];
-  const diagnostics = normalizeAndLimitDiagnostics(
-    [
-      parsed.diagnostics,
-      schemaDiagnostics,
-      referenceDiagnostics,
-      invalidBlockDiagnostics,
-    ],
-    limits,
-    blockRanges,
-  );
-  if (invalidBlockDiagnostics.length > 0) return { diagnostics };
-
-  const document: AzeDocument = {
+  // Document composition owns the unified identifier namespace and the derived
+  // numbering projection the Renderers read. It runs on every schema-valid
+  // Document, including one that already carries parse errors, so a duplicate
+  // identifier is always reported by its one semantic owner.
+  const composed = resolveDocumentComposition({
     azemarkVersion: parsed.document.azemarkVersion,
     schemaVersion: parsed.document.schemaVersion,
     metadata: parsed.document.metadata,
     blocks: parsed.document.blocks as readonly AzeBlock[],
-  };
-  return { document, diagnostics };
+  });
+  // The parse-time envelope scan is textual, so it still sees an `id:` on a
+  // region that failed to parse; composition resolves the same namespace
+  // semantically and carries every colliding site as a related location. When
+  // both report one identifier the richer semantic diagnostic wins, and the
+  // scan keeps its own for the identifiers composition cannot see.
+  const resolvedIdentifiers = new Set(
+    composed.diagnostics
+      .filter(
+        ({ code }) =>
+          code === "azeforge.reference#invalid-id" ||
+          code === "azeforge.reference#duplicate-id",
+      )
+      .map(({ data }) => data.id)
+      .filter((id): id is string => typeof id === "string"),
+  );
+  const sourceDiagnostics = [
+    ...parsed.diagnostics.filter(
+      ({ code, data }) =>
+        !(
+          (code === "azeforge.reference#invalid-id" ||
+            code === "azeforge.reference#duplicate-id") &&
+          typeof data.id === "string" &&
+          resolvedIdentifiers.has(data.id)
+        ),
+    ),
+    ...schemaDiagnostics,
+  ];
+  // A parse or composition error already names the fault; the invalid-Block
+  // summary is a cascade, so it appears only when nothing else has failed.
+  const priorError = [...sourceDiagnostics, ...composed.diagnostics].some(
+    ({ severity }) => severity === "error",
+  );
+  const invalidBlockDiagnostics =
+    !priorError && containsInvalidBlock(parsed.document.blocks)
+      ? [
+          createDiagnostic(
+            "azeforge.document#invalid-block",
+            "error",
+            "The Source contains an invalid Block.",
+          ),
+        ]
+      : [];
+  const diagnostics = normalizeAndLimitDiagnostics(
+    [sourceDiagnostics, composed.diagnostics, invalidBlockDiagnostics],
+    limits,
+    blockRanges,
+  );
+  if (priorError || invalidBlockDiagnostics.length > 0) return { diagnostics };
+  return { document: composed.document, diagnostics };
 }
 
 function resolveDiagnosticLimits(options: CompilerOptions): DiagnosticLimits {
@@ -351,11 +371,28 @@ function walkBlocks(
 ): void {
   for (const block of blocks) {
     visit(block);
-    if (block.kind === "blockquote" || block.kind === "callout") {
+    if (
+      block.kind === "blockquote" ||
+      block.kind === "callout" ||
+      block.kind === "figure"
+    ) {
       walkBlocks(block.children as readonly AzeBlock[], visit);
     } else if (block.kind === "list") {
       for (const item of block.items) {
         walkBlocks(item.blocks as readonly AzeBlock[], visit);
+      }
+    } else if (block.kind === "statement") {
+      walkBlocks(block.text as readonly AzeBlock[], visit);
+      if (block.proof !== undefined) {
+        walkBlocks(block.proof as readonly AzeBlock[], visit);
+      }
+    } else if (block.kind === "example") {
+      walkBlocks(block.problem as readonly AzeBlock[], visit);
+      for (const step of block.steps) {
+        walkBlocks(step.text as readonly AzeBlock[], visit);
+      }
+      if (block.result !== undefined) {
+        walkBlocks(block.result as readonly AzeBlock[], visit);
       }
     }
   }
@@ -418,15 +455,6 @@ function pluginBlocks(document: AzeDocument, blockType: string): readonly Parsed
   return targets;
 }
 
-function collectBlockIds(blocks: readonly ParsedBlock[]): { id: string; range: SourceRange }[] {
-  const occurrences: { id: string; range: SourceRange }[] = [];
-  walkBlocks(blocks, (block) => {
-    if (block.kind !== "invalid" && block.id !== undefined) {
-      occurrences.push({ id: block.id, range: block.range });
-    }
-  });
-  return occurrences;
-}
 function containsInvalidBlock(blocks: readonly ParsedBlock[]): boolean {
   let found = false;
   walkBlocks(blocks, (block) => {
@@ -445,6 +473,13 @@ function collectBlockRanges(blocks: readonly ParsedBlock[]): SourceRange[] {
 
 function collectRenderText(blocks: readonly AzeBlock[], out: string[]): void {
   for (const block of blocks) {
+    // Nested inline content and contained Blocks come from the one place that
+    // knows a Block's shape, so a new kind or content field cannot escape the
+    // font-coverage guard.
+    for (const run of blockInlineRuns(block)) out.push(inlineTextValue(run));
+    for (const group of blockGroups(block)) {
+      collectRenderText(group as readonly AzeBlock[], out);
+    }
     switch (block.kind) {
       case "equation":
         if (block.notation === "latex") {
@@ -454,19 +489,18 @@ function collectRenderText(blocks: readonly AzeBlock[], out: string[]): void {
         }
         break;
       case "derivation":
-        for (const step of block.steps) {
-          out.push(step.expression);
-          if (step.annotation !== undefined) out.push(inlineTextValue(step.annotation));
-        }
+        for (const step of block.steps) out.push(step.expression);
+        break;
+      case "algorithm":
+        out.push(block.procedure);
+        for (const parameter of block.parameters) out.push(parameter);
+        break;
+      case "footnoteDefinition":
         break;
       case "mermaid":
         out.push(block.source);
         if (block.title !== undefined) out.push(block.title);
         if (block.description !== undefined) out.push(block.description);
-        break;
-      case "heading":
-      case "paragraph":
-        out.push(inlineTextValue(block.children));
         break;
       case "code":
         out.push(block.value);
@@ -474,40 +508,17 @@ function collectRenderText(blocks: readonly AzeBlock[], out: string[]): void {
         break;
       case "thematicBreak":
         break;
-      case "blockquote":
-      case "callout":
-        if (block.kind === "callout" && block.title !== undefined) {
-          out.push(inlineTextValue(block.title));
-        }
-        collectRenderText(block.children as readonly AzeBlock[], out);
-        break;
-      case "list":
-        for (const item of block.items) {
-          collectRenderText(item.blocks as readonly AzeBlock[], out);
-        }
-        break;
       case "table":
-        if (block.caption !== undefined) {
-          out.push(inlineTextValue(block.caption));
+        for (const column of block.data.columns) {
+          if (column.name !== undefined) out.push(column.name);
         }
-        if (isTypedTableData(block.data)) {
-          for (const column of block.data.columns) {
-            if (column.name !== undefined) out.push(column.name);
-          }
-          for (const row of block.data.rows) {
-            for (const cell of Object.values(row)) {
-              if (Array.isArray(cell)) out.push(inlineTextValue(cell));
-              else if (cell !== null && cell !== undefined) out.push(String(cell));
-            }
-          }
-        } else {
-          for (const cell of block.data.header) {
-            out.push(inlineTextValue(cell));
-          }
-          for (const row of block.data.rows) {
-            for (const cell of row) {
-              out.push(inlineTextValue(cell));
-            }
+        for (const row of block.data.rows) {
+          for (const cell of Object.values(row)) {
+            if (cell.kind === "prose") continue;
+            if (cell.kind === "quantity") out.push(cell.coefficient);
+            else if (cell.kind === "boolean") out.push(cell.value ? "true" : "false");
+            else if (cell.kind === "math") continue;
+            else out.push(cell.value);
           }
         }
         break;
@@ -2113,6 +2124,26 @@ interface PluginAdapterResolution {
     block: TimingBlock,
     context: BlockRendererContext,
   ) => string;
+  readonly renderFigure?: (
+    block: FigureBlock,
+    context: BlockRendererContext,
+  ) => string;
+  readonly renderBibliography?: (
+    block: BibliographyBlock,
+    context: BlockRendererContext,
+  ) => string;
+  readonly renderAlgorithm?: (
+    block: AlgorithmBlock,
+    context: BlockRendererContext,
+  ) => string;
+  readonly renderStatement?: (
+    block: StatementBlock,
+    context: BlockRendererContext,
+  ) => string;
+  readonly renderExample?: (
+    block: ExampleBlock,
+    context: BlockRendererContext,
+  ) => string;
 }
 
 function checkPluginAdapters(
@@ -2129,6 +2160,21 @@ function checkPluginAdapters(
     | undefined;
   let renderTable:
     | ((block: TableBlock, context: BlockRendererContext) => string)
+    | undefined;
+  let renderFigure:
+    | ((block: FigureBlock, context: BlockRendererContext) => string)
+    | undefined;
+  let renderBibliography:
+    | ((block: BibliographyBlock, context: BlockRendererContext) => string)
+    | undefined;
+  let renderAlgorithm:
+    | ((block: AlgorithmBlock, context: BlockRendererContext) => string)
+    | undefined;
+  let renderStatement:
+    | ((block: StatementBlock, context: BlockRendererContext) => string)
+    | undefined;
+  let renderExample:
+    | ((block: ExampleBlock, context: BlockRendererContext) => string)
     | undefined;
   let renderPlot:
     | ((block: PlotBlock, context: BlockRendererContext) => string)
@@ -2165,6 +2211,11 @@ function checkPluginAdapters(
     { blockType: "structure", pluginVersion: "1.0.0" },
     { blockType: "circuit", pluginVersion: "1.0.0" },
     { blockType: "timing", pluginVersion: "1.0.0" },
+    { blockType: "algorithm", pluginVersion: "1.0.0" },
+    { blockType: "statement", pluginVersion: "1.0.0" },
+    { blockType: "example", pluginVersion: "1.0.0" },
+    { blockType: "figure", pluginVersion: "1.0.0" },
+    { blockType: "bibliography", pluginVersion: "1.0.0" },
   ] as const) {
     const entryType: string = entry.blockType;
     const blocks = pluginBlocks(document, entry.blockType);
@@ -2400,6 +2451,68 @@ function checkPluginAdapters(
         }
         return result;
       };
+    } else if (entry.blockType === "figure") {
+      const render = chosen.render as (
+        block: FigureBlock,
+        context: BlockRendererContext,
+      ) => string | Promise<string>;
+      renderFigure = (block, context) => {
+        const result = render(block, context);
+        if (typeof result !== "string") {
+          throw new BlockRendererSyncError(chosen.descriptor.id, "figure");
+        }
+        return result;
+      };
+    } else if (entry.blockType === "bibliography") {
+      const render = chosen.render as (
+        block: BibliographyBlock,
+        context: BlockRendererContext,
+        style?: CitationStyle,
+      ) => string | Promise<string>;
+      const citationStyle = document.composition?.citationStyle;
+      renderBibliography = (block, context) => {
+        const result = render(block, context, citationStyle);
+        if (typeof result !== "string") {
+          throw new BlockRendererSyncError(chosen.descriptor.id, "bibliography");
+        }
+        return result;
+      };
+    } else if (entry.blockType === "algorithm") {
+      const render = chosen.render as (
+        block: AlgorithmBlock,
+        context: BlockRendererContext,
+      ) => string | Promise<string>;
+      renderAlgorithm = (block, context) => {
+        const result = render(block, context);
+        if (typeof result !== "string") {
+          throw new BlockRendererSyncError(chosen.descriptor.id, "algorithm");
+        }
+        return result;
+      };
+    } else if (entry.blockType === "statement") {
+      const render = chosen.render as (
+        block: StatementBlock,
+        context: BlockRendererContext,
+      ) => string | Promise<string>;
+      renderStatement = (block, context) => {
+        const result = render(block, context);
+        if (typeof result !== "string") {
+          throw new BlockRendererSyncError(chosen.descriptor.id, "statement");
+        }
+        return result;
+      };
+    } else if (entry.blockType === "example") {
+      const render = chosen.render as (
+        block: ExampleBlock,
+        context: BlockRendererContext,
+      ) => string | Promise<string>;
+      renderExample = (block, context) => {
+        const result = render(block, context);
+        if (typeof result !== "string") {
+          throw new BlockRendererSyncError(chosen.descriptor.id, "example");
+        }
+        return result;
+      };
     } else {
       throw new CompilerConfigurationError(
         "AZE_CONFIG_ADAPTER_BLOCK_TYPE",
@@ -2419,6 +2532,11 @@ function checkPluginAdapters(
     ...(renderStructure === undefined ? {} : { renderStructure }),
     ...(renderCircuit === undefined ? {} : { renderCircuit }),
     ...(renderTiming === undefined ? {} : { renderTiming }),
+    ...(renderFigure === undefined ? {} : { renderFigure }),
+    ...(renderBibliography === undefined ? {} : { renderBibliography }),
+    ...(renderAlgorithm === undefined ? {} : { renderAlgorithm }),
+    ...(renderStatement === undefined ? {} : { renderStatement }),
+    ...(renderExample === undefined ? {} : { renderExample }),
   };
 }
 
@@ -2855,6 +2973,21 @@ export function createCompiler(options: CompilerOptions = {}): Compiler {
           ...(pluginPreflight.renderTiming === undefined
             ? {}
             : { renderTiming: pluginPreflight.renderTiming }),
+          ...(pluginPreflight.renderFigure === undefined
+            ? {}
+            : { renderFigure: pluginPreflight.renderFigure }),
+          ...(pluginPreflight.renderBibliography === undefined
+            ? {}
+            : { renderBibliography: pluginPreflight.renderBibliography }),
+          ...(pluginPreflight.renderAlgorithm === undefined
+            ? {}
+            : { renderAlgorithm: pluginPreflight.renderAlgorithm }),
+          ...(pluginPreflight.renderStatement === undefined
+            ? {}
+            : { renderStatement: pluginPreflight.renderStatement }),
+          ...(pluginPreflight.renderExample === undefined
+            ? {}
+            : { renderExample: pluginPreflight.renderExample }),
         };
         const renderArguments = [
           imageResolution.document,

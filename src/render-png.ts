@@ -17,6 +17,11 @@ import { timingHtmlBlockRenderer } from "./timing-render.js";
 import { diagramHtmlBlockRenderer } from "./diagram-render.js";
 import { controlHtmlBlockRenderer } from "./control-render.js";
 import { freeBodyHtmlBlockRenderer } from "./free-body-render.js";
+import { figureHtmlBlockRenderer } from "./figure.js";
+import { bibliographyHtmlBlockRenderer } from "./bibliography.js";
+import { algorithmHtmlBlockRenderer } from "./algorithm.js";
+import { statementHtmlBlockRenderer } from "./statement.js";
+import { exampleHtmlBlockRenderer } from "./example.js";
 import {
   classHtmlBlockRenderer,
   entityHtmlBlockRenderer,
@@ -95,6 +100,11 @@ export const pngBlockRenderers: readonly AnyBlockRenderer[] = Object.freeze([
   pngBlockRenderer(classHtmlBlockRenderer),
   pngBlockRenderer(controlHtmlBlockRenderer),
   pngBlockRenderer(freeBodyHtmlBlockRenderer),
+  pngBlockRenderer(figureHtmlBlockRenderer),
+  pngBlockRenderer(bibliographyHtmlBlockRenderer),
+  pngBlockRenderer(algorithmHtmlBlockRenderer),
+  pngBlockRenderer(statementHtmlBlockRenderer),
+  pngBlockRenderer(exampleHtmlBlockRenderer),
 ]);
 
 export interface PngBrowserCapability {

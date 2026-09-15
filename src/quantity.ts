@@ -207,3 +207,132 @@ export function formatQuantityCell(coefficient: string, unit: string): string {
   const normalized = canonicalExactDecimal(coefficient);
   return unit.length === 0 ? normalized : `${normalized} ${unit}`;
 }
+
+/**
+ * Base-dimension expansion of the registered unit vocabulary, over the SI
+ * base symbols `m`, `g`, `s`, `A`, `K`, `mol`, `cd`. Only dimensional
+ * consistency is checked; no conversion is ever performed.
+ */
+const UNIT_DIMENSIONS: Readonly<Record<string, Readonly<Record<string, number>>>> =
+  Object.freeze({
+    m: Object.freeze({ m: 1 }),
+    g: Object.freeze({ g: 1 }),
+    s: Object.freeze({ s: 1 }),
+    A: Object.freeze({ A: 1 }),
+    K: Object.freeze({ K: 1 }),
+    mol: Object.freeze({ mol: 1 }),
+    cd: Object.freeze({ cd: 1 }),
+    N: Object.freeze({ g: 1, m: 1, s: -2 }),
+    Pa: Object.freeze({ g: 1, m: -1, s: -2 }),
+    J: Object.freeze({ g: 1, m: 2, s: -2 }),
+    W: Object.freeze({ g: 1, m: 2, s: -3 }),
+    V: Object.freeze({ g: 1, m: 2, s: -3, A: -1 }),
+    ohm: Object.freeze({ g: 1, m: 2, s: -3, A: -2 }),
+    C: Object.freeze({ A: 1, s: 1 }),
+    F: Object.freeze({ g: -1, m: -2, s: 4, A: 2 }),
+    T: Object.freeze({ g: 1, s: -2, A: -1 }),
+    Wb: Object.freeze({ g: 1, m: 2, s: -2, A: -1 }),
+    H: Object.freeze({ g: 1, m: 2, s: -2, A: -2 }),
+    Hz: Object.freeze({ s: -1 }),
+    Bq: Object.freeze({ s: -1 }),
+    Gy: Object.freeze({ m: 2, s: -2 }),
+    Sv: Object.freeze({ m: 2, s: -2 }),
+    kat: Object.freeze({ mol: 1, s: -1 }),
+    L: Object.freeze({ m: 3 }),
+    min: Object.freeze({ s: 1 }),
+    h: Object.freeze({ s: 1 }),
+    d: Object.freeze({ s: 1 }),
+    deg: Object.freeze({}),
+    degC: Object.freeze({}),
+    "%": Object.freeze({}),
+  });
+
+interface UnitCursor {
+  readonly text: string;
+  index: number;
+}
+
+function unitFactor(cursor: UnitCursor): Readonly<Record<string, number>> {
+  const text = cursor.text;
+  if (text[cursor.index] === "(") {
+    cursor.index += 1;
+    const inner = unitExpression(cursor);
+    if (text[cursor.index] === ")") cursor.index += 1;
+    return inner;
+  }
+  const start = cursor.index;
+  while (cursor.index < text.length && /[A-Za-zµ%]/.test(text[cursor.index] as string)) {
+    cursor.index += 1;
+  }
+  const token = text.slice(start, cursor.index);
+  if (token.length === 0) {
+    throw new QuantityError("malformed-unit", `"${text}" has a malformed unit expression.`);
+  }
+  const dims = UNIT_DIMENSIONS[stripPrefix(token)] ?? UNIT_DIMENSIONS[token];
+  if (dims === undefined) {
+    throw new QuantityError("unknown-unit", `Unit token "${token}" is not registered.`);
+  }
+  return dims;
+}
+
+function unitTerm(cursor: UnitCursor): Readonly<Record<string, number>> {
+  let dims = unitFactor(cursor);
+  if (cursor.text[cursor.index] === "^") {
+    cursor.index += 1;
+    const start = cursor.index;
+    while (cursor.index < cursor.text.length && /[0-9]/.test(cursor.text[cursor.index] as string)) {
+      cursor.index += 1;
+    }
+    const exponent = Number.parseInt(cursor.text.slice(start, cursor.index), 10);
+    const scaled: Record<string, number> = {};
+    for (const [base, power] of Object.entries(dims)) {
+      scaled[base] = power * (Number.isFinite(exponent) ? exponent : 1);
+    }
+    dims = scaled;
+  }
+  return dims;
+}
+
+function unitExpression(cursor: UnitCursor): Readonly<Record<string, number>> {
+  const totals = new Map<string, number>();
+  let sign = 1;
+  for (;;) {
+    const dims = unitTerm(cursor);
+    for (const [base, power] of Object.entries(dims)) {
+      totals.set(base, (totals.get(base) ?? 0) + power * sign);
+    }
+    const next = cursor.text[cursor.index];
+    if (next === "*" || next === "·") {
+      sign = 1;
+      cursor.index += 1;
+      continue;
+    }
+    if (next === "/") {
+      sign = -1;
+      cursor.index += 1;
+      continue;
+    }
+    const out: Record<string, number> = {};
+    for (const [base, power] of totals) {
+      if (power !== 0) out[base] = power;
+    }
+    return out;
+  }
+}
+
+/**
+ * Reduce a unit expression to its base-dimension signature. Two units share
+ * a dimension when their signatures are equal, so `m` and `km` agree while
+ * `s` and `K` do not. Throws `QuantityError` for an unparseable expression.
+ */
+export function unitDimension(expression: string): string {
+  const compact = expression.replace(/\s+/g, "");
+  if (compact.length === 0) {
+    throw new QuantityError("unknown-unit", "A unit is empty.");
+  }
+  const dims = unitExpression({ text: compact, index: 0 });
+  return Object.keys(dims)
+    .sort((left, right) => (left < right ? -1 : 1))
+    .map((base) => `${base}^${dims[base] as number}`)
+    .join("*");
+}

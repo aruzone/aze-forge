@@ -66,6 +66,77 @@ export interface BreakInline {
   readonly kind: "break";
 }
 
+/* ------------------------------------------------------------------ *
+ * Document composition inline spans (contract: issue #67)
+ * ------------------------------------------------------------------ */
+
+/** The closed locator-word set; a locator rides only on a Citation target. */
+export type LocatorWord =
+  | "page"
+  | "pages"
+  | "chapter"
+  | "section"
+  | "line"
+  | "lines"
+  | "note";
+
+export interface Locator {
+  readonly word: LocatorWord;
+  readonly value: string;
+}
+
+/** Bare `@name` is the in-text form; any `[@…]` occurrence is parenthetical. */
+export type ReferenceForm = "in-text" | "parenthetical";
+
+/**
+ * One `@`-token target. `resolved` is derived: the auto label and anchor are
+ * recomputed on every compile and excluded from `contentHash`.
+ */
+export interface ReferenceInline {
+  readonly kind: "reference";
+  readonly target: string;
+  readonly form: ReferenceForm;
+  readonly locator?: Locator;
+  readonly range?: SourceRange;
+  readonly resolved?: ResolvedReference;
+}
+
+/** Derived resolution of one reference or citation target. */
+export interface ResolvedReference {
+  readonly href: string;
+  readonly label: string;
+  /** True when the target is a Citation record rather than an object Block. */
+  readonly citation: boolean;
+}
+
+/** Derived delimiters for one parenthetical group under the document's style. */
+export interface ResolvedReferenceGroup {
+  readonly open: string;
+  readonly close: string;
+  readonly separator: string;
+}
+
+/** A mixed `[@a; @b]` group of up to eight targets, each rendering its own label. */
+export interface ReferenceGroupInline {
+  readonly kind: "referenceGroup";
+  readonly targets: readonly ReferenceInline[];
+  readonly range?: SourceRange;
+  readonly resolved?: ResolvedReferenceGroup;
+}
+
+/** One `[^label]` marker; numbering and backlink target are derived. */
+export interface FootnoteInline {
+  readonly kind: "footnote";
+  readonly label: string;
+  readonly range?: SourceRange;
+  readonly resolved?: {
+    readonly href: string;
+    readonly number: number;
+    /** 1-based occurrence of this label's markers, in document order. */
+    readonly marker: number;
+  };
+}
+
 export type Inline =
   | TextInline
   | EmphasisInline
@@ -73,7 +144,10 @@ export type Inline =
   | CodeInline
   | LinkInline
   | ImageInline
-  | BreakInline;
+  | BreakInline
+  | ReferenceInline
+  | ReferenceGroupInline
+  | FootnoteInline;
 
 export interface HeadingBlock {
   readonly kind: "heading";
@@ -133,12 +207,26 @@ export interface TableData {
   readonly rows: readonly (readonly (readonly Inline[])[])[];
 }
 
+/** The closed seven-type column system (contract: issue #66 §3). */
+export type TableColumnType =
+  | "prose"
+  | "text"
+  | "integer"
+  | "decimal"
+  | "quantity"
+  | "boolean"
+  | "math";
+
+/** Per-column alignment override; resolved to the type default when omitted. */
+export type TableColumnAlignment = "left" | "center" | "right";
+
 /** Typed table v2 shared record shape (catalog typed-table family). */
 export interface TableColumn {
   readonly key: string;
   readonly name?: string;
-  readonly type?: string;
+  readonly type?: TableColumnType;
   readonly unit?: string;
+  readonly align?: TableColumnAlignment;
 }
 
 export interface TableGroup {
@@ -146,7 +234,24 @@ export interface TableGroup {
   readonly columns: readonly string[];
 }
 
-export type TypedTableCell = readonly Inline[] | string | number | boolean | null;
+/**
+ * One typed cell. The column type selects the member: `prose` holds Inline
+ * content, `text` a plain label, `integer`/`decimal` a canonical exact-decimal
+ * spelling, `quantity` a canonical coefficient with the resolved unit,
+ * `boolean` a literal, and `math` one native-notation expression tree.
+ */
+export type TypedTableCell =
+  | { readonly kind: "prose"; readonly value: readonly Inline[] }
+  | { readonly kind: "text"; readonly value: string }
+  | { readonly kind: "integer"; readonly value: string }
+  | { readonly kind: "decimal"; readonly value: string }
+  | {
+      readonly kind: "quantity";
+      readonly coefficient: string;
+      readonly unit?: string;
+    }
+  | { readonly kind: "boolean"; readonly value: boolean }
+  | { readonly kind: "math"; readonly tree: JsonValue };
 
 export interface TypedTableData {
   readonly columns: readonly TableColumn[];
@@ -156,10 +261,13 @@ export interface TypedTableData {
 
 export interface TableBlock {
   readonly kind: "table";
-  readonly data: TableData | TypedTableData;
+  readonly data: TypedTableData;
   readonly range: SourceRange;
   readonly id?: string;
   readonly caption?: readonly Inline[];
+  readonly number?: boolean;
+  /** Derived numbering label such as `Table 2`; excluded from `contentHash`. */
+  readonly numberLabel?: string;
   readonly pluginVersion?: string;
 }
 
@@ -1045,6 +1153,212 @@ export interface FreeBodyBlock {
   readonly declarations: readonly FreeBodyDeclaration[];
 }
 
+/* ------------------------------------------------------------------ *
+ * Structured technical content (contract: issue #66)
+ * ------------------------------------------------------------------ */
+
+/** The six closed pseudocode statement forms (contract: issue #66 §5). */
+export type AlgorithmStatementKind =
+  | "assign"
+  | "if"
+  | "for"
+  | "while"
+  | "return"
+  | "text";
+
+/**
+ * `target = expression`. A target is a name or one indexing level; the stored
+ * `expression` is the canonical spelling of the parsed-but-never-evaluated
+ * pseudocode expression context.
+ */
+export interface AlgorithmAssignStatement {
+  readonly kind: "assign";
+  readonly target: string;
+  readonly index?: string;
+  readonly expression: string;
+  readonly range: SourceRange;
+}
+
+/** One `else-if:` condition with its own nested statement list. */
+export interface AlgorithmIfBranch {
+  readonly condition: string;
+  readonly statements: readonly AlgorithmStatement[];
+  readonly range: SourceRange;
+}
+
+export interface AlgorithmIfStatement {
+  readonly kind: "if";
+  readonly condition: string;
+  readonly then: readonly AlgorithmStatement[];
+  readonly elseIf: readonly AlgorithmIfBranch[];
+  readonly else?: readonly AlgorithmStatement[];
+  readonly range: SourceRange;
+}
+
+export interface AlgorithmForStatement {
+  readonly kind: "for";
+  readonly variable: string;
+  readonly from: string;
+  readonly direction: "to" | "downto";
+  readonly to: string;
+  readonly by?: string;
+  readonly statements: readonly AlgorithmStatement[];
+  readonly range: SourceRange;
+}
+
+export interface AlgorithmWhileStatement {
+  readonly kind: "while";
+  readonly condition: string;
+  readonly statements: readonly AlgorithmStatement[];
+  readonly range: SourceRange;
+}
+
+export interface AlgorithmReturnStatement {
+  readonly kind: "return";
+  readonly expression?: string;
+  readonly range: SourceRange;
+}
+
+/** An authored prose line: semantic content, never a comment. */
+export interface AlgorithmTextStatement {
+  readonly kind: "text";
+  readonly text: readonly Inline[];
+  readonly range: SourceRange;
+}
+
+export type AlgorithmStatement =
+  | AlgorithmAssignStatement
+  | AlgorithmIfStatement
+  | AlgorithmForStatement
+  | AlgorithmWhileStatement
+  | AlgorithmReturnStatement
+  | AlgorithmTextStatement;
+
+export interface AlgorithmBlock {
+  readonly kind: "algorithm";
+  readonly procedure: string;
+  readonly parameters: readonly string[];
+  readonly steps: readonly AlgorithmStatement[];
+  readonly range: SourceRange;
+  readonly id?: string;
+  readonly number?: boolean;
+  readonly caption?: readonly Inline[];
+  readonly numberLabel?: string;
+  readonly pluginVersion: string;
+}
+
+/** The closed statement-kind enum; family vocabulary inside the catalog line. */
+export type StatementKind =
+  | "theorem"
+  | "definition"
+  | "lemma"
+  | "corollary"
+  | "proposition"
+  | "remark";
+
+export interface StatementBlock {
+  readonly kind: "statement";
+  readonly statementKind: StatementKind;
+  readonly text: readonly ParsedBlock[];
+  readonly proof?: readonly ParsedBlock[];
+  readonly range: SourceRange;
+  readonly id?: string;
+  readonly number?: boolean;
+  readonly caption?: readonly Inline[];
+  readonly numberLabel?: string;
+  readonly pluginVersion: string;
+}
+
+/** One ordered example step; its mathematics lives in the nested Block content. */
+export interface ExampleStep {
+  readonly text: readonly ParsedBlock[];
+  readonly range: SourceRange;
+}
+
+export interface ExampleBlock {
+  readonly kind: "example";
+  readonly problem: readonly ParsedBlock[];
+  readonly givens: readonly string[];
+  readonly steps: readonly ExampleStep[];
+  readonly result?: readonly ParsedBlock[];
+  readonly range: SourceRange;
+  readonly id?: string;
+  readonly number?: boolean;
+  readonly caption?: readonly Inline[];
+  readonly numberLabel?: string;
+  readonly pluginVersion: string;
+}
+
+/* ------------------------------------------------------------------ *
+ * Document composition (contract: issue #67)
+ * ------------------------------------------------------------------ */
+
+/** The numbering path for ordinary Markdown content and escape-hatch bodies. */
+export interface FigureBlock {
+  readonly kind: "figure";
+  readonly children: readonly ParsedBlock[];
+  readonly range: SourceRange;
+  readonly id?: string;
+  readonly number?: boolean;
+  readonly caption?: readonly Inline[];
+  readonly numberLabel?: string;
+  readonly pluginVersion: string;
+}
+
+export type BibliographyEntryType =
+  | "article"
+  | "book"
+  | "chapter"
+  | "report"
+  | "thesis"
+  | "web"
+  | "software"
+  | "standard"
+  | "other";
+
+export interface BibliographyAuthor {
+  readonly name: string;
+  readonly family?: string;
+}
+
+/** One closed-field Citation record; `key` joins the document identifier namespace. */
+export interface BibliographyEntry {
+  readonly key: string;
+  readonly entryType: BibliographyEntryType;
+  readonly title: string;
+  readonly authors: readonly BibliographyAuthor[];
+  readonly year?: string;
+  readonly venue?: string;
+  readonly publisher?: string;
+  readonly edition?: string;
+  readonly pages?: string;
+  readonly url?: string;
+  readonly doi?: string;
+  readonly note?: string;
+  readonly range: SourceRange;
+}
+
+export interface BibliographyBlock {
+  readonly kind: "bibliography";
+  readonly entries: readonly BibliographyEntry[];
+  readonly range: SourceRange;
+  readonly id?: string;
+  readonly number?: boolean;
+  readonly caption?: readonly Inline[];
+  readonly numberLabel?: string;
+  /** Derived: the works-cited projection in rendered-list order. */
+  readonly worksCited?: readonly BibliographyEntry[];
+  readonly pluginVersion: string;
+}
+
+/** One `[^label]: text` definition: a single inline paragraph, never nested Blocks. */
+export interface FootnoteDefinitionBlock {
+  readonly kind: "footnoteDefinition";
+  readonly label: string;
+  readonly children: readonly Inline[];
+  readonly range: SourceRange;
+}
+
 export type ParsedBlock =
   | HeadingBlock
   | ParagraphBlock
@@ -1072,6 +1386,12 @@ export type ParsedBlock =
   | CircuitBlock
   | ControlBlock
   | FreeBodyBlock
+  | AlgorithmBlock
+  | StatementBlock
+  | ExampleBlock
+  | FigureBlock
+  | BibliographyBlock
+  | FootnoteDefinitionBlock
   | InvalidBlock;
 
 export type AzeBlock =
@@ -1100,7 +1420,13 @@ export type AzeBlock =
   | CircuitBlock
   | StructureBlock
   | ControlBlock
-  | FreeBodyBlock;
+  | FreeBodyBlock
+  | AlgorithmBlock
+  | StatementBlock
+  | ExampleBlock
+  | FigureBlock
+  | BibliographyBlock
+  | FootnoteDefinitionBlock;
 export type ArtifactFormat = "html" | "svg" | "png" | "pdf";
 
 export interface DocumentMetadata {
@@ -1109,20 +1435,45 @@ export interface DocumentMetadata {
   readonly title?: string;
   readonly theme?: string;
   readonly outputs?: readonly ArtifactFormat[];
+  /** Semantic document setting, not a Renderer choice (contract: issue #67 §8). */
+  readonly citationStyle?: CitationStyle;
+}
+
+/** The two supported bibliography styles; `numeric` is the versioned default. */
+export type CitationStyle = "numeric" | "author-year";
+
+/** One endnote-rendered footnote definition in first-reference order. */
+export interface EndnoteEntry {
+  readonly label: string;
+  readonly number: number;
+  readonly children: readonly Inline[];
+  /** How many `[^label]` markers point at this definition. */
+  readonly markers: number;
+}
+
+/**
+ * Derived composition projection: numbering labels, citation order, endnote
+ * order and the resolved citation style. Deterministic, recomputed on every
+ * compile, format-independent, and excluded from `contentHash` (ADR 0007).
+ */
+export interface DocumentComposition {
+  readonly citationStyle: CitationStyle;
+  readonly endnotes: readonly EndnoteEntry[];
 }
 
 export interface ParsedDocument {
   readonly azemarkVersion: 2;
-  readonly schemaVersion: 2;
+  readonly schemaVersion: 3;
   readonly metadata: DocumentMetadata;
   readonly blocks: readonly ParsedBlock[];
 }
 
 export interface AzeDocument {
   readonly azemarkVersion: 2;
-  readonly schemaVersion: 2;
+  readonly schemaVersion: 3;
   readonly metadata: DocumentMetadata;
   readonly blocks: readonly AzeBlock[];
+  readonly composition?: DocumentComposition;
 }
 
 export type DiagnosticSeverity = "error" | "warning" | "info";
@@ -1491,6 +1842,12 @@ export interface MermaidBlockRenderer {
 export interface BlockRendererContext {
   readonly sourceName?: string;
   readonly renderBlocks: (blocks: readonly AzeBlock[]) => string;
+  /**
+   * This Block's zero-based position among Blocks of its own kind in document
+   * order, so a renderer can mint deterministic per-kind element ids without
+   * reaching outside its own Block.
+   */
+  readonly ordinal?: number;
 }
 export interface DiagramBlockRenderer {
   readonly descriptor: BlockRendererDescriptor;
@@ -1548,6 +1905,11 @@ export type AnyBlockRenderer =
   | AzeBlockRenderer<StateBlock>
   | AzeBlockRenderer<EntityBlock>
   | AzeBlockRenderer<ClassBlock>
+  | AzeBlockRenderer<AlgorithmBlock>
+  | AzeBlockRenderer<StatementBlock>
+  | AzeBlockRenderer<ExampleBlock>
+  | AzeBlockRenderer<FigureBlock>
+  | AzeBlockRenderer<BibliographyBlock>
   | DiagramBlockRenderer
   | FigureBlockRenderer<ControlBlock>
   | FigureBlockRenderer<FreeBodyBlock>
