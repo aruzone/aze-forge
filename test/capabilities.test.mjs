@@ -41,7 +41,7 @@ test("version --json emits the packaged version document on stdout only", async 
   assert.deepEqual(Object.keys(payload), schema.required);
   assert.equal(payload.schema, "azeforge.version/v1");
   assert.equal(payload.schemaVersion, 1);
-  assert.deepEqual(payload.tool, { name: "azeforge", version: "0.3.2" });
+  assert.deepEqual(payload.tool, { name: "azeforge", version: "0.3.3" });
   assert.deepEqual(payload.runtime, EXPECTED_RUNTIME);
   assert.deepEqual(payload.source, { azemarkVersions: [2] });
   assert.deepEqual(payload.document, { schemaVersions: [3] });
@@ -52,7 +52,7 @@ test("version --json emits the packaged version document on stdout only", async 
   assert.ok(ids.includes("azeforge.derivation/source/v1"));
   assert.ok(ids.includes("azeforge.derivation/data/v1"));
   // Static support facts are release metadata, never facts about this workstation.
-  assert.match(result.stdout.toString("utf8"), /"version":"0\.3\.2"/);
+  assert.match(result.stdout.toString("utf8"), /"version":"0\.3\.3"/);
   assert.doesNotMatch(result.stdout.toString("utf8"), /Users|home|darwin|linux|win32|arm64/i);
 });
 
@@ -234,11 +234,11 @@ test("human version, capabilities, and help use stderr with empty stdout", () =>
   }
   assert.match(runCli(["--help"]).stderr.toString("utf8"), /capabilities/);
   assert.match(runCli(["render", "--help"]).stderr.toString("utf8"), /--output/);
-  assert.match(runCli(["version"]).stderr.toString("utf8"), /azeforge 0\.3\.2/);
+  assert.match(runCli(["version"]).stderr.toString("utf8"), /azeforge 0\.3\.3/);
 
   const versionLine = runCli(["--version"]);
   assert.equal(versionLine.status, 0);
-  assert.equal(versionLine.stdout.toString("utf8"), "azeforge 0.3.2\n");
+  assert.equal(versionLine.stdout.toString("utf8"), "azeforge 0.3.3\n");
   assert.deepEqual(versionLine.stderr, Buffer.alloc(0));
 });
 test("bare invocation shows global help instead of an error", () => {
@@ -275,7 +275,7 @@ test("human reports derive names and versions from the canonical model", () => {
   }
   const version = runCli(["version"]);
   assert.equal(version.status, 0);
-  assert.match(version.stderr.toString("utf8"), /azeforge 0\.3\.2\nazemark versions: 2\ndocument schema versions: 3/);
+  assert.match(version.stderr.toString("utf8"), /azeforge 0\.3\.3\nazemark versions: 2\ndocument schema versions: 3/);
 });
 
 test("capability and version option conflicts exit 2 as invalid operations", () => {
