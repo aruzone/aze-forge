@@ -27,13 +27,13 @@ function blockOf(result, kind) {
 
 async function documentedSource(id) {
   const source = await readFile(
-    new URL("../docs/language/09-models-scenarios.aze.md", import.meta.url),
+    new URL("../docs/language/10-models.aze.md", import.meta.url),
     "utf8",
   );
   const directive = source.match(
     new RegExp(String.raw`(?<fence>:{4,}) (sequence|state|entity|class)\nid: ${id}\n[\s\S]*?\n\k<fence>(?=\n|$)`),
   );
-  assert.ok(directive, `missing ${id} fixture in 09-models-scenarios.aze.md`);
+  assert.ok(directive, `missing ${id} fixture in 10-models.aze.md`);
   return `---\nazemark: 2\n---\n\n${directive[0].replaceAll(directive.groups.fence, "::::")}\n`;
 }
 

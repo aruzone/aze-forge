@@ -51,22 +51,26 @@ function body(parseBlocks, text) {
   });
 }
 
-async function exampleFromDoc(name, opening) {
+async function exampleFromDoc(name, id) {
   const text = await readFile(
     new URL(`../docs/language/${name}`, import.meta.url),
     "utf8",
   );
   const lines = text.split(/\r?\n/);
-  const start = lines.findIndex((line) => line.trim() === opening);
+  const start = lines.findIndex(
+    (line, index) =>
+      line.trim() === ":::: example" && lines[index + 1]?.trim() === `id: ${id}`,
+  );
+  assert.ok(start >= 0, `expected an example Block with id ${id} in ${name}`);
   const end = lines.findIndex((line, index) => index > start && line.trim() === "::::");
-  assert.ok(start >= 0 && end > start, `expected a ${opening} block in ${name}`);
+  assert.ok(end > start, `expected a closed example Block with id ${id} in ${name}`);
   return { text, lines, source: `${FRONT_MATTER}${lines.slice(start, end + 1).join("\n")}\n` };
 }
 
 test("the cooling-model example parses into problem, givens, steps and result", async () => {
   const { source } = await exampleFromDoc(
-    "05-composition-report.aze.md",
-    ":::: example",
+    "11-structured-content.aze.md",
+    "cooling-model",
   );
   const { parsed, example } = exampleIn(source);
   assert.deepEqual(parsed.diagnostics, []);
@@ -118,12 +122,12 @@ test("the cooling-model example parses into problem, givens, steps and result", 
 
 test("the cooling-model example renders figure, labels, givens and step groups", async () => {
   const { source } = await exampleFromDoc(
-    "05-composition-report.aze.md",
-    ":::: example",
+    "11-structured-content.aze.md",
+    "cooling-model",
   );
   const result = await createCompiler().compile(source, {
     format: "html",
-    sourceName: "05-composition-report.aze.md",
+    sourceName: "11-structured-content.aze.md",
   });
   assert.deepEqual(result.diagnostics, []);
   assert.ok(result.artifact);
@@ -144,11 +148,11 @@ test("the cooling-model example renders figure, labels, givens and step groups",
 
 test("a whitespace-only step reports azeforge.example#empty-step", async () => {
   const { text } = await exampleFromDoc(
-    "06-corrective-diagnostics.aze.md",
-    ":::: example",
+    "13-diagnostics.aze.md",
+    "example-empty-step",
   );
   const parsed = createCompiler().parse(text, {
-    sourceName: "06-corrective-diagnostics.aze.md",
+    sourceName: "13-diagnostics.aze.md",
   });
   const emptySteps = parsed.diagnostics.filter(
     (diagnostic) => diagnostic.code === "azeforge.example#empty-step",

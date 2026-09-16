@@ -125,7 +125,7 @@ function statementBlock(parsed, overrides = {}) {
   };
 }
 
-/** docs/language/05-composition-report.aze.md, verbatim between the fences. */
+/** docs/language/11-structured-content.aze.md, verbatim between the fences. */
 const TRIANGLE_BODY = `text: |
   For any three points \`A\`, \`B\`, \`C\` in the Euclidean plane, the sum of
   the lengths of two sides of a triangle is at least the length of the
@@ -364,8 +364,12 @@ test("statement: the body admits only text and proof, each once and fenced", () 
 /** The statement envelope's body lines, with their authored positions. */
 function reportStatementBody(source) {
   const lines = [...sourceLines(source)];
-  const open = lines.findIndex((line) => line.text.trim() === ":::: statement");
-  assert.notEqual(open, -1, "the report authors a statement");
+  const open = lines.findIndex(
+    (line, index) =>
+      line.text.trim() === ":::: statement" &&
+      lines[index + 1]?.text.trim() === "id: triangle-inequality",
+  );
+  assert.notEqual(open, -1, "the report authors the triangle-inequality statement");
   const close = lines.findIndex(
     (line, index) => index > open && line.text.trim() === "::::",
   );
@@ -379,7 +383,7 @@ function reportStatementBody(source) {
 
 test("statement: the composition report's theorem parses at its authored offsets", async () => {
   const source = await readFile(
-    new URL("../docs/language/05-composition-report.aze.md", import.meta.url),
+    new URL("../docs/language/11-structured-content.aze.md", import.meta.url),
     "utf8",
   );
   const body = reportStatementBody(source);
@@ -396,7 +400,7 @@ test("statement: the composition report's theorem parses at its authored offsets
       start: { line: body.first.number, column: 1, offset: body.first.startOffset },
       end: { line: body.last.number, column: 1, offset: body.last.endOffset },
     },
-    sourceName: "05-composition-report.aze.md",
+    sourceName: "11-structured-content.aze.md",
     parseBlocks: recorded.parseBlocks,
   });
   assert.deepEqual(parsed.diagnostics, []);

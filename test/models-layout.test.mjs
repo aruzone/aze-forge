@@ -24,12 +24,20 @@ import {
 import { academicTheme, darkPresentationTheme, defaultTheme } from "../dist/theme.js";
 
 const SCENARIOS = readFileSync(
-  new URL("../docs/language/09-models-scenarios.aze.md", import.meta.url),
+  new URL("../docs/language/10-models.aze.md", import.meta.url),
   "utf8",
 );
 const BLOCK_RANGE = {
   start: { line: 1, column: 1, offset: 0 },
   end: { line: 1, column: 100, offset: 100 },
+};
+
+/** The scenario document is graded simple-to-hard, so select the Block by id. */
+const PINNED_SCENARIO_IDS = {
+  sequence: "login-exchange",
+  state: "order-lifecycle",
+  entity: "shop-schema",
+  class: "payment-classes",
 };
 
 function toLines(text, startLine) {
@@ -47,10 +55,15 @@ function toLines(text, startLine) {
   });
 }
 
-/** The authored `:::: <directive>` Block of the scenario document, validated. */
+/** The pinned authored `:::: <directive>` Block of the scenario document, validated. */
 function scenarioBlock(directive) {
-  const match = new RegExp(String.raw`^:::: ${directive}\r?\n([\s\S]*?)^::::$`, "m").exec(SCENARIOS);
-  assert.ok(match, `the scenario document carries a ${directive} Block`);
+  const id = PINNED_SCENARIO_IDS[directive];
+  assert.ok(id, `no pinned scenario id is recorded for ${directive}`);
+  const match = new RegExp(
+    String.raw`^:::: ${directive}\r?\n(id: ${id}\r?\n[\s\S]*?)^::::$`,
+    "m",
+  ).exec(SCENARIOS);
+  assert.ok(match, `the scenario document carries the ${id} ${directive} Block`);
   const lines = match[1].split("\n");
   const divider = lines.indexOf("----");
   const validate = {
@@ -63,7 +76,7 @@ function scenarioBlock(directive) {
     headerLines: toLines(lines.slice(0, divider).join("\n"), 10),
     bodyLines: toLines(lines.slice(divider + 1).join("\n"), 100),
     blockRange: BLOCK_RANGE,
-    sourceName: "docs/language/09-models-scenarios.aze.md",
+    sourceName: "docs/language/10-models.aze.md",
   });
   assert.deepEqual(result.diagnostics.filter((diagnostic) => diagnostic.severity === "error"), []);
   return result.block;

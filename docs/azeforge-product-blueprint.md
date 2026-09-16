@@ -1,12 +1,21 @@
 # AzeForge Product and Engineering Blueprint
 
-Status: Approved direction v0.2; remaining details are non-blocking  
+> **Historical planning record — superseded.** This document is the approved
+> direction v0.2 and the reasoning behind it. It is preserved as the decision
+> record, not as a description of the shipped product. The shipped implementation
+> is **0.3.1**. For current behavior read [`README.md`](../README.md),
+> [`docs/capabilities/README.md`](capabilities/README.md) and
+> [`docs/language/README.md`](language/README.md).
+
+Status: Historical — approved direction v0.2, retained as a planning record; the shipped implementation is 0.3.1  
 Product name: AzeForge  
 Source-language name: AzeMark  
 Organization: aruzone  
 Repository visibility and license: public, MIT  
 Primary implementation: Node.js and TypeScript  
 Primary delivery: deterministic CLI and reusable compiler library; browser and MCP integrations follow the CLI
+
+**Corrections applied.** The plan's prose, structure and intent are unchanged. The code sketches, commands and path references were updated in place so a reader can still run them, and each family that shipped after the plan carries a one-line note naming its landing issue. Where this document and the shipped product disagree, the current docs win.
 
 ## 1. Executive summary
 
@@ -285,7 +294,7 @@ Typed blocks describe equations, callouts, plots, diagrams, geometry, circuits, 
 
 ### Level 3: native escape hatches
 
-Advanced users may include raw LaTeX, Mermaid, Graphviz, TikZ, HTML, or another supported backend language.
+Advanced users may opt in to the host-gated raw-LaTeX equation variant (`syntax: latex` with `--allow-raw-latex`) and bounded Mermaid. Raw HTML, Graphviz, and TikZ are refused with diagnostics; no other backend language is accepted. (Corrected to the shipped escape-hatch scope: raw HTML is refused as `azeforge.security#raw-html-disabled`, and the raw-LaTeX variant renders only when the host gate is passed.)
 
 ### Interaction modes
 
@@ -308,7 +317,7 @@ A source file is Markdown with optional YAML front matter and typed directive bl
 
 ~~~text
 ---
-azemark: 1
+azemark: 2
 title: Introduction to Fourier Transforms
 author: Dr. Sharma
 theme: academic
@@ -322,15 +331,19 @@ outputs:
 The Fourier transform converts a time-domain function into its
 frequency-domain representation.
 
-::: equation
+:::: equation
+id: fourier-transform
+----
 F(omega) =
   integral t=-infinity..infinity of
   f(t) exp(-i omega t) dt
-:::
+::::
 
-::: note
+:::: callout
+variant: note
+----
 The transform describes which frequencies are present in a signal.
-:::
+::::
 ~~~
 
 ### Design principles
@@ -349,112 +362,250 @@ The transform describes which frequencies are present in a signal.
 #### Equation
 
 ~~~text
-::: equation
-I_n(alpha, beta) =
-  integral x=0..infinity of
+:::: equation
+----
+I_n = integral x=0..infinity of
   x^n exp(-alpha x^2) / sqrt(1 + beta x^2) dx
-:::
+::::
 ~~~
 
 Optional properties:
 
 ~~~text
-::: equation
+:::: equation
 id: gaussian-integral
 number: true
 align: center
-
+----
 integral x=-infinity..infinity of exp(-x^2) dx = sqrt(pi)
-:::
+::::
 ~~~
+
+The plan wrote the left-hand side as the call `I_n(alpha, beta)`; the readable grammar has no comma-separated argument list, so the corrected sketch uses a subscripted name and leaves the parameters in the integrand.
 
 #### Plot
 
 ~~~text
-::: plot
-functions:
-  y1 = sin(x)
-  y2 = cos(x)
-
-x-range: -2pi..2pi
-x-label: Angle
-y-label: Amplitude
-grid: true
-legend: true
-:::
+:::: plot
+id: two-curves
+parameters:
+  a: 1
+x-axis:
+  label: Angle
+  scale: linear
+y-axis:
+  label: Amplitude
+----
+- kind: function
+  label: sin
+  variable: x
+  expression: a * sin(x)
+  domain:
+    min: -6.28
+    max: 6.28
+  samples: 200
+- kind: function
+  label: cos
+  variable: x
+  expression: a * cos(x)
+  domain:
+    min: -6.28
+    max: 6.28
+  samples: 200
+::::
 ~~~
+
+Series records are `- kind: function`, `- kind: line` and `- kind: scatter`; the bounded `parameters:` map, the `x-axis:`/`y-axis:` children (`label`, `scale`, `min`, `max`) and the optional `width:`, `height:`, `grid:` and `legend:` fields sit in the header, above the `----` separator. There is no `functions:` or `x-range:` field.
+
+> **Shipped (issue #71):** the native Plot and Chart family is registered as `plot` and `chart`; the detailed contract is issue #58. See [`docs/native-plugin-family-tree.md`](native-plugin-family-tree.md).
 
 #### Geometry
 
 ~~~text
-::: geometry
-triangle ABC
-AB = 5cm
-AC = 5cm
-angle BAC = 60deg
-midpoint D of BC
-
-show:
-  labels
-  measurements
-  equal-side-marks
-:::
+:::: geometry
+id: triangle-altitude
+----
+- kind: point
+  name: a
+  label: A
+  x: 0
+  y: 4
+- kind: point
+  name: b
+  label: B
+  x: -3
+  y: 0
+- kind: point
+  name: c
+  label: C
+  x: 3
+  y: 0
+- kind: segment
+  name: base
+  from: b
+  to: c
+- kind: perpendicular-foot
+  name: foot
+  from: a
+  to: base
+- kind: segment
+  name: altitude
+  from: a
+  to: foot
+  style: dashed
+- kind: right-angle-mark
+  first: a
+  second: foot
+  third: c
+::::
 ~~~
+
+Geometry is an ordered `- kind:` declaration graph over a closed vocabulary — points, segments, lines, rays, circles, arcs, polygons, midpoints, intersections, tangent lines, perpendicular feet and lines, parallel lines, angle marks, length marks, equal marks and right-angle marks — with authored coordinates. Construction references resolve backward in authored order.
+
+> **Shipped (issue #72):** the native Geometry family is registered; the detailed contract is issue #59. See [`docs/native-plugin-family-tree.md`](native-plugin-family-tree.md).
 
 #### Circuit
 
 ~~~text
-::: circuit
-voltage-source V1 = 12V
-resistor R1 = 1kohm
-resistor R2 = 2kohm
-
-connect:
-  V1.positive -> R1 -> R2 -> V1.negative
-:::
+:::: circuit
+id: voltage-divider
+title: Voltage divider
+flow: left-to-right
+----
+- kind: node
+  ref: v12
+- kind: node
+  ref: output
+- kind: node
+  ref: ground
+- kind: voltage-source
+  ref: V1
+  value: 12 V
+- kind: resistor
+  ref: R1
+  value: 1 kohm
+- kind: resistor
+  ref: R2
+  value: 2 kohm
+- kind: connect
+  terminal: V1.positive
+  node: v12
+- kind: connect
+  terminal: V1.negative
+  node: ground
+- kind: connect
+  terminal: R1.a
+  node: v12
+- kind: connect
+  terminal: R1.b
+  node: output
+- kind: connect
+  terminal: R2.a
+  node: output
+- kind: connect
+  terminal: R2.b
+  node: ground
+::::
 ~~~
+
+Connectivity is stated one terminal-to-node relation at a time. A chained `V1.positive -> R1 -> R2 -> V1.negative` path is exactly the representation ADR 0005 rejects, because it leaves the electrical meaning implicit in declaration order; the header key is `flow:` (`left-to-right` | `top-to-bottom`), not `direction:`.
+
+> **Shipped (PR #81):** the native Circuits family is registered; the detailed contract is issue #62 and the decision is [`docs/adr/0005-explicit-circuit-connectivity.md`](adr/0005-explicit-circuit-connectivity.md). See [`docs/native-plugin-family-tree.md`](native-plugin-family-tree.md).
 
 #### Chemistry
 
 ~~~text
-::: chemistry
-reaction:
-  H2SO4 + 2NaOH -> Na2SO4 + 2H2O
-:::
+:::: reaction
+id: neutralization
+balance: check
+----
+2 NaOH + H2SO4 -> Na2SO4 + 2 H2O
+::::
 ~~~
 
-#### Flowchart
+No `chemistry` directive exists; chemistry is three registered directives — `formula`, `reaction` and `structure` — and stoichiometric coefficients are authored as a separate leading term (`2 NaOH`).
+
+> **Shipped (issue #73):** the native Chemistry family is registered; the detailed contract is issue #64. See [`docs/native-plugin-family-tree.md`](native-plugin-family-tree.md).
+
+#### Flowchart (native `diagram`)
 
 ~~~text
-::: flowchart
-Start -> Read input
-Read input -> Validate
-Validate -> Render when valid
-Validate -> Show errors when invalid
-Render -> Export
-:::
+:::: diagram
+title: Build flow
+mode: flowchart
+----
+- kind: node
+  name: start
+  label: Start
+- kind: node
+  name: read
+  label: Read input
+- kind: node
+  name: validate
+  label: Validate
+- kind: node
+  name: render
+  label: Render
+- kind: node
+  name: errors
+  label: Show errors
+- kind: node
+  name: export
+  label: Export
+- kind: edge
+  from: start
+  to: read
+- kind: edge
+  from: read
+  to: validate
+- kind: edge
+  from: validate
+  to: render
+  label: valid
+- kind: edge
+  from: validate
+  to: errors
+  label: invalid
+- kind: edge
+  from: render
+  to: export
+::::
 ~~~
+
+No `flowchart` directive exists; general diagrams use `diagram` with a required `mode:` of `flowchart`, `graph`, `tree` or `architecture`, and author one flat ordered list of nodes, groups, ports and edges.
+
+> **Shipped (issue #76):** the native Diagram family is registered; the detailed contract is issue #60. See [`docs/native-plugin-family-tree.md`](native-plugin-family-tree.md).
 
 #### Callout
 
 ~~~text
-::: warning
+:::: callout
+variant: warning
+----
 Do not confuse mass with weight.
-:::
+::::
 ~~~
 
-#### Raw LaTeX
+There is no `warning` directive; callouts use `callout` with a `variant:` drawn from the closed set `note`, `tip`, `important`, `warning` and `caution` (`note` is the default).
+
+#### Raw LaTeX (host-gated equation variant)
 
 ~~~text
-::: latex
+:::: equation
+syntax: latex
+----
 \begin{align}
 \nabla \times \mathbf{E}
   &= -\frac{\partial\mathbf{B}}{\partial t}
 \end{align}
-:::
+::::
 ~~~
 
+There is no `latex` directive. Raw LaTeX is the `syntax: latex` header variant of `equation`, and it renders only when the host passes `--allow-raw-latex`; without that flag the block is refused with `azeforge.security#raw-latex-disabled`.
+
 Raw backend blocks must be disabled or sandboxed by default when source is untrusted.
+
+Three further native families shipped after this plan was written and therefore have no sketch above: digital **timing** ([issue #63](https://github.com/aruzone/aze-forge/issues/63)), **software and data models** — sequence, state, entity and class diagrams ([issue #77](https://github.com/aruzone/aze-forge/issues/77)) — and **structured technical content** — typed `table`, `algorithm`, `statement` and `example` blocks ([issue #79](https://github.com/aruzone/aze-forge/issues/79)). See [`docs/capabilities/README.md`](capabilities/README.md) for their registered forms.
 
 ## 12. Mathematical input language
 
@@ -598,42 +749,33 @@ Renderer adapter
 
 ## 15. Proposed repository structure
 
+The plan proposed a pnpm monorepo. The shipped implementation is one flat published package with three entry points instead; the layout below is the one that exists today.
+
 ~~~text
 aze-forge/
   package.json
-  pnpm-workspace.yaml
-  tsconfig.base.json
+  tsconfig.json
   README.md
+  CONTEXT.md
   LICENSE
   docs/
-    architecture.md
-    azemark-language.md
-    plugin-authoring.md
-    security.md
+    capabilities/README.md      # current block and renderer guide
+    language/README.md          # language reference index, with .aze.md examples
+    development.md
+    native-plugin-family-tree.md
     adr/
-  examples/
-    minimal.aze.md
-    engineering-report.aze.md
-    circuits/                  # added for P0.5
-  packages/
-    core/
-    cli/
-    renderer-html/
-    renderer-image/
-    renderer-pdf/
-    block-math/
-    block-mermaid/
-    block-code/
-    block-callout/
-    block-circuit/             # added for P0.5
-  integrations/               # created only after CLI MVP
-    mcp/
-    ai/
-  tests/
-    fixtures/
-    golden/
-    integration/
+  src/                          # compiler, CLI, plugins, renderers
+  test/                         # *.test.mjs
+  test-files/                   # pre-catalog fixtures with expected exit status
+  acceptance/
+    golden-report.aze.md        # the approved P0 corpus
+    catalog.json
+  schemas/
+  scripts/
+  .github/workflows/
 ~~~
+
+The planned sample-document tree and the four planned single-purpose guides do not exist under those names; the corpus lives in `acceptance/golden-report.aze.md` and `docs/language/`, and the guides became `docs/capabilities/README.md`, `docs/language/README.md`, `docs/development.md` and `docs/adr/`.
 
 Use the current supported Node.js LTS line and TypeScript. A reasonable compatibility floor at implementation time is Node.js 22 or newer, subject to confirmation before publishing.
 
@@ -642,38 +784,22 @@ Use the current supported Node.js LTS line and TypeScript. A reasonable compatib
 The public API should be small and stable.
 
 ~~~typescript
-type CompileOptions = {
-  format: "html" | "svg" | "png" | "pdf";
-  theme?: string;
-  plugins?: string[];
-  allowRaw?: boolean;
-};
+import { createCompiler } from "@aruzone/aze-forge";
 
-type Diagnostic = {
-  code: string;
-  severity: "info" | "warning" | "error";
-  message: string;
-  file?: string;
-  range?: {
-    start: { line: number; column: number };
-    end: { line: number; column: number };
-  };
-  suggestion?: string;
-};
+const compiler = createCompiler();
 
-type CompileResult = {
-  artifact?: Uint8Array | string;
-  mimeType?: string;
-  diagnostics: Diagnostic[];
-  document?: AzeDocument;
-  contentHash?: string;
-};
+const result = await compiler.compile(source, {
+  format: "html",
+  theme: "academic",
+  allowRawLatex: false,
+});
 
-parse(source, options): ParseResult
-validate(document, options): Diagnostic[]
-compile(sourceOrDocument, options): Promise<CompileResult>
-format(source, options): FormatResult
+result.diagnostics;  // Diagnostic[]
+result.artifact;     // Uint8Array | string
+result.contentHash;  // string
 ~~~
+
+The shipped surface is three entry points: the root package (`createCompiler` and the `Compiler`, `CompilerOptions`, `CompileOptions`, `CompileResult`, `ParseOptions`, `ParseResult`, `ValidationResult`, `FormatOptions`, `FormatResult` and `Diagnostic` types), the `/contracts` barrel for the JSON schemas, schema identifiers and Document model types (`AzeDocument`, `AzeBlock`, `ParsedDocument` and the per-family block types), and the `/adapters` barrel for `getBuiltInRegistry` and the plugin, block-renderer and renderer descriptors. `parse` is not a free function: it is a method on the compiler instance, alongside `validate`, `format` and `compile`.
 
 The AST must be serializable and versioned.
 
@@ -701,12 +827,10 @@ interface AzeBlockPlugin<TBlock> {
 
   parse(input: BlockSource, context: ParseContext): TBlock;
   validate(block: TBlock, context: ValidationContext): Diagnostic[];
-  render(
-    block: TBlock,
-    context: RenderContext
-  ): Promise<RenderedBlock>;
 }
 ~~~
+
+The planned `render(block, context): Promise<RenderedBlock>` member was deliberately removed: a Plugin owns parsing, validation, schema and migration only, while Block renderers produce Fragments owned by the document Renderer. See [`docs/adr/0003-separate-plugins-from-renderers.md`](adr/0003-separate-plugins-from-renderers.md).
 
 Plugin failures must become diagnostics rather than crash the entire process.
 
@@ -737,17 +861,21 @@ azeforge render lesson.aze.md --output lesson.html
 azeforge render lesson.aze.md --format png --output lesson.png
 azeforge validate lesson.aze.md
 azeforge validate lesson.aze.md --diagnostics json
-azeforge watch lesson.aze.md
+azeforge watch lesson.aze.md --output lesson.html
 azeforge serve lesson.aze.md
 azeforge capabilities --json
 ~~~
 
+`watch` requires `--output`; it rejects `--stdout` because it rewrites one destination artifact on each successful build.
+
 ### Stdin support
 
 ~~~bash
-cat lesson.aze.md |
-  azeforge render --stdin --format svg --output lesson.svg
+azeforge format --stdin
+azeforge render lesson.aze.md --stdout --format svg
 ~~~
+
+`render` has no `--stdin` flag; it takes a source path, and `--stdout` writes the requested artifact to standard output. Only `format` reads Source from standard input.
 
 ### CLI requirements
 
@@ -760,7 +888,7 @@ cat lesson.aze.md |
 - JSON output schemas are versioned.
 - Render is deterministic and performs no AI or network call.
 - Offline mode prevents all network access.
-- The CLI supports a quiet mode for agent harnesses.
+- Machine output is selected with `--diagnostics json` (validate, render, format, watch, serve) or `--json` (capabilities, version); stdout then carries only the requested payload and human reports go to stderr.
 
 ## 19. Output strategy
 
@@ -968,15 +1096,14 @@ Model packs must be:
 
 The first releasable CLI version must include:
 
-1. TypeScript monorepo and package boundaries.
+1. A single published TypeScript package with three documented entry points: the root package, `/contracts` and `/adapters`.
 2. Markdown plus directive parser.
 3. Versioned AST and JSON Schema.
 4. Human and JSON diagnostics.
 5. Blocks:
-   - ordinary Markdown;
+   - ordinary Markdown, including fenced code;
    - equation;
    - callout;
-   - code;
    - Markdown table;
    - image;
    - Mermaid.
@@ -1005,9 +1132,9 @@ The first releasable CLI version must include:
     - cross-format HTML, SVG/PNG preview, and PDF output.
 15. A concise human language guide and a machine-readable capabilities manifest.
 16. No required network connection and no embedded model.
-17. A public MIT-licensed repository with CI on macOS, Linux, and Windows.
+17. A public MIT-licensed repository with CI on Ubuntu and macOS; Windows verification is parked ([issue #43](https://github.com/aruzone/aze-forge/issues/43)).
 
-MCP, a browser editor, chemistry, geometry, and a general circuit system are not P0. This keeps the first vertical slice focused on proving the document compiler and all four output formats.
+MCP and a browser editor are not P0. Chemistry, geometry and circuits were subsequently delivered as native families rather than postponed, so this plan's boundary was overtaken: see [`docs/capabilities/README.md`](capabilities/README.md) and the shipped notes below. This kept the first vertical slice focused on proving the document compiler and all four output formats.
 
 ## 24. University engineering pilot extension (P0.5)
 
@@ -1031,30 +1158,65 @@ Ship a trusted built-in `circuit` plugin supporting common instructional schemat
 - simple series, parallel, and branched topologies;
 - SVG output that can be embedded consistently in HTML, PNG, and PDF.
 
-The authoring form should describe circuit meaning, not renderer coordinates. An initial example:
+The authoring form should describe circuit meaning, not renderer coordinates. An initial example, corrected to the shipped form:
 
 ~~~text
-::: circuit
+:::: circuit
+id: rc-low-pass
 title: RC low-pass filter
-direction: left-to-right
-
-source V1 5 V from gnd to vin
-resistor R1 1 kOhm from vin to vout
-capacitor C1 100 nF from vout to gnd
-ground gnd
-label vout as "Output"
-:::
+flow: left-to-right
+----
+- kind: node
+  ref: vin
+- kind: node
+  ref: vout
+- kind: node
+  ref: gnd
+- kind: voltage-source
+  ref: V1
+  value: 5 V
+- kind: resistor
+  ref: R1
+  value: 1 kohm
+- kind: capacitor
+  ref: C1
+  value: 100 nF
+- kind: connect
+  terminal: V1.positive
+  node: vin
+- kind: connect
+  terminal: V1.negative
+  node: gnd
+- kind: connect
+  terminal: R1.a
+  node: vin
+- kind: connect
+  terminal: R1.b
+  node: vout
+- kind: connect
+  terminal: C1.a
+  node: vout
+- kind: connect
+  terminal: C1.b
+  node: gnd
+::::
 ~~~
 
 This grammar is illustrative; finalize it with fixtures from the pilot lecturers before freezing the schema.
 
+> **Shipped (PR #81):** the Circuits family was delivered with this terminal-to-node authoring form, the `flow:` header key and both IEC and ANSI conventions; the detailed contract is issue #62. See [`docs/native-plugin-family-tree.md`](native-plugin-family-tree.md).
+
 ### Renderer decision
 
-Use a renderer adapter rather than placing circuit layout in the document core. The first investigation should translate the semantic circuit AST to [CircuiTikZ](https://circuitikz.github.io/), a mature academic circuit renderer, and compile it in a restricted process. [CTAN lists CircuiTikZ under the LaTeX Project Public License](https://ctan.org/pkg/circuitikz), so preserve notices and complete a dependency-distribution review before packaging it.
+Use a renderer adapter rather than placing circuit layout in the document core. The plan's first investigation was to translate the semantic circuit AST to [CircuiTikZ](https://circuitikz.github.io/), a mature academic circuit renderer, and compile it in a restricted process. [CTAN lists CircuiTikZ under the LaTeX Project Public License](https://ctan.org/pkg/circuitikz), so the plan noted preserving notices and completing a dependency-distribution review before packaging it.
 
-The main `azeforge` install must continue to render non-circuit documents without requiring a TeX distribution. Circuit support may initially be installed as an optional adapter or supplied through a documented container. If a reliable cross-platform installation cannot be demonstrated within a time-boxed spike, implement a deliberately small SVG renderer for the whitelisted components instead of delaying P0.
+**Resolved:** the built-in deterministic SVG emitter shipped, and CircuiTikZ is not a dependency. Circuit renders through `src/circuit-render.ts` with no TeX path at all, so the notices and distribution review the plan anticipated were never needed. See [`docs/adr/0005-explicit-circuit-connectivity.md`](adr/0005-explicit-circuit-connectivity.md).
+
+The main `azeforge` install must continue to render non-circuit documents without requiring a TeX distribution. It does: no TeX distribution is required for any document, circuit or otherwise.
 
 For digital-electronics courses, add a separate `timing` block backed by [WaveDrom](https://github.com/wavedrom/wavedrom) after basic schematics. WaveDrom already provides a JavaScript/CLI path from textual WaveJSON to SVG and uses the MIT license. Timing diagrams and circuit schematics must remain separate semantic block types.
+
+**Resolved:** the separate `timing` block shipped ([issue #63](https://github.com/aruzone/aze-forge/issues/63)) backed by AzeForge's own deterministic SVG emitter, not WaveDrom; no WaveJSON is accepted and `wavedrom` is not a dependency. The separation the plan required was kept — timing and circuit remain distinct semantic block types.
 
 ### Explicit circuit non-goals
 
@@ -1079,9 +1241,9 @@ For digital-electronics courses, add a separate `timing` block backed by [WaveDr
 
 ## 25. P1 document maturity
 
-- Plot block.
-- Cross-references and automatic numbering.
-- Footnotes and citations.
+- Plot block. **Shipped: the native Plot and Chart family is registered as `plot` and `chart` ([issue #71](https://github.com/aruzone/aze-forge/issues/71)).**
+- Cross-references and automatic numbering. **Shipped: `@`-token references and one flat numbering class per object kind ([issue #79](https://github.com/aruzone/aze-forge/issues/79)).**
+- Footnotes and citations. **Shipped: endnote footnotes and the `bibliography` directive ([issue #79](https://github.com/aruzone/aze-forge/issues/79)).**
 - Table of contents.
 - Multiple-page templates.
 - Project configuration file.
@@ -1097,9 +1259,9 @@ For digital-electronics courses, add a separate `timing` block backed by [WaveDr
 - MCP server and optional MCP App preview.
 - Visual browser editor.
 - Optional AI-provider adapters.
-- Geometry constraint solver and renderer.
-- Chemistry reactions and molecular structures.
-- Control-system diagrams.
+- Geometry constraint solver and renderer. **Shipped: the native Geometry family ([issue #72](https://github.com/aruzone/aze-forge/issues/72)); the constraint solver itself remains deferred.**
+- Chemistry reactions and molecular structures. **Shipped: `formula`, `reaction` and `structure` ([issue #73](https://github.com/aruzone/aze-forge/issues/73)).**
+- Control-system diagrams. **Shipped: the Engineering family, with `control` and `free-body` ([issue #78](https://github.com/aruzone/aze-forge/issues/78)).**
 - Typst backend.
 - DOCX and PPTX export.
 - Presentation and poster templates.
@@ -1205,10 +1367,10 @@ Maintain checked-in source fixtures and expected normalized outputs:
 ### Compatibility tests
 
 - Supported Node.js LTS versions.
-- macOS, Linux, and Windows.
+- Ubuntu and macOS; Windows verification is parked ([issue #43](https://github.com/aruzone/aze-forge/issues/43)).
 - light and dark themes.
 - representative system fonts.
-- circuit backend installation path on every platform claimed by the pilot release.
+- the built-in circuit SVG emitter on every platform claimed by the pilot release.
 
 ## 30. Success metrics
 
@@ -1220,7 +1382,7 @@ Initial metrics are hypotheses to validate with the university group.
 - The golden technical report passes all four output targets in CI.
 - Determinism tests pass across repeated builds on the same platform.
 - At least five pilot users successfully modify the technical report without reading the full language specification.
-- At least 80 percent of the university pilot's agreed representative circuits can be expressed without raw CircuiTikZ.
+- At least 80 percent of the university pilot's agreed representative circuits can be expressed without raw CircuiTikZ. **Resolved: no TeX path ships, so every pilot circuit is expressed in native AzeMark connectivity and none requires raw CircuiTikZ.**
 - No pilot circuit is accepted solely because it looks plausible; connectivity must match its semantic AST fixture.
 - Pilot participants rate the CLI workflow and output quality separately, so authoring friction is not hidden by attractive rendering.
 
@@ -1230,7 +1392,7 @@ Initial metrics are hypotheses to validate with the university group.
 
 - Reserve `aruzone/aze-forge` and package names.
 - Add the MIT license and dependency-notice policy.
-- Establish the TypeScript monorepo and cross-platform CI.
+- Establish the TypeScript monorepo and cross-platform CI. **Resolved as one flat published package with CI on Ubuntu and macOS; Windows is parked ([issue #43](https://github.com/aruzone/aze-forge/issues/43)).**
 - Record the architectural decisions in ADRs.
 
 ### Milestone 1: compiler foundation
@@ -1261,16 +1423,16 @@ Initial metrics are hypotheses to validate with the university group.
 
 ### Milestone 4: engineering pilot pack
 
-- Time-box the initial CircuiTikZ adapter feasibility spike to one engineering week; do not let it delay the CLI release.
+- Time-box the initial CircuiTikZ adapter feasibility spike to one engineering week; do not let it delay the CLI release. **Resolved: the spike chose the built-in SVG emitter, so no CircuiTikZ adapter was written.**
 - Gather five representative circuits from the university group.
 - Finalize the smallest useful circuit grammar.
 - Implement validation, deterministic rendering, and circuit fixtures.
-- Package the optional dependency path and run the university pilot.
-- Add WaveDrom timing diagrams only after schematic fixtures pass.
+- Package the optional dependency path and run the university pilot. **Resolved: no optional backend exists to package; circuit ships inside the built-in registry.**
+- Add WaveDrom timing diagrams only after schematic fixtures pass. **Resolved: timing shipped as a separate block with AzeForge's own deterministic SVG emitter ([issue #63](https://github.com/aruzone/aze-forge/issues/63)), not WaveDrom.**
 
 ### Milestone 5: document maturity
 
-- Plot plugin.
+- Plot plugin. **Delivered as the native `plot` and `chart` blocks ([issue #71](https://github.com/aruzone/aze-forge/issues/71)).**
 - Cross-references, numbering, citations, and contents.
 - Project configuration and trusted plugin discovery.
 - Editor or language-server support.
@@ -1302,13 +1464,13 @@ These do not block Milestone 1:
    - Default: single-file P0 with multi-file projects in P1.
 
 6. Circuit symbol convention
-   - The pilot group should choose IEC, ANSI, or a documented per-document setting.
+   - The pilot group should choose IEC, ANSI, or a documented per-document setting. **Resolved: both conventions ship, selected per document.**
 
 7. Circuit backend distribution
-   - Decide after the adapter spike whether to require an external TeX install, offer a container, or build the limited SVG renderer.
+   - Decide after the adapter spike whether to require an external TeX install, offer a container, or build the limited SVG renderer. **Resolved: the limited SVG renderer was built and ships in the built-in registry; there is no external backend, container, or TeX install to distribute.**
 
 8. Pilot operating systems and installation restrictions
-   - Obtain these before packaging the P0.5 adapter.
+   - Obtain these before packaging the P0.5 adapter. **Resolved for the backend question: nothing beyond the published package is installed; Windows remains parked ([issue #43](https://github.com/aruzone/aze-forge/issues/43)).**
 
 9. Business model and AI providers
    - Deliberately deferred until the open CLI demonstrates repeated use.
@@ -1383,12 +1545,12 @@ Engineering constraints:
 The prototype is successful when all of the following work:
 
 ~~~bash
-azeforge validate examples/engineering-report.aze.md
-azeforge render examples/engineering-report.aze.md --output report.html
-azeforge render examples/engineering-report.aze.md --output report.svg
-azeforge render examples/engineering-report.aze.md --output report.png
-azeforge render examples/engineering-report.aze.md --output report.pdf
-azeforge serve examples/engineering-report.aze.md
+azeforge validate acceptance/golden-report.aze.md
+azeforge render acceptance/golden-report.aze.md --output report.html
+azeforge render acceptance/golden-report.aze.md --output report.svg
+azeforge render acceptance/golden-report.aze.md --output report.png
+azeforge render acceptance/golden-report.aze.md --output report.pdf
+azeforge serve acceptance/golden-report.aze.md
 ~~~
 
 The report must contain prose, at least three equations, a captioned table, and a Mermaid diagram. A user must be able to modify one equation and one table value, rerender all formats, and understand any error using line-specific diagnostics.
@@ -1402,9 +1564,9 @@ The engineering pilot extension is ready only when:
 1. five circuits supplied or approved by the university group have semantic source fixtures;
 2. connectivity is validated independently of visual output;
 3. HTML, SVG/PNG, and PDF embed consistent schematics;
-4. optional-backend installation works on every supported pilot platform;
-5. missing backends and invalid circuits produce actionable diagnostics;
-6. the main CLI remains usable without TeX or circuit dependencies;
+4. optional-backend installation works on every supported pilot platform. **Resolved: no optional backend exists to install; circuit renders in-process on the supported platforms.**
+5. missing backends and invalid circuits produce actionable diagnostics. **Resolved for invalid circuits, which report terminal, node and connectivity diagnostics; a missing circuit backend is no longer a reachable state.**
+6. the main CLI remains usable without TeX or circuit dependencies. **Resolved: no TeX or circuit dependency has ever been required.**
 7. lecturers confirm that the limited grammar covers the selected course examples.
 
 Broader symbol libraries, simulation, EDA interchange, and automatic industrial schematic layout remain later products, not pilot blockers.

@@ -160,9 +160,9 @@ _Avoid_: lifeline, object, lane
 One directed exchange between participants, placed on the timeline solely by its authored order.
 _Avoid_: call, arrow, event
 
-**Fragment**:
+**Sequence fragment**:
 A nested alternative or loop region of a sequence timeline holding its own ordered items.
-_Avoid_: combined fragment, alt block, group
+_Avoid_: combined fragment, alt block, group, Fragment (that is the renderer-side sense)
 
 **Activation**:
 An execution bar on one participant's lifeline, opened and closed only by explicit authored flags on messages.

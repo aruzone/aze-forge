@@ -128,7 +128,7 @@ test("Circuit accepts the closed digital vocabulary with every terminal explicit
 
 test("Canonical clocked, floating, and disconnected circuit fixtures retain their semantic scenarios", async () => {
   const compiler = createCompiler();
-  const clocked = await compiler.compile(await documentedCircuitSource("01-happy-paths.aze.md", "clocked-logic"), { format: "html" });
+  const clocked = await compiler.compile(await documentedCircuitSource("06-circuit.aze.md", "clocked-logic"), { format: "html" });
   assert.ok(clocked.document);
   assert.deepEqual(errorCodes(clocked), []);
   const clockedBlock = circuitBlock(clocked.document);
@@ -142,7 +142,7 @@ test("Canonical clocked, floating, and disconnected circuit fixtures retain thei
     ["d0:ff1-q", "d1:ff2-q", "d2:d2", "d3:d3", "s0:s0", "s1:s1", "out:sel"],
   );
 
-  const floating = await compiler.compile(await documentedCircuitSource("03-circuit-scenarios.aze.md", "floating-clock-circuit"), { format: "html" });
+  const floating = await compiler.compile(await documentedCircuitSource("06-circuit.aze.md", "floating-clock-circuit"), { format: "html" });
   assert.ok(floating.document);
   assert.deepEqual(errorCodes(floating), []);
   const floatingBlock = circuitBlock(floating.document);
@@ -150,7 +150,7 @@ test("Canonical clocked, floating, and disconnected circuit fixtures retain thei
   assert.equal(floatingBlock.nodes.some(({ role }) => role === "reference"), false);
   assert.ok(diagnosticCodes(floating).includes("azeforge.circuit#unused-node"));
 
-  const disconnected = await compiler.compile(await documentedCircuitSource("03-circuit-scenarios.aze.md", "disconnected-instructional"), { format: "html" });
+  const disconnected = await compiler.compile(await documentedCircuitSource("06-circuit.aze.md", "disconnected-instructional"), { format: "html" });
   assert.ok(disconnected.document);
   assert.deepEqual(errorCodes(disconnected), []);
   assert.equal(diagnosticCodes(disconnected).filter((code) => code === "azeforge.circuit#unused-node").length, 1);

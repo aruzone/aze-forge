@@ -1,31 +1,48 @@
 # AzeMark language reference
 
-Canonical, owner-approved AzeMark authoring forms for the AzeMark 2
-(`azemark: 2`) envelope. These files are the frozen reference that
-implementation consumes; they were approved during the wayfinder taste
-review for [issue #50](https://github.com/aruzone/aze-forge/issues/50) and
-port the canonical assets from the `prototype/taste-authoring-forms` branch.
+Canonical, compile-verified AzeMark 2 (`azemark: 2`) example documents. Every
+file here is a complete Source that the shipped compiler parses, validates, and
+renders — not a fragment collection. They are the frozen authoring reference
+implementation consumes, and they are intended for verbatim reuse as the
+preloaded examples in the AzeForge Web authoring app.
 
-These forms are the frozen reference consumed by the AzeMark 2 cutover; the
-compiler validates `azemark: 2` (fixed `::::`/`::` envelope, mandatory `----`
-separator, shared records). Family plugins land behind this envelope as the
-alpha catalog is sequenced.
+Each document is graded: within a section, the first Block is the minimal
+idiomatic form and the last exercises the deepest feature the directive
+registers. Read top to bottom to go from simple to hard. Two sections carry
+fewer or more Blocks than the pattern for structural reasons the language
+imposes: a document declares at most one `bibliography`, and the diagnostics
+sampler devotes a section to a whole family rather than to one directive.
+
+Every document except `13-diagnostics.aze.md` validates silently:
+
+```bash
+for f in docs/language/*.aze.md; do
+  case "$f" in *13-diagnostics*) continue ;; esac
+  node dist/cli.js validate "$f" || echo "FAIL: $f"
+done
+```
+
+Where a document intentionally registers a warning — the floating Circuit's
+unused node, the disconnected subgraphs, the unconnected control port — the
+prose names it. Nothing else warns.
 
 ## Files
 
 | File | Purpose |
 |---|---|
-| `01-happy-paths.aze.md` | One representative happy path per native family in a single sampler Document. |
-| `02-geometry-forms.aze.md` | Coordinate-based and named-construction geometry side by side, per R6. |
-| `03-circuit-scenarios.aze.md` | Floating Circuit and a disconnected instructional schematic with warnings, per R1. |
-| `04-chemistry-information.aze.md` | Specified versus unspecified/omitted chemistry information, per R4. |
-| `05-composition-report.aze.md` | Table, algorithm, statement/proof, and worked example. |
-| `06-corrective-diagnostics.aze.md` | Representative diagnostics that should appear under the approved contracts. |
-| `07-timing-scenarios.aze.md` | Clocked bus transaction on the cycle scale and its duration-equivalent time-scale twin. |
-| `08-diagram-scenarios.aze.md` | Branching flowchart with a cycle, tree with forward references, and a grouped service architecture with nested groups, ports and undirected multi-edges. |
-| `09-models-scenarios.aze.md` | Login exchange, order lifecycle, order/customer schema, and a small class hierarchy: the four typed software and data model directives, per the resolved [issue #61](https://github.com/aruzone/aze-forge/issues/61#issuecomment-5580464259) contract. |
-| `11-composition-forms.aze.md` | Numbered figures, typed tables, algorithms, statements and worked examples beside prose references, a page-specific citation, a bibliography and an endnote-rendered footnote, per the resolved [issue #66](https://github.com/aruzone/aze-forge/issues/66#issuecomment-5584708809) and [issue #67](https://github.com/aruzone/aze-forge/issues/67#issuecomment-5585959344) contracts. |
-| `10-engineering-scenarios.aze.md` | Feedback controller and a floating trim loop, the inclined-plane free body with the explicit scale, and a schematic cantilever end: the two Engineering diagram directives, per the resolved [issue #65](https://github.com/aruzone/aze-forge/issues/65#issuecomment-5584266572) contract. |
+| `01-document-basics.aze.md` | Front matter, headings, inline emphasis and code, lists, code fences, links, blockquotes and thematic breaks, GFM pipe tables, and the callout directive with its closed variant set. Start here. |
+| `02-mathematics.aze.md` | The `equation` and `derivation` directives: unnumbered relations, Greek and binder notation, bounded integrals and sums, `cases(...)` piecewise forms, and annotated multi-step derivations. |
+| `03-visualization.aze.md` | The `plot` and `chart` directives: bounded function series, authored scatter and line series with symmetric and asymmetric error bars, `parameters:`, logarithmic axes, and the four chart types including a histogram with explicit edges. |
+| `04-geometry.aze.md` | The `geometry` directive: the coordinate form and the named-construction form side by side, intersections and tangents with `pick:`, and the angle, length, equal and right-angle marks. |
+| `05-chemistry.aze.md` | The `formula`, `reaction` and `structure` directives, carrying the three preserved information states: specified, explicitly unspecified, and omitted. |
+| `06-circuit.aze.md` | The `circuit` directive under the IEC convention: analog schematics, gate and flip-flop digital schematics, an intentionally floating clocked Circuit, and a disconnected instructional schematic with its warnings. |
+| `07-timing.aze.md` | The `timing` directive: the shared cycle scale with edge and bus wave notation, and the duration-equivalent twin authored on an explicit time scale. |
+| `08-diagrams.aze.md` | The `diagram` directive in all four modes — flowchart, graph, tree, architecture — with nested groups, ports and undirected multi-edges, plus the bounded `mermaid` escape hatch. |
+| `09-engineering.aze.md` | The `control` and `free-body` directives: summing junctions and takeoff fan-out, relative-ray force directions, explicit scale versus schematic length, moments, axes and dimensions. |
+| `10-models.aze.md` | The four typed model directives — `sequence`, `state`, `entity` and `class` — covering activations, fragments and notes, composite states, junction tables, and all five relationship forms. |
+| `11-structured-content.aze.md` | The `table`, `algorithm`, `statement` and `example` directives: typed columns with grouped headers and missing values, the six pseudocode statement forms, theorem-family statements with proofs, and worked examples composing nested mathematics. |
+| `12-composition.aze.md` | The `figure` wrapper, the `bibliography` directive, `@`-references and parenthetical groups, citation locators, and endnote-rendered footnotes. |
+| `13-diagnostics.aze.md` | The one intentionally invalid document: representative broken Blocks per family, each naming the exact diagnostic code and remedy the compiler produces. |
 
 ## Approved constraints
 
@@ -37,8 +54,10 @@ Owner-approved and frozen in [issue #50](https://github.com/aruzone/aze-forge/is
 - Quantity/unit spellings follow the language contract.
 - Circuit remains coordinate-free; geometry, free-body declarations, and chemistry structure atoms carry authored coordinates.
 - No backend source is presented as native AzeMark.
-- Shared `- kind:` record idiom across all ten native families (the tenth being structured technical content: typed tables, algorithms, statements, and worked examples).
+- Shared `- kind:` record idiom across the object families, with structured technical content keeping its own record shapes: typed tables use `columns:`/`groups:`/`rows:`, algorithms use `procedure:`/`parameters:`/`steps:` over the six statement keys, and statements and examples use header fields plus `text:`/`proof:`/`problem:`/`givens:`/`steps:`/`result:`.
 - Corrective diagnostics sampler accepted as the representative author-facing diagnostic voice.
 
 Implementation consumes these forms without reopening the underlying family,
-language, or numbering contracts.
+language, or numbering contracts. `test/*.test.mjs` extracts specific Blocks by
+`id:` from these documents, so a rewrite must preserve those ids and their
+bodies; see `docs/development.md` for the test seams.

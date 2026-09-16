@@ -421,8 +421,8 @@ test("Timing rejects a signal without its authored waveform", () => {
 });
 
 test("Timing renders the documented clocked bus transaction and its time-scale twin", async () => {
-  const source = await documentedTimingSource("07-timing-scenarios.aze.md", "timing-clocked-bus-transaction");
-  const twin = await documentedTimingSource("07-timing-scenarios.aze.md", "timing-transaction-time-scale");
+  const source = await documentedTimingSource("07-timing.aze.md", "timing-clocked-bus-transaction");
+  const twin = await documentedTimingSource("07-timing.aze.md", "timing-transaction-time-scale");
   const compiler = createCompiler();
   const [cycles, time] = await Promise.all([
     compiler.compile(source, { format: "svg" }),

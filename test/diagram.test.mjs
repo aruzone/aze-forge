@@ -174,7 +174,7 @@ test("Diagram parses the branching process into inspectable declaration semantic
 test("Diagram resolves forward references across the whole declaration list", async () => {
   const compiler = createCompiler();
   const result = compiler.parse(
-    await documentedDiagramSource("08-diagram-scenarios.aze.md", "diagram-tree-forward-refs"),
+    await documentedDiagramSource("08-diagrams.aze.md", "diagram-tree-forward-refs"),
   );
 
   assert.deepEqual(errorCodes(result), []);
@@ -194,7 +194,7 @@ test("Diagram resolves forward references across the whole declaration list", as
 test("Diagram keeps ports, nested groups, undirected multi-edges and flow distinct", async () => {
   const compiler = createCompiler();
   const result = compiler.parse(
-    await documentedDiagramSource("08-diagram-scenarios.aze.md", "diagram-service-architecture"),
+    await documentedDiagramSource("08-diagrams.aze.md", "diagram-service-architecture"),
   );
 
   assert.deepEqual(errorCodes(result), []);
@@ -460,7 +460,7 @@ test("Diagram renders the documented scenarios with deterministic output", async
     "diagram-tree-forward-refs",
     "diagram-service-architecture",
   ]) {
-    const source = await documentedDiagramSource("08-diagram-scenarios.aze.md", id);
+    const source = await documentedDiagramSource("08-diagrams.aze.md", id);
     const first = await compiler.compile(source, { format: "html" });
     const second = await compiler.compile(source, { format: "html" });
     assert.deepEqual(errorCodes(first), [], `${id} parses clean`);

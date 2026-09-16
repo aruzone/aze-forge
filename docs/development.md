@@ -111,6 +111,45 @@ node --test test/equation.test.mjs
   uncovered-code-point rule, and the script scale that sizes diagram boxes
   without parsing a font at runtime.
 
+## Authoring-form fixtures
+
+`docs/language/*.aze.md` is both the public authoring reference and a test
+corpus: eleven suites extract specific Blocks from those documents by `id:`
+and compile them, so a Block there is load-bearing. The helpers are per-file
+(the repository keeps its test files standalone) and use two shapes: a
+`(?<fence>:{4,}) <directive>\nid: <id>\n[\s\S]*?\n\k<fence>` regular
+expression in `test/circuit.test.mjs`, `test/timing.test.mjs`,
+`test/diagram.test.mjs`, `test/models.test.mjs` and
+`test/models-layout.test.mjs`, and a line scan or `matchAll` that compares the
+opener line and the following `id:` line in `test/engineering.test.mjs`,
+`test/engineering-layout.test.mjs`, `test/statement.test.mjs` and
+`test/example.test.mjs`. Both shapes require the directive word and `id:` on
+adjacent lines and the Block to close at column 0.
+
+- `test/circuit.test.mjs`, `test/timing.test.mjs`, `test/diagram.test.mjs`,
+  `test/models.test.mjs`, `test/models-layout.test.mjs`,
+  `test/engineering.test.mjs`, `test/engineering-layout.test.mjs`,
+  `test/statement.test.mjs`, and `test/example.test.mjs` pull named fixtures
+  out of `docs/language/`.
+- `test/structured-content.test.mjs` and `test/composition.test.mjs` compile
+  whole documents from that directory and assert on rendered output, so every
+  Block in `11-structured-content.aze.md` and `12-composition.aze.md` must
+  stay diagnostic-free and their numbering order must not shift.
+- Renaming a file, changing an `id:`, or reordering a numbered object breaks a
+  test. When you rewrite a document, keep the pinned ids and bodies verbatim or
+  update the extracting helper in the same change.
+
+Validate the whole corpus (every document except the intentional-failure
+sampler must be silent):
+
+```bash
+npm run build
+for f in docs/language/*.aze.md; do
+  case "$f" in *13-diagnostics*) continue ;; esac
+  node dist/cli.js validate "$f" || echo "FAIL: $f"
+done
+```
+
 ## Acceptance runner
 
 ```bash
@@ -167,10 +206,10 @@ package paths and denies deep imports. To release:
 npm version patch --no-git-tag-version  # or minor
 # sync src/tool-version.ts to the same version
 npm run typecheck && npm test
-git commit -am "chore: release 0.2.0"
-git tag v0.2.0
+git commit -am "chore: release 0.3.2"
+git tag v0.3.2
 npm publish --access public --otp=<code>  # 2FA or bypass-2FA token required
-git push origin main v0.2.0
+git push origin main v0.3.2
 ```
 
 `prepublishOnly` rebuilds gitignored `dist/` so no publish can ship a stale

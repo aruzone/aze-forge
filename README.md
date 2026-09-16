@@ -26,14 +26,16 @@ no build chain, no runtime dependencies in your output.
 | Category | Representative native plugins |
 | --- | --- |
 | Mathematics | `equation`, `derivation` |
-| Technical content | `callout`, `table` |
-| Diagrams and geometry | `diagram`, `mermaid`, `geometry` |
-| Data graphics | `plot`, `chart` |
+| Visualization | `plot`, `chart` |
+| Geometry | `geometry` |
 | Chemistry | `formula`, `reaction`, `structure` |
-| Analog and digital circuits | `circuit` |
+| Electrical engineering | `circuit` |
 | Digital timing | `timing` |
-| Software and data models | `sequence`, `state`, `entity`, `class` |
+| Diagrams | `diagram`, `mermaid` |
 | Engineering diagrams | `control`, `free-body` |
+| Software and data models | `sequence`, `state`, `entity`, `class` |
+| Structured technical content | `table`, `algorithm`, `statement`, `example` |
+| Document composition | `figure`, `bibliography`, `callout` |
 
 See the [native plugin family tree](docs/native-plugin-family-tree.md) for the
 full catalog and family relationships.

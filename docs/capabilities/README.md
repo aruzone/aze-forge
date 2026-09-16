@@ -10,6 +10,12 @@ For the broader approved catalog, including roadmap families, see
 catalog is intentionally broader than the current built-in registry; this
 guide labels the current registered plugins.
 
+Every registered plugin below is also authored in this guide's example library,
+one document per family, each graded from a minimal form to the deepest
+registered form: [`docs/language/`](../language/README.md). Those documents are
+compile-verified whole Sources, not fragments, and are the fastest way to see a
+capability in context.
+
 ## Capability tree
 
 ```text
@@ -27,7 +33,8 @@ AzeForge
 │   ├── reaction
 │   └── structure
 ├── Electrical engineering
-│   └── circuit
+│   ├── circuit
+│   └── timing
 ├── Diagrams
 │   ├── diagram
 │   └── mermaid
@@ -961,8 +968,9 @@ selects the bibliography style; `numeric` is the built-in default.
 
 ### `callout`
 
-Callouts provide titled note, warning, and informational blocks. Their bodies
-use ordinary Markdown and can contain nested supported content.
+Callouts provide titled informational and warning blocks over the closed variant
+set `note`, `tip`, `important`, `warning` and `caution`; `note` is the default.
+Their bodies use ordinary Markdown and can contain nested supported content.
 
 ```text
 :::: callout

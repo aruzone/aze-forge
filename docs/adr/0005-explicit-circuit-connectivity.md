@@ -1,3 +1,5 @@
 # Make Circuit connectivity explicit and rendering replaceable
 
 P0.5 Circuits use a closed, versioned semantic model in which every typed component terminal binds explicitly to a declared Circuit node; labels, declaration order, layout hints, and drawing proximity never create electrical connectivity. Renderers receive only this validated model plus bounded directional hints, so validation remains independent of visual layout and the same Circuit can enter the shared EmbeddedGraphic path for every Artifact format. CircuiTikZ ships only if a one-week cross-platform spike proves restricted execution, installability, legibility, and canonical byte determinism; otherwise the same model drives a deliberately small built-in SVG Renderer rather than delaying P0 or coupling Source to TeX.
+
+**Outcome (0.3.0).** The spike was not taken. `src/circuit-render.ts` is the built-in deterministic SVG emitter over the validated model, no TeX path ships, and `package.json` carries no CircuiTikZ dependency. The replaceable-renderer half of this decision stands and is exercised by the registered `circuit` Plugin plus its Block renderer.

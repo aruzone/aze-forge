@@ -1,9 +1,14 @@
 # AzeForge manual test files
 
-Fixtures for everything the compiler implements so far (P0-01 through
-P0-06). Each file lists its expected `validate` exit status, the
-diagnostic codes a failing `render --diagnostics json` reports, and the
-commands to run. All paths below are relative to the repo root.
+Fixtures for the pre-catalog compiler surface — prose, equations, Mermaid,
+project images, plots and charts — with their expected exit status and
+diagnostic codes. All paths below are relative to the repo root.
+
+This corpus does not cover the ten native families added after it. The
+catalog-wide, compile-verified corpus is [`docs/language/`](../docs/language/README.md),
+one document per family, plus [`acceptance/golden-report.aze.md`](../acceptance/golden-report.aze.md).
+Acceptance evidence uses the `P0-<AREA>-NNN` / `P05-<AREA>-NNN` identifiers in
+[`acceptance/catalog.json`](../acceptance/catalog.json), gated `p0` and `p0.5`.
 
 ## Run everything
 
@@ -23,17 +28,28 @@ done
 Valid files exit `0` and stay silent. Invalid files exit `1` with human
 diagnostics on stderr. Files with raw LaTeX need `--allow-raw-latex`.
 
+The loop above covers only the fixtures in this directory. Validate the
+catalog-wide corpus separately — every document except the intentional-failure
+sampler must be silent:
+
+```bash
+for f in docs/language/*.aze.md; do
+  case "$f" in *13-diagnostics*) continue ;; esac
+  node dist/cli.js validate "$f" || echo "FAIL: $f"
+done
+```
+
 ## Valid
 
 | File | Covers |
 |---|---|
 | `valid/01-prose.aze.md` | Front matter, ATX + Setext headings, paragraphs, deterministic HTML. |
-| `valid/02-rich-prose.aze.md` | P0-04 scoped Inline nodes (emphasis, strong, inline code, safe https/mailto/fragment/autolinks, two-space and backslash hard breaks), blockquotes with nested lists and quotes, ordered/unordered lists, thematic break, fenced code with language, plain GFM table, callouts (note + warning with `id`, nested equation directive), captioned typed `table` directive (columns/rows with quantity units). |
+| `valid/02-rich-prose.aze.md` | Scoped Inline nodes (`P0-DOC-001`) (emphasis, strong, inline code, safe https/mailto/fragment/autolinks, two-space and backslash hard breaks), blockquotes with nested lists and quotes, ordered/unordered lists, thematic break, fenced code with language, plain GFM table, callouts (note + warning with `id`, nested equation directive), captioned typed `table` directive (columns/rows with quantity units). |
 | `equations/01-readable.aze.md` | Versioned equation Blocks with `id`/`number`/`align`; Greek, integral, sums, limits, matrices, sets through pinned KaTeX (visual HTML + MathML). |
 | `equations/02-latex.aze.md` | Raw-LaTeX variant (`syntax: latex`); valid only with `--allow-raw-latex`, bounded KaTeX, `trust: false`, sanitized output. |
 | `mermaid/01-flowchart.aze.md` | Flowchart Blocks (TD and LR) with `id`/`title`/`description` headers and without; decision diamonds, edge labels, loops; deterministic seed, namespaced IDs, accessible `<title>`/`<desc>`. |
 | `mermaid/02-sequence.aze.md` | `sequenceDiagram` with participants, requests, and responses; deterministic participant/message layout. |
-| `images/01-project-images.aze.md` | P0-06: root-confined PNG plus sanitized SVG embedded as data under the `academic` metadata Theme; deterministic `assetManifestHash`. |
+| `images/01-project-images.aze.md` | Root-confined PNG plus sanitized SVG embedded as data under the `academic` metadata Theme; deterministic `assetManifestHash`. |
 | `plot/01-rc-response.aze.md` | Native `plot` Block: function series with `parameters:` scientific-input normalization plus scatter series with symmetric/asymmetric error bars; deterministic browser-free SVG with legend and `<title>`/`<desc>`. |
 | `chart/01-grouped-bar.aze.md` | `grouped-bar` chart with error bars plus a `histogram` with explicit edges; authored category order, resolved edge list, render-derived counts. |
 
@@ -43,15 +59,15 @@ diagnostics on stderr. Files with raw LaTeX need `--allow-raw-latex`.
 |---|---|
 | `invalid/01-equations-invalid.aze.md` | `azeforge.equation#missing-integration-variable` (line-specific), `azeforge.equation#unsupported-notation` (TeX braces, raw TeX in a readable block). |
 | `invalid/02-latex-denied.aze.md` | `azeforge.security#raw-latex-disabled` (passes with `--allow-raw-latex`). |
-| `invalid/03-directives.aze.md` | `azeforge.source#unknown-directive` (with `availableTypes: ["callout","chart","derivation","equation","mermaid","plot","table"]` plus a suggestion), `azeforge.source#unclosed-directive`. Surrounding valid Blocks survive in `ParsedDocument`; no `AzeDocument`, no Artifact. |
+| `invalid/03-directives.aze.md` | `azeforge.source#unknown-directive` (with the full `availableTypes` list of all 25 registered directive types plus a did-you-mean suggestion), `azeforge.source#unclosed-directive`. Surrounding valid Blocks survive in `ParsedDocument`; no `AzeDocument`, no Artifact. |
 | `invalid/04-identifiers.aze.md` | `azeforge.reference#invalid-id` (`Bad-ID`), `azeforge.reference#duplicate-id` (`shared`, related to first definition). |
 | `invalid/05-raw-html.aze.md` | `azeforge.security#raw-html-disabled`; markup never rendered. |
 | `invalid/06-version.aze.md` | `azeforge.source#version-unsupported`; previous Artifact preserved. |
-| `invalid/07-links.aze.md` | P0-04: `azeforge.link#unsafe-protocol` (`javascript:`; range spans the whole paragraph), `azeforge.security#raw-html-disabled` (markup outside code fences). The fenced ```` ``` ```` block containing `<div>` stays valid text. |
+| `invalid/07-links.aze.md` | `azeforge.link#unsafe-protocol` (`P0-SEC-003`) (`javascript:`; range spans the whole paragraph), `azeforge.security#raw-html-disabled` (markup outside code fences). The fenced ```` ``` ```` block containing `<div>` stays valid text. |
 | `invalid/07-mermaid.aze.md` | `azeforge.mermaid#unsupported-diagram`, `azeforge.mermaid#active-content`, `azeforge.mermaid#external-resource` (parse-time; validation stops the pipeline, so no Artifact). Deep syntax errors surface at compile time instead: a lone `flowchart TD` block with `a - broken ???` renders exactly one `azeforge.mermaid#invalid-syntax` diagnostic and no Artifact. |
-| `invalid/08-callouts-tables.aze.md` | P0-04: `azeforge.callout#unknown-variant` (range underlines `bogus`, help lists the five variants), `azeforge.table#body-must-be-records` (scalar body in a typed `table` Block), `azeforge.link#unsafe-protocol` (`ftp:` inside a callout), `azeforge.table#unknown-header` (`width:`, suggests `caption`/`id`). Valid Blocks before/after survive. |
-| `invalid/09-nesting.aze.md` | P0-04: `azeforge.link#unsafe-protocol` (bad link inside a nested blockquote inside a callout — nested ranges still resolve), `azeforge.source#unclosed-directive` (trailing callout with no closing `::::`). |
-| `invalid/10-unclosed-code.aze.md` | P0-04: `azeforge.source#unclosed-fence`; the range points to the opening fence and no Artifact is produced. |
+| `invalid/08-callouts-tables.aze.md` | `azeforge.callout#unknown-variant` (range underlines `bogus`, help lists the five variants), `azeforge.table#body-must-be-records` (scalar body in a typed `table` Block), `azeforge.link#unsafe-protocol` (`ftp:` inside a callout), `azeforge.table#unknown-header` (`width:`, suggests `caption`/`id`). Valid Blocks before/after survive. |
+| `invalid/09-nesting.aze.md` | `azeforge.link#unsafe-protocol` (bad link inside a nested blockquote inside a callout — nested ranges still resolve), `azeforge.source#unclosed-directive` (trailing callout with no closing `::::`). |
+| `invalid/10-unclosed-code.aze.md` | `azeforge.source#unclosed-fence`; the range points to the opening fence and no Artifact is produced. |
 | `invalid/11-plot-chart.aze.md` | `azeforge.plot#unbound-variable`, `azeforge.plot#missing-domain`, `azeforge.plot#log-axis-value`, `azeforge.chart#value-out-of-bin-range` (one per Block, item-ranged; no Artifact). |
 
 ## Spot checks
@@ -107,7 +123,7 @@ node dist/cli.js render test-files/invalid/05-raw-html.aze.md --output /tmp/out.
 grep -qx "last successful Artifact" /tmp/out.html && echo "artifact preserved"
 ```
 
-## P0-04 manual walkthrough
+## Inline and composition manual walkthrough (`P0-DOC-001`)
 
 Render the rich sampler and inspect its native HTML semantics:
 
@@ -204,7 +220,7 @@ node dist/cli.js render test-files/invalid/08-callouts-tables.aze.md \
   --output /tmp/bad.html --diagnostics json | python3 -m json.tool
 ```
 
-## P0-06 manual walkthrough
+## Themes and project images manual walkthrough (`P0-OUT-002`)
 
 Render the image fixture under every Theme and inspect embedding,
 hashes, and self-containment:

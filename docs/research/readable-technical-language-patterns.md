@@ -199,7 +199,8 @@ general shape properties with specialized syntax. Reserved identifiers need a
 documented quoting or naming policy. Authored layout intent must not be confused
 with electrical meaning: the approved
 [Circuit semantic model and validation](https://github.com/aruzone/aze-forge/issues/11#issuecomment-5543076289)
-retains `layout.flow`, optional component orientation, and declaration order in
+retains the authored `flow:` hint (left-to-right or top-to-bottom), optional
+component orientation, and declaration order in
 Document data. Order enters `contentHash` and may break layout ties; none of these
 fields creates or changes terminal connectivity. Renderer-generated coordinates
 remain distinct from authored intent.
@@ -590,7 +591,7 @@ tickets trace the correction without copying the entire research answer.
 | R5 | `siunitx` is optional and explicit voltage-direction selection is recommended by CircuiTikZ, not universally required. | [Define the compiler library and web service boundary](https://github.com/aruzone/aze-forge/issues/46), [Map the compiler gap to the alpha catalog](https://github.com/aruzone/aze-forge/issues/45) |
 | R6 | Geometry coordinates, default policy, expression-grammar sharing, quantity-library choice, and envelope syntax remain owner-approved decisions, not survey mandates. | [Define the controlled AzeMark language contract](https://github.com/aruzone/aze-forge/issues/52), [Taste representative AzeMark authoring forms](https://github.com/aruzone/aze-forge/issues/50) |
 
-### Questions now explicit
+### Questions this survey raised
 
 - In selected geometry capabilities, should authors use named constructions,
   coordinates, or a bounded combination? What precision and solver/layout limits
@@ -603,11 +604,21 @@ tickets trace the correction without copying the entire research answer.
 - Does the existing directive envelope suffice, or do positional arguments and
   alternate fences earn their complexity?
 
-These questions belong to existing decision tickets. Detailed per-object schemas
-and implementation slices still depend on the catalog; no new ticket is necessary.
-[Sequence the alpha implementation handoff](https://github.com/aruzone/aze-forge/issues/48)
-must map R1–R6 to the affected execution issues and acceptance evidence, or record
-an explicit out-of-scope disposition. A research recommendation alone is not
+These questions were resolved by the closed decision tickets and the ten family
+contracts. The catalog ([#51](https://github.com/aruzone/aze-forge/issues/51))
+chose capability scope, the language contract
+([#52](https://github.com/aruzone/aze-forge/issues/52)) fixed the envelope and
+authoring policy, and
+[the alpha implementation handoff](https://github.com/aruzone/aze-forge/issues/48)
+mapped R1–R6 onto the execution issues that shipped them: R1 to the Circuit
+family ([#62](https://github.com/aruzone/aze-forge/issues/62),
+[#74](https://github.com/aruzone/aze-forge/issues/74)), R6 to Geometry
+([#59](https://github.com/aruzone/aze-forge/issues/59),
+[#72](https://github.com/aruzone/aze-forge/issues/72)), and R4 to Chemistry
+([#64](https://github.com/aruzone/aze-forge/issues/64),
+[#73](https://github.com/aruzone/aze-forge/issues/73)). R2, R3 and R5 are
+inherited constraints carried by the shared envelope and the acceptance
+catalog rather than open questions. A research recommendation alone was never
 authorization to replace an inherited contract.
 
 ## Sources

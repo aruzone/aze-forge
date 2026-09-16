@@ -1,6 +1,6 @@
 # Native plugin family tree
 
-This document tracks implementation progress for AzeForge's approved native Technical object families. It keeps the capability tree from the [alpha Technical object catalog](https://github.com/aruzone/aze-forge/issues/51#issuecomment-5560416403) visible while implementation proceeds. A branch in this document is roadmap scope, not a claim that the current package implements it. Run `azeforge capabilities --json` for the package's supported plugins and renderers.
+This document tracks implementation progress for AzeForge's approved native Technical object families. It keeps the capability tree from the [alpha Technical object catalog](https://github.com/aruzone/aze-forge/issues/51#issuecomment-5560416403) visible. Every family in the tree below carries an implementation marker naming the landing issue; a branch without one is roadmap scope rather than a current claim. Run `azeforge capabilities --json` for the package's supported plugins and renderers, and see [`docs/language/`](language/README.md) for a compile-verified example document per family.
 
 A native capability uses controlled AzeMark declarations, retains its domain meaning in the Document, reports domain-specific diagnostics, and previews or exports through the supported Artifact formats. Backend-source-only rendering is an escape hatch, not native coverage.
 
@@ -16,17 +16,20 @@ A native capability uses controlled AzeMark declarations, retains its domain mea
   - Scalar expressions, Greek symbols, fractions, roots, powers and subscripts
   - Common functions, sums, products, limits, integrals, derivatives, and vectors
   - Equation-step annotations
+  - [Implemented with the native Mathematics family](https://github.com/aruzone/aze-forge/issues/70). The detailed contract is in [issue #57](https://github.com/aruzone/aze-forge/issues/57).
 - Plots and data charts
   - Two-dimensional Cartesian function plots
   - Authored numeric series
   - Line, scatter, grouped bar, stacked bar, histogram, and error-bar charts
   - Multiple series, labels, legends, linear or logarithmic axes, explicit domains, and unit labels
   - Bounded deterministic mathematical-expression evaluation
+  - [Implemented with the native Plot and Chart family](https://github.com/aruzone/aze-forge/issues/71). The detailed contract is in [issue #58](https://github.com/aruzone/aze-forge/issues/58).
 - Geometry
   - Points, lines, segments, rays, circles, arcs, and polygons
   - Intersections, midpoints, parallel and perpendicular constructions
   - Angle and length annotations
   - Equal-length and right-angle marks
+  - [Implemented with the native Geometry family](https://github.com/aruzone/aze-forge/issues/72). The detailed contract is in [issue #59](https://github.com/aruzone/aze-forge/issues/59).
 - General diagrams
   - Flowcharts
   - Directed and undirected labeled graphs
@@ -61,6 +64,7 @@ A native capability uses controlled AzeMark declarations, retains its domain mea
   - Two-dimensional molecular structures with atoms, bonds, rings, aromatic notation, charges, isotope labels, and supplied stereochemistry
   - Explicitly unspecified stereochemistry and labeled attachment points for partial structures
   - No inferred completion of partial structures
+  - [Implemented with the native Chemistry family](https://github.com/aruzone/aze-forge/issues/73). The detailed contract is in [issue #64](https://github.com/aruzone/aze-forge/issues/64).
 - Engineering diagrams
   - Control-system blocks, summing junctions, takeoff points, labeled signals, and feedback connections
   - Two-dimensional free-body diagrams with simple bodies, force vectors, moments, axes, dimensions, and angle annotations
@@ -70,6 +74,7 @@ A native capability uses controlled AzeMark declarations, retains its domain mea
   - Algorithms and pseudocode with procedures, assignments, branches, loops, and return statements
   - Theorem, definition, and lemma statements with optional authored proofs
   - Worked examples with problem, givens, ordered steps, and result
+  - [Implemented with native structured content and document composition](https://github.com/aruzone/aze-forge/issues/79). The detailed contract is in [issue #66](https://github.com/aruzone/aze-forge/issues/66) for the content family and [issue #67](https://github.com/aruzone/aze-forge/issues/67) for numbering, references and citations.
 
 ## Shared document composition
 

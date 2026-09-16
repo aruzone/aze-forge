@@ -5,10 +5,10 @@ import test from "node:test";
 import { createCompiler } from "../dist/index.js";
 
 const SCENARIOS = readFileSync(
-  new URL("../docs/language/10-engineering-scenarios.aze.md", import.meta.url),
+  new URL("../docs/language/09-engineering.aze.md", import.meta.url),
   "utf8",
 );
-const SCENARIO_SOURCE = "docs/language/10-engineering-scenarios.aze.md";
+const SCENARIO_SOURCE = "docs/language/09-engineering.aze.md";
 
 function envelope(body, { header = "", fence = "::::", directive = "control" } = {}) {
   return `---\nazemark: 2\n---\n\n${fence} ${directive}\n${header}----\n${body}\n${fence}\n`;

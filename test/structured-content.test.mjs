@@ -11,7 +11,7 @@ import { createCompiler } from "../dist/index.js";
  */
 
 const DOC_URL = new URL(
-  "../docs/language/05-composition-report.aze.md",
+  "../docs/language/11-structured-content.aze.md",
   import.meta.url,
 );
 

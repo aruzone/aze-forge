@@ -16,10 +16,10 @@ import { validateControlBlock } from "../dist/control.js";
 import { academicTheme, darkPresentationTheme, defaultTheme } from "../dist/theme.js";
 
 const SCENARIOS = readFileSync(
-  new URL("../docs/language/10-engineering-scenarios.aze.md", import.meta.url),
+  new URL("../docs/language/09-engineering.aze.md", import.meta.url),
   "utf8",
 );
-const SOURCE_NAME = "docs/language/10-engineering-scenarios.aze.md";
+const SOURCE_NAME = "docs/language/09-engineering.aze.md";
 const BLOCK_RANGE = {
   start: { line: 1, column: 1, offset: 0 },
   end: { line: 1, column: 100, offset: 100 },

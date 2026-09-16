@@ -1188,7 +1188,7 @@ test("the derived numbering projection never enters contentHash", async () => {
 test("the documented composition forms compile and resolve as authored", async () => {
   const { readFile } = await import("node:fs/promises");
   const source = await readFile(
-    new URL("../docs/language/11-composition-forms.aze.md", import.meta.url),
+    new URL("../docs/language/12-composition.aze.md", import.meta.url),
     "utf8",
   );
   const html = await renderedBody(source);
