@@ -101,10 +101,13 @@ function renderTypedTableFragment(
       ? column.key
       : column.name;
 
+  const grouped = new Set(
+    data.groups?.flatMap((group) => [...group.columns]) ?? [],
+  );
+
   let headerRows = "";
   if (data.groups !== undefined && data.groups.length > 0) {
     const byKey = new Map(data.columns.map((column) => [column.key, column]));
-    const grouped = new Set(data.groups.flatMap((group) => [...group.columns]));
     let cells = "";
     let index = 0;
     while (index < data.columns.length) {
@@ -127,6 +130,7 @@ function renderTypedTableFragment(
     headerRows += `<tr>${cells}</tr>`;
   }
   const headerCells = data.columns
+    .filter((column) => data.groups === undefined || grouped.has(column.key))
     .map(
       (column) =>
         `<th scope="col"${headerId(column)}>${renderExponentHtml(columnName(column))}</th>`,

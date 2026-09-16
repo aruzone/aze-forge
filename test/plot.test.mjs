@@ -89,6 +89,32 @@ test("rc-response plot parses, validates, and renders function plus measured poi
   assert.ok(html.includes('role="img"'));
 });
 
+test("logarithmic axes label only their major decades", async () => {
+  const source = plotBody(`:::: plot
+id: log-decades
+x-axis:
+  scale: log
+  min: 10
+  max: 100000
+y-axis:
+  scale: log
+  min: 10
+  max: 100000
+----
+- kind: scatter
+  points:
+    - x: 10
+      y: 10
+    - x: 100000
+      y: 100000
+::::`);
+  const compiled = await createCompiler().compile(source, { format: "html" });
+  assert.deepEqual(compiled.diagnostics, []);
+  assert.ok(compiled.artifact);
+  const html = Buffer.from(compiled.artifact.bytes).toString("utf8");
+  assert.equal((html.match(/font-size="11"/g) ?? []).length, 10);
+});
+
 test("plot numerals canonicalize to exact decimals", () => {
   const compiler = createCompiler();
   const parsed = compiler.parse(RC_SOURCE, {});
@@ -518,7 +544,7 @@ test("seventeen series exceed the registered ceiling", () => {
 test("capabilities report the plot engine with pinned modules", async () => {
   const { buildCapabilities } = await import("../dist/capabilities.js");
   const report = await buildCapabilities();
-  assert.equal(report.engines.plot.emitter, "1.0.0");
+  assert.equal(report.engines.plot.emitter, "1.0.1");
   assert.equal(report.engines.plot.eval, "plot-eval/v1");
   assert.equal(report.engines.plot.d3array, "3.2.4");
   assert.equal(report.engines.plot.d3scale, "4.0.2");

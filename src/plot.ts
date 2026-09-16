@@ -2396,7 +2396,17 @@ function seriesColor(index: number): string {
 }
 
 function tickLabels(scale: ScaleLinear<number, number> | ScaleLogarithmic<number, number>, count: number): { value: number; label: string }[] {
-  return scale.ticks(count).map((value) => ({ value, label: quantize(value) }));
+  const ticks = scale.ticks(count);
+  if ("base" in scale) {
+    const logarithm = Math.log(scale.base());
+    return ticks
+      .filter((value) => {
+        const exponent = Math.log(value) / logarithm;
+        return Math.abs(exponent - Math.round(exponent)) < 1e-9;
+      })
+      .map((value) => ({ value, label: quantize(value) }));
+  }
+  return ticks.map((value) => ({ value, label: quantize(value) }));
 }
 
 function renderAxesFrame(options: {

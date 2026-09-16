@@ -18,7 +18,7 @@ export const STRUCTURE_BODY_SYNTAX_ID = "azeforge.structure/v1" as const;
 export const STRUCTURE_BODY_SYNTAX_VERSION = "1.0.0" as const;
 
 /** Project-owned SVG emitter version (contract §7, plot/geometry emission reuse). */
-export const CHEMISTRY_EMITTER_VERSION = "1.0.3" as const;
+export const CHEMISTRY_EMITTER_VERSION = "1.0.4" as const;
 
 /** Formula header keys, in the order the Source schema declares them. */
 export const FORMULA_HEADER_FIELDS = Object.freeze(["id", "number"] as const);

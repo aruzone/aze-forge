@@ -81,6 +81,10 @@ export const MAX_FORMULA_CHARGE = 8;
 export const MAX_SUBSCRIPT = 999;
 export const MAX_GROUP_NESTING = 3;
 export const MAX_COEFFICIENT = 999;
+
+/** Stereo wedges remain legible without dominating their single bond. */
+const WEDGE_LENGTH_RATIO = 0.4;
+
 export const DEFAULT_STRUCTURE_WIDTH = 640;
 export const DEFAULT_STRUCTURE_HEIGHT = 400;
 
@@ -1487,7 +1491,7 @@ export function renderStructureFragment(block: StructureBlock, _context: BlockRe
       const dx = to.x - from.x;
       const dy = to.y - from.y;
       const len = Math.hypot(dx, dy) || 1;
-      const wedgeEnd = 0.7;
+      const wedgeEnd = WEDGE_LENGTH_RATIO;
       const endX = from.x + dx * wedgeEnd;
       const endY = from.y + dy * wedgeEnd;
       const px = (-dy / len) * 5;

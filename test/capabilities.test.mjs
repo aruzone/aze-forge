@@ -103,7 +103,7 @@ test("capabilities --json enumerates the P0 contract in canonical order", async 
   assert.equal(payload.engines.katex.availability, "unknown");
   assert.equal(payload.engines.mermaid.availability, "unknown");
   assert.equal(payload.engines.plot.availability, "unknown");
-  assert.equal(payload.engines.plot.emitter, "1.0.0");
+  assert.equal(payload.engines.plot.emitter, "1.0.1");
   assert.equal(payload.engines.plot.eval, "plot-eval/v1");
   assert.equal(payload.engines.geometry.availability, "unknown");
   assert.equal(payload.engines.geometry.emitter, "1.0.0");

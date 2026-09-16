@@ -15,7 +15,7 @@ export const CHART_BODY_SYNTAX_VERSION = "1.0.0" as const;
 /** Bounded evaluable expression language version (contract §7). */
 export const PLOT_EVAL_VERSION = "plot-eval/v1" as const;
 /** Project-owned SVG emitter version (contract §7, §10). */
-export const PLOT_EMITTER_VERSION = "1.0.0" as const;
+export const PLOT_EMITTER_VERSION = "1.0.1" as const;
 
 /** Exact-pinned d3 modules the emitter builds scales, ticks, and paths over. */
 export const D3_ARRAY_VERSION = "3.2.4" as const;

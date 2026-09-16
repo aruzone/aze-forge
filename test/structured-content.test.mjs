@@ -62,9 +62,15 @@ test("typed tables declare closed column types, units, alignment and groups", as
   );
   assert.match(rendered, /<th scope="col" id="[^"]+">Start temp<\/th>/);
   assert.match(rendered, /<th scope="col" id="[^"]+">End temp<\/th>/);
+  // The subordinate header row contains only columns under a header group.
+  // Ungrouped columns occupy both rows through `rowspan=2`.
+  assert.match(
+    rendered,
+    /<thead><tr><th rowspan="2" scope="col" id="[^"]+">Trial<\/th><th scope="colgroup" colspan="2" id="[^"]+">Temperature<\/th><th rowspan="2" scope="col" id="[^"]+">Interval<\/th><th rowspan="2" scope="col" id="[^"]+">Observation<\/th><\/tr><tr><th scope="col" id="[^"]+">Start temp<\/th><th scope="col" id="[^"]+">End temp<\/th><\/tr><\/thead>/,
+  );
 
   // Column types resolve their versioned alignment default.
-  assert.match(rendered, /<th scope="col" id="[^"]+">Trial<\/th>/);
+  assert.match(rendered, /<th rowspan="2" scope="col" id="[^"]+">Trial<\/th>/);
   assert.match(rendered, /style="text-align:left"[^>]*>A1/);
   assert.match(rendered, /style="text-align:right"[^>]*>344\.2/);
 
