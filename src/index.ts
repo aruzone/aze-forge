@@ -73,6 +73,17 @@ export {
 } from "./capabilities.js";
 export type { CapabilitiesReport, EngineAvailability } from "./capabilities.js";
 export {
+  buildGrammarDocument,
+  grammarDirectiveTypes,
+  serializeGrammar,
+} from "./grammar.js";
+export type { GrammarReport } from "./grammar.js";
+export {
+  GRAMMAR_SCHEMA_ID,
+  GRAMMAR_SCHEMA_VERSION,
+  grammarJsonSchema,
+} from "./grammar-json.js";
+export {
   HTML_MAX_BYTES,
   HTML_MIME_TYPE,
   HTML_PROFILE,

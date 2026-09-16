@@ -6,6 +6,7 @@ const PUBLIC_SCHEMAS = [
   ["acceptance", "acceptanceJsonSchema", "../dist/acceptance.js"],
   ["capabilities", "capabilitiesJsonSchema", "../dist/capabilities-json.js"],
   ["diagnostics", "diagnosticsJsonSchema", "../dist/diagnostics-json.js"],
+  ["grammar", "grammarJsonSchema", "../dist/grammar-json.js"],
   ["version", "versionJsonSchema", "../dist/version.js"],
 ];
 

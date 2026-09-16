@@ -40,6 +40,19 @@ export const HTML_RENDERER_VERSION = "1.0.0" as const;
 export const MAX_DERIVATION_STEPS = 64;
 export const MAX_ANNOTATION_LENGTH = 500;
 
+/** Header keys `parseDerivationHeader` accepts before the `----` separator. */
+export const DERIVATION_HEADER_FIELDS = Object.freeze([
+  "id",
+  "number",
+  "align",
+] as const);
+
+/** Step keys `validateDerivationBody` accepts in one `- expression:` step. */
+export const DERIVATION_STEP_FIELDS = Object.freeze([
+  "expression",
+  "annotation",
+] as const);
+
 export interface DerivationHeader {
   readonly id?: string;
   readonly number?: boolean;
@@ -67,6 +80,17 @@ function headerDiagnostic(
   });
 }
 
+/**
+ * Oxford-comma list of `fields`, the wording the unknown-attribute suggestion
+ * uses; built from the parser's own field table.
+ */
+function fieldList(fields: readonly string[]): string {
+  const last = fields[fields.length - 1] ?? "";
+  if (fields.length < 2) return last;
+  if (fields.length === 2) return `${fields[0] ?? ""} and ${last}`;
+  return `${fields.slice(0, -1).join(", ")}, and ${last}`;
+}
+
 export function parseDerivationHeader(
   entries: readonly {
     readonly key: string;
@@ -81,6 +105,23 @@ export function parseDerivationHeader(
   let number: boolean | undefined;
   let align: "left" | "center" | "right" | undefined;
   for (const entry of entries) {
+    // `DERIVATION_HEADER_FIELDS` is the accepted key set; the branches below
+    // carry only the per-field value rules.
+    if (!(DERIVATION_HEADER_FIELDS as readonly string[]).includes(entry.key)) {
+      diagnostics.push(
+        headerDiagnostic(
+          "azeforge.derivation#invalid-attribute",
+          `Derivation attribute "${entry.key}" is not a valid derivation attribute.`,
+          entry.range,
+          sourceName,
+          {
+            suggestion: `Valid derivation attributes are ${fieldList(DERIVATION_HEADER_FIELDS)}.`,
+            data: { attribute: entry.key },
+          },
+        ),
+      );
+      continue;
+    }
     if (entry.key === "id") {
       if (entry.value.length === 0) {
         diagnostics.push(
@@ -129,18 +170,6 @@ export function parseDerivationHeader(
       }
       continue;
     }
-    diagnostics.push(
-      headerDiagnostic(
-        "azeforge.derivation#invalid-attribute",
-        `Derivation attribute "${entry.key}" is not a valid derivation attribute.`,
-        entry.range,
-        sourceName,
-        {
-          suggestion: "Valid derivation attributes are id, number, and align.",
-          data: { attribute: entry.key },
-        },
-      ),
-    );
   }
   return {
     ...(id === undefined ? {} : { id }),
@@ -155,8 +184,14 @@ export interface ValidatedDerivation {
   readonly diagnostics: readonly Diagnostic[];
 }
 
-const EXPRESSION_ITEM = /^[ \t]*-[ \t]*expression[ \t]*:[ \t]*(.*)$/;
-const ANNOTATION_ITEM = /^[ \t]{2,}annotation[ \t]*:[ \t]*(.*)$/;
+/** The two step keys, in `DERIVATION_STEP_FIELDS` order: opener and annotation child. */
+const [STEP_OPENER_FIELD, STEP_ANNOTATION_FIELD] = DERIVATION_STEP_FIELDS;
+const EXPRESSION_ITEM = new RegExp(
+  `^[ \\t]*-[ \\t]*${STEP_OPENER_FIELD}[ \\t]*:[ \\t]*(.*)$`,
+);
+const ANNOTATION_ITEM = new RegExp(
+  `^[ \\t]{2,}${STEP_ANNOTATION_FIELD}[ \\t]*:[ \\t]*(.*)$`,
+);
 const UNKNOWN_ITEM = /^[ \t]*-[ \t]*([A-Za-z][A-Za-z0-9-]*)[ \t]*:/;
 
 interface StepItem {
@@ -195,10 +230,10 @@ export function validateDerivationBody(options: {
         createDiagnostic(
           "azeforge.derivation#empty",
           "error",
-          "The derivation Block must contain at least one `- expression:` step.",
+          `The derivation Block must contain at least one \`- ${STEP_OPENER_FIELD}:\` step.`,
           {
             location: stepLocation(0),
-            suggestion: "Add a step such as `- expression: x = y`.",
+            suggestion: `Add a step such as \`- ${STEP_OPENER_FIELD}: x = y\`.`,
           },
         ),
       ],
@@ -245,7 +280,7 @@ export function validateDerivationBody(options: {
           createDiagnostic(
             "azeforge.derivation#invalid-step",
             "error",
-            "Each derivation step must open with `- expression: <readable math>`.",
+            `Each derivation step must open with \`- ${STEP_OPENER_FIELD}: <readable math>\`.`,
             { location: stepLocation(index) },
           ),
         ],
@@ -258,10 +293,10 @@ export function validateDerivationBody(options: {
         createDiagnostic(
           "azeforge.derivation#empty",
           "error",
-          "The derivation Block must contain at least one `- expression:` step.",
+          `The derivation Block must contain at least one \`- ${STEP_OPENER_FIELD}:\` step.`,
           {
             location: stepLocation(0),
-            suggestion: "Add a step such as `- expression: x = y`.",
+            suggestion: `Add a step such as \`- ${STEP_OPENER_FIELD}: x = y\`.`,
           },
         ),
       ],

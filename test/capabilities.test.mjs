@@ -72,7 +72,7 @@ test("capabilities --json enumerates the P0 contract in canonical order", async 
 
   assert.deepEqual(
     payload.commands.map(({ name }) => name),
-    ["render", "validate", "watch", "serve", "format", "capabilities", "version"],
+    ["render", "validate", "watch", "serve", "format", "capabilities", "grammar", "version"],
   );
   assert.deepEqual(
     payload.plugins.map(({ type }) => type),
@@ -270,7 +270,7 @@ test("human reports derive names and versions from the canonical model", () => {
   const capabilities = runCli(["capabilities"]);
   assert.equal(capabilities.status, 0);
   const human = capabilities.stderr.toString("utf8");
-  for (const name of ["render", "validate", "watch", "serve", "format", "capabilities", "version", "callout", "chart", "derivation", "equation", "geometry", "mermaid", "plot", "table", "html", "svg", "png", "pdf", "default", "academic", "dark-presentation"]) {
+  for (const name of ["render", "validate", "watch", "serve", "format", "capabilities", "grammar", "version", "callout", "chart", "derivation", "equation", "geometry", "mermaid", "plot", "table", "html", "svg", "png", "pdf", "default", "academic", "dark-presentation"]) {
     assert.ok(human.includes(name), `human capabilities missing ${name}`);
   }
   const version = runCli(["version"]);
@@ -284,6 +284,9 @@ test("capability and version option conflicts exit 2 as invalid operations", () 
     ["capabilities", "--probe", "--probe"],
     ["capabilities", "source.aze.md"],
     ["capabilities", "--bogus"],
+    ["grammar", "--json", "--json"],
+    ["grammar", "--directive", "mystery"],
+    ["grammar", "source.aze.md"],
     ["version", "--json", "--json"],
     ["version", "source.aze.md"],
     ["version", "--probe"],
@@ -299,6 +302,7 @@ test("capability and version option conflicts exit 2 as invalid operations", () 
   // Combining both machine flags reports the conflict as one JSON report.
   for (const arguments_ of [
     ["capabilities", "--json", "--diagnostics", "json"],
+    ["grammar", "--json", "--diagnostics", "json"],
     ["version", "--json", "--diagnostics", "json"],
   ]) {
     const result = runCli(arguments_);

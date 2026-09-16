@@ -615,7 +615,7 @@ function parseLabelField(
   return value;
 }
 
-const PLOT_TOP_LEVEL_FIELDS = Object.freeze([
+export const PLOT_TOP_LEVEL_FIELDS = Object.freeze([
   "id",
   "number",
   "width",
@@ -627,7 +627,14 @@ const PLOT_TOP_LEVEL_FIELDS = Object.freeze([
   "y-axis",
 ]);
 
-const AXIS_CHILD_FIELDS = Object.freeze(["label", "scale", "min", "max"]);
+export const AXIS_CHILD_FIELDS = Object.freeze(["label", "scale", "min", "max"]);
+
+/** Axis scale spellings, in the order `parseAxisSection` accepts them. */
+export const AXIS_SCALES = Object.freeze(["linear", "log"] as const);
+
+function isAxisScale(value: string): value is (typeof AXIS_SCALES)[number] {
+  return AXIS_SCALES.some((scale) => scale === value);
+}
 
 interface ParsedAxisFields {
   label?: string;
@@ -922,7 +929,7 @@ function parseAxisSection(
           break;
         }
         case "scale": {
-          if (child.value !== "linear" && child.value !== "log") {
+          if (!isAxisScale(child.value)) {
             diagnostics.push(
               diag(
                 PLOT_NAMESPACE,
@@ -982,11 +989,11 @@ function parseAxisSection(
  * Plot body: series records
  * ------------------------------------------------------------------ */
 
-const PLOT_SERIES_KINDS = Object.freeze(["function", "line", "scatter"]);
-const FUNCTION_FIELDS = Object.freeze(["kind", "label", "variable", "expression", "domain", "samples"]);
-const POINT_SERIES_FIELDS = Object.freeze(["kind", "label", "points"]);
-const DOMAIN_FIELDS = Object.freeze(["min", "max"]);
-const POINT_FIELDS = Object.freeze(["x", "y", "error", "error-low", "error-high"]);
+export const PLOT_SERIES_KINDS = Object.freeze(["function", "line", "scatter"]);
+export const FUNCTION_FIELDS = Object.freeze(["kind", "label", "variable", "expression", "domain", "samples"]);
+export const POINT_SERIES_FIELDS = Object.freeze(["kind", "label", "points"]);
+export const DOMAIN_FIELDS = Object.freeze(["min", "max"]);
+export const POINT_FIELDS = Object.freeze(["x", "y", "error", "error-low", "error-high"]);
 const VARIABLE_PATTERN = /^[A-Za-z]$/;
 
 interface BodyField {
@@ -1755,8 +1762,8 @@ export function sampleFunctionSeries(
  * Chart body: bar and histogram series
  * ------------------------------------------------------------------ */
 
-const CHART_TYPES = Object.freeze(["bar", "grouped-bar", "stacked-bar", "histogram"]);
-const CHART_TOP_LEVEL_FIELDS = Object.freeze([
+export const CHART_TYPES = Object.freeze(["bar", "grouped-bar", "stacked-bar", "histogram"]);
+export const CHART_TOP_LEVEL_FIELDS = Object.freeze([
   "id",
   "number",
   "type",
@@ -1769,9 +1776,23 @@ const CHART_TOP_LEVEL_FIELDS = Object.freeze([
   "y-min",
   "y-max",
 ]);
-const CHART_SERIES_OPENER_KEYS = Object.freeze(["label", "bars", "values"]);
-const CHART_SERIES_FIELDS = Object.freeze(["label", "bars", "values", "edges", "bin-count", "min", "max"]);
-const BAR_FIELDS = Object.freeze(["category", "value", "error", "error-low", "error-high"]);
+export const CHART_SERIES_OPENER_KEYS = Object.freeze(["label", "bars", "values"]);
+export const CHART_SERIES_FIELDS = Object.freeze(["label", "bars", "values", "edges", "bin-count", "min", "max"]);
+
+/** Chart series record kinds: the `ChartSeries` discriminants in the parsed Block. */
+export const CHART_SERIES_KINDS = Object.freeze(["bars", "histogram"]);
+
+/**
+ * The keys each chart series kind accepts, in `CHART_SERIES_FIELDS` order. The
+ * excluded keys are exactly the ones `validateChartBlock` refuses: `bars:` on a
+ * histogram series, and `values:`/`edges:`/`bin-count:` on a bar-family series.
+ */
+export const CHART_SERIES_FIELDS_BY_KIND = Object.freeze({
+  bars: Object.freeze(CHART_SERIES_FIELDS.filter((key) => key !== "values" && key !== "edges" && key !== "bin-count")),
+  histogram: Object.freeze(CHART_SERIES_FIELDS.filter((key) => key !== "bars")),
+});
+
+export const BAR_FIELDS = Object.freeze(["category", "value", "error", "error-low", "error-high"]);
 
 function parseBarsGroup(
   group: readonly CursorLine[],
@@ -2899,7 +2920,7 @@ export interface PlotDocumentDefaults {
 
 export const EMPTY_DOCUMENT_DEFAULTS: PlotDocumentDefaults = Object.freeze({});
 
-const DEFAULT_SETTINGS_FIELDS = Object.freeze(["legend", "grid", "width", "height"]);
+export const DEFAULT_SETTINGS_FIELDS = Object.freeze(["legend", "grid", "width", "height"]);
 const DEFAULT_SECTIONS = Object.freeze(["plot", "chart"]);
 
 function parseDefaultsSection(

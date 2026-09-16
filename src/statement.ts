@@ -65,6 +65,9 @@ export const STATEMENT_KINDS = Object.freeze([
   "remark",
 ] as const);
 
+/** The statement-specific header keys; `id`, `number` and `caption` are shared. */
+export const STATEMENT_HEADER_FIELDS: readonly string[] = Object.freeze(["kind"]);
+
 export const MAX_STATEMENT_MARKDOWN_CHARS = 20000;
 
 const STATEMENT_NAMESPACE = "azeforge.statement";
@@ -175,7 +178,7 @@ export function parseStatementHeader(
 ): StatementHeader {
   const header = parseCompositionHeader(entries, sourceName, {
     namespace: STATEMENT_NAMESPACE,
-    known: ["kind"],
+    known: STATEMENT_HEADER_FIELDS,
     parseCaption,
   });
   const diagnostics = [...header.diagnostics];

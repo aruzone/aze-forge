@@ -102,6 +102,12 @@ export {
 } from "./capabilities-json.js";
 
 export {
+  GRAMMAR_SCHEMA_ID,
+  GRAMMAR_SCHEMA_VERSION,
+  grammarJsonSchema,
+} from "./grammar-json.js";
+
+export {
   DIAGNOSTICS_SCHEMA_ID,
   diagnosticsJsonSchema,
 } from "./diagnostics-json.js";

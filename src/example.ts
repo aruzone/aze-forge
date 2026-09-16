@@ -121,7 +121,7 @@ export interface ExampleBodyResult {
 const NAMESPACE = "azeforge.example";
 
 /** The four registered section fields, in canonical authored order. */
-const REGISTERED_FIELDS: readonly string[] = Object.freeze([
+export const REGISTERED_FIELDS: readonly string[] = Object.freeze([
   "problem",
   "givens",
   "steps",
@@ -129,7 +129,7 @@ const REGISTERED_FIELDS: readonly string[] = Object.freeze([
 ]);
 
 /** A step record carries exactly one field: its Markdown content. */
-const STEP_FIELDS: readonly string[] = Object.freeze(["text"]);
+export const STEP_FIELDS: readonly string[] = Object.freeze(["text"]);
 
 /** One `key: value` declaration; the value may be empty or the `|` marker. */
 const FIELD = /^([A-Za-z][A-Za-z0-9-]*)[ \t]*:(.*)$/;

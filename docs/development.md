@@ -61,6 +61,15 @@ node --test test/equation.test.mjs
   green, but byte-identical PNG/fingerprint evidence and the pinned
   mermaid render timeouts do not reproduce under emulation — those
   cells still need real x64 (CI) before they count as canonical.
+- `test/grammar.test.mjs` is the grammar seam: `azeforge grammar` and the
+  `buildGrammarDocument` library call. It is the anti-drift gate between the
+  published description and the compiler it describes — every described header
+  key, record kind and field is compiled from a Source generated out of the
+  grammar, every surface key and record kind the `docs/language/` corpus authors
+  is described, every `body.schema` matches its own record table, and the
+  `--json` document validates against `schemas/grammar.json`. Required keys are
+  checked by dropping them; the claims this harness cannot attribute are pinned
+  in `UNATTRIBUTABLE_REQUIRED` with the reason.
 - `test/equation.test.mjs` is the equation seam: versioned Blocks, alias
   coverage, ranged diagnostics, raw-LaTeX policy, adapter failure modes,
   registry rejection, descriptor conformance, and real CLI calls.

@@ -42,18 +42,21 @@ import {
   CHEMISTRY_EMITTER_VERSION,
   FORMULA_BODY_SYNTAX_ID,
   FORMULA_BODY_SYNTAX_VERSION,
+  FORMULA_HEADER_FIELDS,
   FORMULA_PLUGIN_TYPE,
   FORMULA_PLUGIN_VERSION,
   formulaDataSchema,
   formulaSourceSchema,
   REACTION_BODY_SYNTAX_ID,
   REACTION_BODY_SYNTAX_VERSION,
+  REACTION_HEADER_FIELDS,
   REACTION_PLUGIN_TYPE,
   REACTION_PLUGIN_VERSION,
   reactionDataSchema,
   reactionSourceSchema,
   STRUCTURE_BODY_SYNTAX_ID,
   STRUCTURE_BODY_SYNTAX_VERSION,
+  STRUCTURE_HEADER_FIELDS,
   STRUCTURE_PLUGIN_TYPE,
   STRUCTURE_PLUGIN_VERSION,
   structureDataSchema,
@@ -106,7 +109,10 @@ const ELEMENTS: ReadonlySet<string> = new Set([
   "Rg", "Cn", "Nh", "Fl", "Mc", "Lv", "Ts", "Og",
 ]);
 
-const REACTION_STATES = Object.freeze(["s", "l", "g", "aq"] as const);
+/** The registry as the ordered spelling list the grammar publishes. */
+export const ELEMENT_SYMBOLS: readonly string[] = Object.freeze([...ELEMENTS]);
+
+export const REACTION_STATES = Object.freeze(["s", "l", "g", "aq"] as const);
 const REACTION_ARROWS = Object.freeze(["->", "<-", "<->"] as const);
 const ARROW_GLYPH: Readonly<Record<string, string>> = Object.freeze({
   "->": "→",
@@ -559,7 +565,7 @@ export function validateFormulaBlock(options: {
 }): ValidatedFormula {
   const { headerLines, bodyLines, blockRange, sourceName } = options;
   const diagnostics: Diagnostic[] = [];
-  const header = parseSharedHeader(FORMULA_NAMESPACE, "Formula", headerLines, ["id", "number"], sourceName, diagnostics);
+  const header = parseSharedHeader(FORMULA_NAMESPACE, "Formula", headerLines, FORMULA_HEADER_FIELDS, sourceName, diagnostics);
   if (header === undefined) return { diagnostics };
   const lines = bodyTextLines(bodyLines);
   if (lines.length === 0) {
@@ -712,7 +718,7 @@ export function validateReactionBlock(options: {
 }): ValidatedReaction {
   const { headerLines, bodyLines, blockRange, sourceName } = options;
   const diagnostics: Diagnostic[] = [];
-  const header = parseSharedHeader(REACTION_NAMESPACE, "Reaction", headerLines, ["id", "number", "above", "below", "balance"], sourceName, diagnostics);
+  const header = parseSharedHeader(REACTION_NAMESPACE, "Reaction", headerLines, REACTION_HEADER_FIELDS, sourceName, diagnostics);
   if (header === undefined) return { diagnostics };
   let balance: "none" | "check" = "none";
   if (header.balance !== undefined) {
@@ -864,10 +870,10 @@ interface RawRecord {
   readonly fields: RawField[];
 }
 
-const STRUCTURE_OPENERS = Object.freeze(["atom", "bond", "label"] as const);
-const ATOM_FIELDS = Object.freeze(["element", "attach", "charge", "isotope", "at", "stereo"]);
-const BOND_FIELDS = Object.freeze(["from", "to", "order", "stereo"]);
-const LABEL_FIELDS = Object.freeze(["text", "at"]);
+export const STRUCTURE_OPENERS = Object.freeze(["atom", "bond", "label"] as const);
+export const ATOM_FIELDS = Object.freeze(["element", "attach", "charge", "isotope", "at", "stereo"]);
+export const BOND_FIELDS = Object.freeze(["from", "to", "order", "stereo"]);
+export const LABEL_FIELDS = Object.freeze(["text", "at"]);
 
 function splitRecords(
   namespace: string,
@@ -947,7 +953,7 @@ export function validateStructureBlock(options: {
 }): ValidatedStructure {
   const { headerLines, bodyLines, blockRange, sourceName } = options;
   const diagnostics: Diagnostic[] = [];
-  const header = parseSharedHeader(STRUCTURE_NAMESPACE, "Structure", headerLines, ["id", "number", "width", "height"], sourceName, diagnostics);
+  const header = parseSharedHeader(STRUCTURE_NAMESPACE, "Structure", headerLines, STRUCTURE_HEADER_FIELDS, sourceName, diagnostics);
   if (header === undefined) return { diagnostics };
   let width = DEFAULT_STRUCTURE_WIDTH;
   let height = DEFAULT_STRUCTURE_HEIGHT;

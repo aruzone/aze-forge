@@ -134,11 +134,11 @@ const STATE_NAMESPACE = "azeforge.state";
 const ENTITY_NAMESPACE = "azeforge.entity";
 const CLASS_NAMESPACE = "azeforge.class";
 
-const HEADER_FIELDS = Object.freeze(["id", "number", "title", "description"]);
+export const HEADER_FIELDS = Object.freeze(["id", "number", "title", "description"]);
 
-const SEQUENCE_SECTIONS = Object.freeze(["participants", "timeline"]);
-const PARTICIPANT_FIELDS = Object.freeze(["name", "label", "kind"]);
-const MESSAGE_FIELDS = Object.freeze([
+export const SEQUENCE_SECTIONS = Object.freeze(["participants", "timeline"]);
+export const PARTICIPANT_FIELDS = Object.freeze(["name", "label", "kind"]);
+export const MESSAGE_FIELDS = Object.freeze([
   "kind",
   "form",
   "from",
@@ -147,28 +147,30 @@ const MESSAGE_FIELDS = Object.freeze([
   "activate",
   "deactivate",
 ]);
-const NOTE_FIELDS = Object.freeze(["kind", "over", "text"]);
-const ALT_FIELDS = Object.freeze(["kind", "divisions"]);
-const DIVISION_FIELDS = Object.freeze(["condition", "body"]);
-const LOOP_FIELDS = Object.freeze(["kind", "condition", "body"]);
+export const NOTE_FIELDS = Object.freeze(["kind", "over", "text"]);
+export const ALT_FIELDS = Object.freeze(["kind", "divisions"]);
+export const DIVISION_FIELDS = Object.freeze(["condition", "body"]);
+export const LOOP_FIELDS = Object.freeze(["kind", "condition", "body"]);
 
-const PARTICIPANT_KINDS = ["participant", "actor"] as const;
-const MESSAGE_FORMS = ["sync", "async", "return"] as const;
-const TIMELINE_KINDS = ["message", "alt", "loop", "note"] as const;
+export const PARTICIPANT_KINDS = ["participant", "actor"] as const;
+export const MESSAGE_FORMS = ["sync", "async", "return"] as const;
+export const TIMELINE_KINDS = ["message", "alt", "loop", "note"] as const;
 
-const STATE_ITEM_FIELDS = Object.freeze(["kind", "name", "label", "states"]);
-const TRANSITION_FIELDS = Object.freeze(["kind", "from", "to", "trigger", "guard", "action"]);
-const TOP_LEVEL_STATE_KINDS = ["state", "initial", "final", "transition"] as const;
-const NESTED_STATE_KINDS = ["state", "initial", "final"] as const;
+export const STATE_ITEM_FIELDS = Object.freeze(["kind", "name", "label", "states"]);
+/** The `initial`/`final` pseudo-state key set: no `label`, no `states`. */
+export const MODELS_PSEUDO_STATE_FIELDS = Object.freeze(["kind", "name"]);
+export const TRANSITION_FIELDS = Object.freeze(["kind", "from", "to", "trigger", "guard", "action"]);
+export const TOP_LEVEL_STATE_KINDS = ["state", "initial", "final", "transition"] as const;
+export const NESTED_STATE_KINDS = ["state", "initial", "final"] as const;
 
-const ENTITY_ITEM_FIELDS = Object.freeze(["kind", "name", "label", "attributes"]);
-const ATTRIBUTE_FIELDS = Object.freeze(["name", "type", "keys", "optional", "references"]);
-const REFERENCE_FIELDS = Object.freeze(["entity", "attribute"]);
-const ENTITY_RELATIONSHIP_FIELDS = Object.freeze(["kind", "label", "first", "second"]);
-const RELATIONSHIP_END_FIELDS = Object.freeze(["entity", "cardinality", "role"]);
-const ENTITY_KEYS = ["primary", "foreign", "unique"] as const;
+export const ENTITY_ITEM_FIELDS = Object.freeze(["kind", "name", "label", "attributes"]);
+export const ATTRIBUTE_FIELDS = Object.freeze(["name", "type", "keys", "optional", "references"]);
+export const REFERENCE_FIELDS = Object.freeze(["entity", "attribute"]);
+export const ENTITY_RELATIONSHIP_FIELDS = Object.freeze(["kind", "label", "first", "second"]);
+export const RELATIONSHIP_END_FIELDS = Object.freeze(["entity", "cardinality", "role"]);
+export const ENTITY_KEYS = ["primary", "foreign", "unique"] as const;
 
-const CLASS_ITEM_FIELDS = Object.freeze([
+export const CLASS_ITEM_FIELDS = Object.freeze([
   "kind",
   "name",
   "label",
@@ -176,10 +178,12 @@ const CLASS_ITEM_FIELDS = Object.freeze([
   "attributes",
   "operations",
 ]);
-const CLASS_ATTRIBUTE_FIELDS = Object.freeze(["name", "type", "visibility", "static"]);
-const OPERATION_FIELDS = Object.freeze(["name", "visibility", "static", "parameters", "return-type"]);
-const PARAMETER_FIELDS = Object.freeze(["name", "type"]);
-const CLASS_RELATIONSHIP_FIELDS = Object.freeze([
+/** The interface key set: no `abstract`, no `attributes`. */
+export const MODELS_INTERFACE_FIELDS = Object.freeze(["kind", "name", "label", "operations"]);
+export const CLASS_ATTRIBUTE_FIELDS = Object.freeze(["name", "type", "visibility", "static"]);
+export const OPERATION_FIELDS = Object.freeze(["name", "visibility", "static", "parameters", "return-type"]);
+export const PARAMETER_FIELDS = Object.freeze(["name", "type"]);
+export const CLASS_RELATIONSHIP_FIELDS = Object.freeze([
   "kind",
   "form",
   "from",
@@ -188,16 +192,16 @@ const CLASS_RELATIONSHIP_FIELDS = Object.freeze([
   "from-multiplicity",
   "to-multiplicity",
 ]);
-const CLASS_ITEM_KINDS = ["class", "interface", "relationship"] as const;
-const CLASS_RELATIONSHIP_FORMS = [
+export const CLASS_ITEM_KINDS = ["class", "interface", "relationship"] as const;
+export const CLASS_RELATIONSHIP_FORMS = [
   "inheritance",
   "implementation",
   "association",
   "aggregation",
   "composition",
 ] as const;
-const VISIBILITIES = ["public", "private", "protected", "package"] as const;
-const CARDINALITIES = ["one", "zero-or-one", "many", "one-or-many"] as const;
+export const VISIBILITIES = ["public", "private", "protected", "package"] as const;
+export const CARDINALITIES = ["one", "zero-or-one", "many", "one-or-many"] as const;
 
 const CARDINALITY_DISPLAY: Readonly<Record<Cardinality, string>> = Object.freeze({
   one: "1",
@@ -1693,7 +1697,7 @@ export function validateStateBlock(options: BlockEnvelope): {
       allowedFields(
         namespace,
         entry.fields,
-        pseudo ? ["kind", "name"] : STATE_ITEM_FIELDS,
+        pseudo ? MODELS_PSEUDO_STATE_FIELDS : STATE_ITEM_FIELDS,
         pseudo ? `The \`${kind}\` pseudo-state` : "State",
         sourceName,
         diagnostics,
@@ -2547,7 +2551,7 @@ export function validateClassBlock(options: BlockEnvelope): {
     allowedFields(
       namespace,
       entry.fields,
-      isInterface ? ["kind", "name", "label", "operations"] : CLASS_ITEM_FIELDS,
+      isInterface ? MODELS_INTERFACE_FIELDS : CLASS_ITEM_FIELDS,
       isInterface ? "Interface" : "Class",
       sourceName,
       diagnostics,

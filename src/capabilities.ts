@@ -224,7 +224,7 @@ export interface CommandEntry {
   readonly usage: string;
 }
 
-/** Seven P0 commands in canonical blueprint order. */
+/** Eight commands in canonical blueprint order. */
 export const CAPABILITY_COMMANDS: readonly CommandEntry[] = Object.freeze([
   {
     name: "render",
@@ -259,6 +259,12 @@ export const CAPABILITY_COMMANDS: readonly CommandEntry[] = Object.freeze([
     name: "capabilities",
     summary: "Report supported versions, adapters, limits, and policy.",
     usage: "azeforge capabilities [--probe] [--json]",
+  },
+  {
+    name: "grammar",
+    summary: "Describe every registered AzeMark 2 directive.",
+    usage:
+      "azeforge grammar [--json] [--directive <type>]",
   },
   {
     name: "version",

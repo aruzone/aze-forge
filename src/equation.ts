@@ -42,6 +42,14 @@ export const HTML_RENDERER_VERSION = "1.0.0" as const;
 export const MAX_EQUATION_TEX_LENGTH = 4000;
 export const MAX_EQUATION_SOURCE_LENGTH = 4000;
 
+/** Header keys `parseEquationHeader` accepts before the `----` separator. */
+export const EQUATION_HEADER_FIELDS = Object.freeze([
+  "id",
+  "number",
+  "align",
+  "syntax",
+] as const);
+
 export interface EquationHeader {
   readonly id?: string;
   readonly number?: boolean;
@@ -70,6 +78,17 @@ function headerDiagnostic(
   });
 }
 
+/**
+ * Oxford-comma list of `fields`, the wording the unknown-attribute suggestion
+ * uses; built from the parser's own field table.
+ */
+function fieldList(fields: readonly string[]): string {
+  const last = fields[fields.length - 1] ?? "";
+  if (fields.length < 2) return last;
+  if (fields.length === 2) return `${fields[0] ?? ""} and ${last}`;
+  return `${fields.slice(0, -1).join(", ")}, and ${last}`;
+}
+
 export function parseEquationHeader(
   entries: readonly { readonly key: string; readonly value: string; readonly range: SourceRange }[],
   _blockRange: SourceRange,
@@ -81,6 +100,23 @@ export function parseEquationHeader(
   let align: "left" | "center" | "right" | undefined;
   let syntax: "readable" | "latex" = "readable";
   for (const entry of entries) {
+    // `EQUATION_HEADER_FIELDS` is the accepted key set; the branches below
+    // carry only the per-field value rules.
+    if (!(EQUATION_HEADER_FIELDS as readonly string[]).includes(entry.key)) {
+      diagnostics.push(
+        headerDiagnostic(
+          "azeforge.equation#invalid-attribute",
+          `Equation attribute "${entry.key}" is not a valid equation attribute.`,
+          entry.range,
+          sourceName,
+          {
+            suggestion: `Valid equation attributes are ${fieldList(EQUATION_HEADER_FIELDS)}.`,
+            data: { attribute: entry.key },
+          },
+        ),
+      );
+      continue;
+    }
     if (entry.key === "id") {
       if (entry.value.length === 0) {
         diagnostics.push(
@@ -145,18 +181,6 @@ export function parseEquationHeader(
       }
       continue;
     }
-    diagnostics.push(
-      headerDiagnostic(
-        "azeforge.equation#invalid-attribute",
-        `Equation attribute "${entry.key}" is not a valid equation attribute.`,
-        entry.range,
-        sourceName,
-        {
-          suggestion: "Valid equation attributes are id, number, align, and syntax.",
-          data: { attribute: entry.key },
-        },
-      ),
-    );
   }
   return {
     ...(id === undefined ? {} : { id }),

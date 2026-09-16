@@ -25,6 +25,18 @@ import type {
 export const FIGURE_HTML_BLOCK_RENDERER_ID = "azeforge.figure.html/v1" as const;
 export const FIGURE_HTML_BLOCK_RENDERER_VERSION = "1.0.0" as const;
 
+/**
+ * Header keys the figure envelope accepts: `id`, `number` and `caption` are
+ * the universal composition-header set `parseCompositionHeader`
+ * (src/block-header.ts) resolves for every composition kind; the figure
+ * envelope declares no further keys (`known: []` in src/parse.ts).
+ */
+export const FIGURE_HEADER_FIELDS = Object.freeze([
+  "id",
+  "number",
+  "caption",
+] as const);
+
 const pluginDescriptor = Object.freeze({
   type: FIGURE_PLUGIN_TYPE,
   version: FIGURE_PLUGIN_VERSION,

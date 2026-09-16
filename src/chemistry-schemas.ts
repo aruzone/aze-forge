@@ -20,6 +20,9 @@ export const STRUCTURE_BODY_SYNTAX_VERSION = "1.0.0" as const;
 /** Project-owned SVG emitter version (contract §7, plot/geometry emission reuse). */
 export const CHEMISTRY_EMITTER_VERSION = "1.0.3" as const;
 
+/** Formula header keys, in the order the Source schema declares them. */
+export const FORMULA_HEADER_FIELDS = Object.freeze(["id", "number"] as const);
+
 export const formulaSourceSchema: JsonValue = Object.freeze({
   $schema: "https://json-schema.org/draft/2020-12/schema",
   $id: "azeforge.formula/source/v1",
@@ -46,6 +49,9 @@ export const formulaDataSchema: JsonValue = Object.freeze({
     units: { type: "array" },
   },
 });
+
+/** Reaction header keys, in the order the Source schema declares them. */
+export const REACTION_HEADER_FIELDS = Object.freeze(["id", "number", "above", "below", "balance"] as const);
 
 export const reactionSourceSchema: JsonValue = Object.freeze({
   $schema: "https://json-schema.org/draft/2020-12/schema",
@@ -80,6 +86,9 @@ export const reactionDataSchema: JsonValue = Object.freeze({
     products: { type: "array" },
   },
 });
+
+/** Structure header keys, in the order the Source schema declares them. */
+export const STRUCTURE_HEADER_FIELDS = Object.freeze(["id", "number", "width", "height"] as const);
 
 export const structureSourceSchema: JsonValue = Object.freeze({
   $schema: "https://json-schema.org/draft/2020-12/schema",

@@ -130,7 +130,8 @@ const OUTPUT_FORMATS: Readonly<Record<ArtifactFormat, true>> = {
   png: true,
   pdf: true,
 };
-const KNOWN_METADATA_KEYS: Readonly<Record<string, true>> = {
+/** The closed front-matter vocabulary, in canonical order. */
+export const KNOWN_METADATA_KEYS: Readonly<Record<string, true>> = {
   azemark: true,
   author: true,
   title: true,

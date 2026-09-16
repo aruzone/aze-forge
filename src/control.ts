@@ -76,15 +76,15 @@ const ITEM = /^[ \t]*-[ \t]*(.*)$/;
 const ENTRY = /^[ \t]*([A-Za-z][A-Za-z0-9-]*)[ \t]*:[ \t]*(.*)$/;
 const COMMENT = /^[ \t]*\/\/(?:[ \t].*)?$/;
 
-const FLOWS = ["top-to-bottom", "bottom-to-top", "left-to-right", "right-to-left"] as const;
-const SIGNS = ["+", "-"] as const;
-const DECLARATION_KINDS = ["block", "sum", "input", "output", "edge"] as const;
+export const FLOWS = ["top-to-bottom", "bottom-to-top", "left-to-right", "right-to-left"] as const;
+export const SIGNS = ["+", "-"] as const;
+export const DECLARATION_KINDS = ["block", "sum", "input", "output", "edge"] as const;
 
-const HEADER_FIELDS = Object.freeze(["flow", "id", "number", "title", "description"]);
-const BLOCK_FIELDS = Object.freeze(["name", "tf", "label"]);
-const SUM_FIELDS = Object.freeze(["name", "signs"]);
-const STUB_FIELDS = Object.freeze(["name", "label"]);
-const EDGE_FIELDS = Object.freeze(["from", "to", "label"]);
+export const HEADER_FIELDS = Object.freeze(["flow", "id", "number", "title", "description"]);
+export const BLOCK_FIELDS = Object.freeze(["name", "tf", "label"]);
+export const SUM_FIELDS = Object.freeze(["name", "signs"]);
+export const STUB_FIELDS = Object.freeze(["name", "label"]);
+export const EDGE_FIELDS = Object.freeze(["from", "to", "label"]);
 
 /** Items a name may resolve to; edges are anonymous and never referenced. */
 type ReferenceableKind = "block" | "sum" | "input" | "output";

@@ -44,6 +44,18 @@ export const TABLE_COLUMN_TYPES = Object.freeze([
   "math",
 ] as const);
 
+/** The closed per-column declaration field set, in the parser's acceptance order. */
+export const TABLE_COLUMN_FIELDS = Object.freeze([
+  "key",
+  "name",
+  "type",
+  "unit",
+  "align",
+]);
+
+/** The closed per-group declaration field set. */
+export const TABLE_GROUP_FIELDS = Object.freeze(["name", "columns"]);
+
 export const MAX_TABLE_COLUMNS = 64;
 export const MAX_TABLE_ROWS = 1000;
 export const MAX_TABLE_TEXT_CELL_CHARS = 500;
@@ -51,7 +63,7 @@ export const MAX_TABLE_MATH_CELL_CHARS = 4000;
 export const MAX_TABLE_GROUPS = 16;
 
 /** Versioned built-in alignment per column type (contract: issue #66 §3). */
-const DEFAULT_ALIGNMENT: Readonly<Record<TableColumnType, TableColumnAlignment>> =
+export const DEFAULT_ALIGNMENT: Readonly<Record<TableColumnType, TableColumnAlignment>> =
   Object.freeze({
     prose: "left",
     text: "left",
@@ -62,11 +74,35 @@ const DEFAULT_ALIGNMENT: Readonly<Record<TableColumnType, TableColumnAlignment>>
     math: "left",
   });
 
-const ALIGNMENTS: Readonly<Record<string, true>> = Object.freeze({
+/** The closed alignment spellings, in the order the grammar reports them. */
+export const ALIGNMENTS: Readonly<Record<string, true>> = Object.freeze({
   left: true,
   center: true,
   right: true,
 });
+
+/** A per-column declaration field name. */
+type TableColumnField = (typeof TABLE_COLUMN_FIELDS)[number];
+
+/** A per-group declaration field name. */
+type TableGroupField = (typeof TABLE_GROUP_FIELDS)[number];
+
+/** Whether `value` names one of the closed per-column declaration fields. */
+function isTableColumnField(value: string): value is TableColumnField {
+  return TABLE_COLUMN_FIELDS.some((field) => field === value);
+}
+
+/** Whether `value` names one of the closed per-group declaration fields. */
+function isTableGroupField(value: string): value is TableGroupField {
+  return TABLE_GROUP_FIELDS.some((field) => field === value);
+}
+
+/** A closed vocabulary in prose: `key, name, type, unit, or align`. */
+function orList(values: readonly string[]): string {
+  const head = values.slice(0, -1).join(", ");
+  const last = values[values.length - 1] ?? "";
+  return head === "" ? last : `${head}, or ${last}`;
+}
 
 export interface TableBodyContext {
   readonly sourceName?: string;
@@ -317,44 +353,35 @@ function parseColumns(
     }
     let key: string | undefined;
     let keyRange = declarationRange;
-    let name: string | undefined;
-    let type: string | undefined;
-    let unit: string | undefined;
-    let align: string | undefined;
+    const declared: Partial<Record<TableColumnField, string | undefined>> = {};
     for (const pair of pairs) {
       const keyText = isScalarNode(pair.key) ? String(pair.key.value ?? "") : "";
+      if (!isTableColumnField(keyText)) {
+        diagnostics.push(
+          tableDiagnostic(
+            "unknown-column-field",
+            `Table column field "${keyText}" is not supported.`,
+            nodeRange(pair.key, map) ?? declarationRange,
+            sourceName,
+            { suggestion: `Use ${orList(TABLE_COLUMN_FIELDS)}.` },
+          ),
+        );
+        return undefined;
+      }
       const scalar = scalarText(pair.value, map);
-      const valueRange = scalar?.range ?? declarationRange;
-      switch (keyText) {
-        case "key":
-          key = scalar?.text ?? "";
-          keyRange = valueRange;
-          break;
-        case "name":
-          name = scalar?.text;
-          break;
-        case "type":
-          type = scalar?.text;
-          break;
-        case "unit":
-          unit = scalar?.text;
-          break;
-        case "align":
-          align = scalar?.text;
-          break;
-        default:
-          diagnostics.push(
-            tableDiagnostic(
-              "unknown-column-field",
-              `Table column field "${keyText}" is not supported.`,
-              nodeRange(pair.key, map) ?? declarationRange,
-              sourceName,
-              { suggestion: "Use key, name, type, unit, or align." },
-            ),
-          );
-          return undefined;
+      // `key` is the column's identity: its value range anchors every later
+      // diagnostic, and an absent value reads as the empty key.
+      if (keyText === "key") {
+        key = scalar?.text ?? "";
+        keyRange = scalar?.range ?? declarationRange;
+      } else {
+        declared[keyText] = scalar?.text;
       }
     }
+    const name = declared.name;
+    const type = declared.type;
+    const unit = declared.unit;
+    const align = declared.align;
     if (key === undefined || !TABLE_COLUMN_KEY.test(key)) {
       diagnostics.push(
         tableDiagnostic(
@@ -470,7 +497,7 @@ function parseColumns(
       diagnostics.push(
         tableDiagnostic(
           "invalid-column",
-          `Table column "${key}" align must be left, center, or right.`,
+          `Table column "${key}" align must be ${orList(Object.keys(ALIGNMENTS))}.`,
           declarationRange,
           sourceName,
           { data: { key, align } },
@@ -826,9 +853,21 @@ function parseGroups(
     let members: readonly unknown[] | undefined;
     for (const pair of pairs) {
       const keyText = isScalarNode(pair.key) ? String(pair.key.value ?? "") : "";
+      if (!isTableGroupField(keyText)) {
+        diagnostics.push(
+          tableDiagnostic(
+            "unknown-group-field",
+            `Unknown table group field "${keyText}".`,
+            nodeRange(pair.key, map) ?? declarationRange,
+            sourceName,
+          ),
+        );
+        return undefined;
+      }
       if (keyText === "name") {
         name = scalarText(pair.value, map)?.text;
-      } else if (keyText === "columns") {
+      } else {
+        // The one other declared group field, `columns`, lists the members.
         members = sequenceItems(pair.value);
         if (members === undefined) {
           diagnostics.push(
@@ -841,16 +880,6 @@ function parseGroups(
           );
           return undefined;
         }
-      } else {
-        diagnostics.push(
-          tableDiagnostic(
-            "unknown-group-field",
-            `Unknown table group field "${keyText}".`,
-            nodeRange(pair.key, map) ?? declarationRange,
-            sourceName,
-          ),
-        );
-        return undefined;
       }
     }
     if (name === undefined || name.length === 0 || members === undefined) {

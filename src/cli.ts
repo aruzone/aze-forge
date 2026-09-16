@@ -6,6 +6,11 @@ import { basename, dirname, extname, join, resolve } from "node:path";
 import { commitArtifact } from "./atomic-write.js";
 import { buildCapabilities, serializeCapabilities } from "./capabilities.js";
 import { createCompiler } from "./compiler.js";
+import {
+  buildGrammarDocument,
+  grammarDirectiveTypes,
+  serializeGrammar,
+} from "./grammar.js";
 import { createDiagnostic } from "./diagnostics.js";
 import { createDiagnosticsReport } from "./diagnostics-json.js";
 import {
@@ -13,6 +18,7 @@ import {
   commandHelp,
   globalHelp,
   humanCapabilitiesReport,
+  humanGrammarReport,
   humanVersionReport,
   versionLine,
 } from "./help.js";
@@ -118,6 +124,13 @@ interface VersionArguments {
   readonly diagnosticsMode: DiagnosticsMode;
 }
 
+interface GrammarArguments {
+  readonly command: "grammar";
+  readonly directive?: string;
+  readonly machine: boolean;
+  readonly diagnosticsMode: DiagnosticsMode;
+}
+
 interface HelpArguments {
   readonly command: "help";
   readonly topic?: HelpCommand;
@@ -136,6 +149,7 @@ type CliArguments =
   | ServeArguments
   | FormatArguments
   | CapabilitiesArguments
+  | GrammarArguments
   | VersionArguments
   | HelpArguments
   | VersionLineArguments;
@@ -202,6 +216,46 @@ function parseCapabilitiesArguments(
   return {
     command: "capabilities",
     probe,
+    machine: machineFromJsonFlags(json, diagnosticsMode),
+    diagnosticsMode,
+  };
+}
+
+function parseGrammarArguments(
+  rest: readonly string[],
+  diagnosticsMode: DiagnosticsMode,
+): GrammarArguments {
+  let json = false;
+  let directive: string | undefined;
+  for (let index = 0; index < rest.length; index += 1) {
+    const option = rest[index];
+    if (option === "--json") {
+      json = claimJsonFlag(json);
+      continue;
+    }
+    if (option === "--directive") {
+      if (directive !== undefined) {
+        throw new CliUsageError('Option "--directive" was provided more than once.');
+      }
+      const value = rest[index + 1];
+      if (value === undefined || value.startsWith("-")) {
+        throw new CliUsageError('Option "--directive" requires a directive type.');
+      }
+      if (!grammarDirectiveTypes().includes(value)) {
+        throw new CliUsageError(`Unknown directive "${value}".`);
+      }
+      directive = value;
+      index += 1;
+      continue;
+    }
+    if (option !== undefined && option.startsWith("-")) {
+      throw new CliUsageError(`Unknown option "${option}".`);
+    }
+    throw new CliUsageError("Grammar accepts no Source path.");
+  }
+  return {
+    command: "grammar",
+    ...(directive === undefined ? {} : { directive }),
     machine: machineFromJsonFlags(json, diagnosticsMode),
     diagnosticsMode,
   };
@@ -364,6 +418,9 @@ function parseArguments(
   if (arguments_[0] === "capabilities") {
     return parseCapabilitiesArguments(arguments_.slice(1), diagnosticsMode);
   }
+  if (arguments_[0] === "grammar") {
+    return parseGrammarArguments(arguments_.slice(1), diagnosticsMode);
+  }
   if (arguments_[0] === "version") {
     return parseVersionArguments(arguments_.slice(1), diagnosticsMode);
   }
@@ -390,7 +447,7 @@ function parseArguments(
     sourcePath.startsWith("-")
   ) {
     throw new CliUsageError(
-      "Usage: azeforge render <source> --output <artifact> | azeforge validate <source> | azeforge format <source> [--write | --check] | azeforge watch <source> --output <artifact> | azeforge serve <source> [--port <port>] | azeforge capabilities [--probe] [--json] | azeforge version [--json]",
+      "Usage: azeforge render <source> --output <artifact> | azeforge validate <source> | azeforge format <source> [--write | --check] | azeforge watch <source> --output <artifact> | azeforge serve <source> [--port <port>] | azeforge capabilities [--probe] [--json] | azeforge grammar [--json] [--directive <type>] | azeforge version [--json]",
     );
   }
   if (command === "validate") {
@@ -1217,6 +1274,30 @@ async function main(): Promise<void> {
         return;
       }
       process.stderr.write(humanCapabilitiesReport(report));
+      return;
+    }
+    if (arguments_.command === "grammar") {
+      if (arguments_.machine) {
+        process.stdout.write(
+          serializeGrammar(
+            buildGrammarDocument(
+              arguments_.directive === undefined
+                ? {}
+                : { directive: arguments_.directive },
+            ),
+          ),
+        );
+        return;
+      }
+      process.stderr.write(
+        humanGrammarReport(
+          buildGrammarDocument(
+            arguments_.directive === undefined
+              ? {}
+              : { directive: arguments_.directive },
+          ),
+        ),
+      );
       return;
     }
     if (arguments_.command === "watch") {

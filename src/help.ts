@@ -1,4 +1,5 @@
 import type { CapabilitiesReport } from "./capabilities.js";
+import type { GrammarReport } from "./grammar.js";
 import type { VersionReport } from "./version.js";
 import { CAPABILITY_COMMANDS } from "./capabilities.js";
 import { TOOL_VERSION } from "./tool-version.js";
@@ -10,6 +11,7 @@ export const HELP_COMMANDS = [
   "serve",
   "format",
   "capabilities",
+  "grammar",
   "version",
 ] as const;
 
@@ -128,6 +130,17 @@ export function commandHelp(command: HelpCommand): string {
       );
       break;
     }
+    case "grammar": {
+      lines.push(
+        "Options:",
+        "  --json                Emit the machine grammar document on stdout.",
+        "  --directive <type>    Narrow the report to one registered directive.",
+        "",
+        "Without --json, a human report goes to stderr and stdout stays empty.",
+        "An unknown directive is a usage error and exits 2.",
+      );
+      break;
+    }
     case "version": {
       lines.push(
         "Options:",
@@ -144,6 +157,16 @@ export function commandHelp(command: HelpCommand): string {
 
 export function versionLine(): string {
   return `azeforge ${TOOL_VERSION}\n`;
+}
+
+export function humanGrammarReport(report: GrammarReport): string {
+  return [
+    `azeforge ${report.tool.version} grammar`,
+    `azemark versions: ${report.azemarkVersions.join(", ")}`,
+    `directives: ${report.directives.length} (${report.directives.map((directive) => directive.type).join(", ")})`,
+    "Run `azeforge grammar --json` for the complete machine document.",
+    "",
+  ].join("\n");
 }
 
 export function humanVersionReport(report: VersionReport): string {

@@ -35,6 +35,25 @@ export const MERMAID_HTML_BLOCK_RENDERER_VERSION = "1.0.0" as const;
 export const MAX_MERMAID_SOURCE_LENGTH = 8000;
 export const MAX_MERMAID_TEXT_LENGTH = 8000;
 
+/** Header keys `parseMermaidHeader` accepts before the `----` separator. */
+export const MERMAID_HEADER_FIELDS = Object.freeze([
+  "id",
+  "title",
+  "description",
+] as const);
+
+/** `a, b, and c`: the Oxford spelling the accepted-key sentence is written in. */
+function headerFieldList(fields: readonly string[]): string {
+  const head = fields.slice(0, -1);
+  const last = fields[fields.length - 1] ?? "";
+  if (head.length === 0) return last;
+  return `${head.join(", ")}${head.length > 1 ? "," : ""} and ${last}`;
+}
+
+/** Accepted-key sentence, spelled from the table so it cannot drift from it. */
+const MERMAID_HEADER_FIELDS_SUGGESTION =
+  `Valid mermaid attributes are ${headerFieldList(MERMAID_HEADER_FIELDS)}.`;
+
 export {
   CHROME_HEADLESS_SHELL_VERSION,
   MermaidBrowserParseError,
@@ -90,6 +109,21 @@ export function parseMermaidHeader(
   let title: string | undefined;
   let description: string | undefined;
   for (const entry of entries) {
+    if (!(MERMAID_HEADER_FIELDS as readonly string[]).includes(entry.key)) {
+      diagnostics.push(
+        headerDiagnostic(
+          "azeforge.mermaid#invalid-attribute",
+          `Mermaid attribute "${entry.key}" is not a valid mermaid attribute.`,
+          entry.range,
+          sourceName,
+          {
+            suggestion: MERMAID_HEADER_FIELDS_SUGGESTION,
+            data: { attribute: entry.key },
+          },
+        ),
+      );
+      continue;
+    }
     if (entry.key === "id") {
       if (entry.value.length === 0) {
         diagnostics.push(
@@ -138,18 +172,6 @@ export function parseMermaidHeader(
       }
       continue;
     }
-    diagnostics.push(
-      headerDiagnostic(
-        "azeforge.mermaid#invalid-attribute",
-        `Mermaid attribute "${entry.key}" is not a valid mermaid attribute.`,
-        entry.range,
-        sourceName,
-        {
-          suggestion: "Valid mermaid attributes are id, title, and description.",
-          data: { attribute: entry.key },
-        },
-      ),
-    );
   }
   return {
     ...(id === undefined ? {} : { id }),
@@ -159,7 +181,7 @@ export function parseMermaidHeader(
   };
 }
 
-const SUPPORTED_DIAGRAMS: Readonly<Record<string, true>> = {
+export const SUPPORTED_DIAGRAMS: Readonly<Record<string, true>> = {
   flowchart: true,
   graph: true,
   sequencediagram: true,

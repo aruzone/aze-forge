@@ -252,6 +252,7 @@ shasum -a 256 hello-first.html hello.html
 | `watch`        | Recompile on save, preserving last good Artifact     |
 | `serve`        | Loopback live preview with reload                    |
 | `capabilities` | Supported commands, formats, engines (`--probe`)     |
+| `grammar`      | Machine-readable AzeMark 2 directive grammar         |
 | `version`      | Tool, runtime, and schema versions (`--json`)        |
 
 Exit statuses: `0` success (including warning-only validation), `1` the

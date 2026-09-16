@@ -73,8 +73,8 @@ const ITEM = /^[ \t]*-[ \t]*(.*)$/;
 const ENTRY = /^[ \t]*([A-Za-z][A-Za-z0-9-]*)[ \t]*:[ \t]*(.*)$/;
 const COMMENT = /^[ \t]*\/\/(?:[ \t].*)?$/;
 
-const MODES = ["flowchart", "graph", "tree", "architecture"] as const;
-const SHAPES = [
+export const MODES = ["flowchart", "graph", "tree", "architecture"] as const;
+export const SHAPES = [
   "rectangle",
   "rounded",
   "diamond",
@@ -83,10 +83,22 @@ const SHAPES = [
   "hexagon",
   "cylinder",
 ] as const;
-const SIDES = ["left", "right", "top", "bottom"] as const;
-const FLOWS = ["top-to-bottom", "bottom-to-top", "left-to-right", "right-to-left"] as const;
-const DIRECTIONS = ["directed", "undirected"] as const;
-const DECLARATION_KINDS = ["node", "group", "edge"] as const;
+export const SIDES = ["left", "right", "top", "bottom"] as const;
+export const FLOWS = ["top-to-bottom", "bottom-to-top", "left-to-right", "right-to-left"] as const;
+export const DIRECTIONS = ["directed", "undirected"] as const;
+export const DECLARATION_KINDS = ["node", "group", "edge"] as const;
+
+/** Header keys `validateDiagramBlock` reads by name (the family's closed set). */
+export const DIAGRAM_HEADER_FIELDS = Object.freeze([
+  "id",
+  "number",
+  "title",
+  "description",
+  "mode",
+  "flow",
+] as const);
+
+type DiagramHeaderKey = (typeof DIAGRAM_HEADER_FIELDS)[number];
 
 const DEFAULT_FLOW: Readonly<Record<DiagramMode, DiagramFlow>> = Object.freeze({
   flowchart: "top-to-bottom",
@@ -95,10 +107,10 @@ const DEFAULT_FLOW: Readonly<Record<DiagramMode, DiagramFlow>> = Object.freeze({
   architecture: "left-to-right",
 });
 
-const NODE_FIELDS = Object.freeze(["name", "label", "shape", "parent", "ports"]);
-const GROUP_FIELDS = Object.freeze(["name", "label", "parent"]);
-const EDGE_FIELDS = Object.freeze(["from", "to", "label", "direction"]);
-const PORT_FIELDS = Object.freeze(["name", "side"]);
+export const NODE_FIELDS = Object.freeze(["name", "label", "shape", "parent", "ports"]);
+export const GROUP_FIELDS = Object.freeze(["name", "label", "parent"]);
+export const EDGE_FIELDS = Object.freeze(["from", "to", "label", "direction"]);
+export const PORT_FIELDS = Object.freeze(["name", "side"]);
 
 const TREE_REASONS: Readonly<Record<string, string>> = Object.freeze({
   "no-root": "A tree requires exactly one root node, and this diagram has none.",
@@ -499,14 +511,15 @@ export function validateDiagramBlock(options: DiagramValidationOptions): {
   let labelCodePoints = 0;
 
   /* Envelope faults (unknown header properties, repeated singletons) belong
-   * to the core parser; the family reads the fields it registers and leaves
-   * the rest alone. */
-  const header = new Map<string, Field>();
+   * to the core parser; the family reads the fields it registers
+   * (DIAGRAM_HEADER_FIELDS) and leaves the rest alone. */
+  const header = new Map<DiagramHeaderKey, Field>();
   for (const line of headerLines) {
     if (/^[ \t]*$/.test(line.text) || COMMENT.test(line.text)) continue;
     const match = FIELD.exec(line.text);
     if (match === null) continue;
     const key = (match[1] ?? "").toLowerCase();
+    if (!oneOf(DIAGRAM_HEADER_FIELDS, key)) continue;
     if (header.has(key)) continue;
     header.set(key, { key, value: (match[2] ?? "").trim(), range: line.range });
   }

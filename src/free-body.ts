@@ -83,8 +83,8 @@ export interface FreeBodyInputLine {
   readonly range: SourceRange;
 }
 
-const BODY_KINDS = Object.freeze(["block", "circle", "polygon", "particle"] as const);
-const RECORD_KINDS = Object.freeze([
+export const BODY_KINDS = Object.freeze(["block", "circle", "polygon", "particle"] as const);
+export const RECORD_KINDS = Object.freeze([
   "point",
   "line",
   "force",
@@ -93,13 +93,13 @@ const RECORD_KINDS = Object.freeze([
   "angle-mark",
   "dimension",
 ] as const);
-const DECLARATION_KINDS: readonly string[] = Object.freeze([
+export const DECLARATION_KINDS: readonly string[] = Object.freeze([
   ...BODY_KINDS,
   ...RECORD_KINDS,
 ]);
 
 /** Fields each declaration kind accepts (contract §7, closed vocabulary). */
-const FIELDS_BY_KIND: Readonly<Record<string, readonly string[]>> = Object.freeze({
+export const FIELDS_BY_KIND: Readonly<Record<string, readonly string[]>> = Object.freeze({
   block: ["name", "x", "y", "width", "height", "angle", "visible"],
   circle: ["name", "x", "y", "radius", "visible"],
   polygon: ["name", "vertices", "visible"],
@@ -113,7 +113,7 @@ const FIELDS_BY_KIND: Readonly<Record<string, readonly string[]>> = Object.freez
   dimension: ["from", "to", "label"],
 });
 
-const HEADER_FIELDS: readonly string[] = Object.freeze([
+export const HEADER_FIELDS: readonly string[] = Object.freeze([
   "scale",
   "id",
   "number",
@@ -123,11 +123,11 @@ const HEADER_FIELDS: readonly string[] = Object.freeze([
   "height",
   "bounds",
 ]);
-const BOUNDS_KEYS: readonly string[] = Object.freeze(["min-x", "min-y", "max-x", "max-y"]);
-const STYLES = Object.freeze(["solid", "dashed"] as const);
-const MOMENT_DIRECTIONS = Object.freeze(["cw", "ccw"] as const);
+export const BOUNDS_KEYS: readonly string[] = Object.freeze(["min-x", "min-y", "max-x", "max-y"]);
+export const STYLES = Object.freeze(["solid", "dashed"] as const);
+export const MOMENT_DIRECTIONS = Object.freeze(["cw", "ccw"] as const);
 /** The three closed direction forms; exactly one is authored per force. */
-const DIRECTION_FIELDS: readonly string[] = Object.freeze([
+export const DIRECTION_FIELDS: readonly string[] = Object.freeze([
   "angle",
   "parallel-to",
   "perpendicular-to",

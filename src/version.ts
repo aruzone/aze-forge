@@ -106,6 +106,10 @@ import { TOOL_VERSION } from "./tool-version.js";
 import { WATCH_EVENT_SCHEMA_ID } from "./watch-events.js";
 import { CAPABILITIES_SCHEMA_ID } from "./capabilities-json.js";
 import {
+  GRAMMAR_SCHEMA_ID,
+  GRAMMAR_SCHEMA_VERSION,
+} from "./grammar-json.js";
+import {
   RUNTIME_SUPPORT,
   runtimeSupportJsonSchema,
   type RuntimeSupport,
@@ -135,6 +139,7 @@ export function publicSchemaVersions(): readonly VersionedSchema[] {
     { id: VERSION_SCHEMA_ID, version: 1 },
     { id: ACCEPTANCE_SCHEMA_ID, version: ACCEPTANCE_SCHEMA_VERSION },
     { id: WATCH_EVENT_SCHEMA_ID, version: 1 },
+    { id: GRAMMAR_SCHEMA_ID, version: GRAMMAR_SCHEMA_VERSION },
     { id: schemaId(equationSourceSchema), version: EQUATION_PLUGIN_VERSION },
     { id: schemaId(equationDataSchema), version: EQUATION_PLUGIN_VERSION },
     { id: schemaId(derivationSourceSchema), version: DERIVATION_PLUGIN_VERSION },

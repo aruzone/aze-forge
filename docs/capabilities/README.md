@@ -16,6 +16,12 @@ registered form: [`docs/language/`](../language/README.md). Those documents are
 compile-verified whole Sources, not fragments, and are the fastest way to see a
 capability in context.
 
+This guide is prose. The directives it describes, their header keys, their body
+records and their field vocabularies are published as data — derived from the
+tables the validators use — by `azeforge grammar [--json] [--directive <type>]`
+(`.directives[]` in the machine document). When the two disagree, the command is
+right.
+
 ## Capability tree
 
 ```text

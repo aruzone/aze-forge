@@ -63,7 +63,7 @@ export interface GeometryInputLine {
   readonly range: SourceRange;
 }
 
-const PRIMITIVE_KINDS = Object.freeze([
+export const PRIMITIVE_KINDS = Object.freeze([
   "point",
   "segment",
   "line",
@@ -72,7 +72,7 @@ const PRIMITIVE_KINDS = Object.freeze([
   "arc",
   "polygon",
 ] as const);
-const CONSTRUCTION_KINDS = Object.freeze([
+export const CONSTRUCTION_KINDS = Object.freeze([
   "midpoint",
   "intersection",
   "tangent-line",
@@ -80,7 +80,7 @@ const CONSTRUCTION_KINDS = Object.freeze([
   "perpendicular-line",
   "parallel-line",
 ] as const);
-const MARK_KINDS = Object.freeze([
+export const MARK_KINDS = Object.freeze([
   "angle-mark",
   "length-mark",
   "equal-marks",
@@ -93,7 +93,7 @@ const REGISTERED_KINDS: readonly string[] = Object.freeze([
 ]);
 
 /** Fields each declaration kind accepts (contract §3, closed vocabulary). */
-const FIELDS_BY_KIND: Readonly<Record<string, readonly string[]>> =
+export const FIELDS_BY_KIND: Readonly<Record<string, readonly string[]>> =
   Object.freeze({
     point: ["kind", "name", "label", "x", "y", "visible", "style"],
     segment: ["kind", "name", "label", "from", "to", "visible", "style"],
@@ -113,6 +113,23 @@ const FIELDS_BY_KIND: Readonly<Record<string, readonly string[]>> =
     "equal-marks": ["kind", "group", "segments", "visible", "style"],
     "right-angle-mark": ["kind", "first", "second", "third", "visible", "style"],
   });
+
+/** Header keys `parseHeader` accepts, in the parser's acceptance order. */
+export const GEOMETRY_HEADER_FIELDS = Object.freeze([
+  "id",
+  "number",
+  "width",
+  "height",
+  "bounds",
+] as const);
+
+/** `bounds:` opens a fixed group; every key in it is required once it does. */
+export const GEOMETRY_BOUNDS_KEYS = Object.freeze([
+  "min-x",
+  "min-y",
+  "max-x",
+  "max-y",
+] as const);
 
 /* ------------------------------------------------------------------ *
  * Diagnostics
@@ -247,7 +264,7 @@ function parseHeader(
       boundsFields = [];
       continue;
     }
-    if (boundsFields !== undefined && (key === "min-x" || key === "min-y" || key === "max-x" || key === "max-y")) {
+    if (boundsFields !== undefined && (GEOMETRY_BOUNDS_KEYS as readonly string[]).includes(key)) {
       boundsFields.push({ key, value, line });
       continue;
     }
@@ -263,6 +280,12 @@ function parseHeader(
       continue;
     }
     seen.add(key);
+    if (!(GEOMETRY_HEADER_FIELDS as readonly string[]).includes(key)) {
+      diagnostics.push(diag("unknown-field", `Geometry header field "${key}" is not supported.`, lineRange(line), sourceName, {
+        suggestion: `Supported header fields: ${GEOMETRY_HEADER_FIELDS.map((field) => `"${field}"`).join(", ")}.`,
+      }));
+      continue;
+    }
     if (key === "id") {
       if (!NAME_PATTERN.test(value)) {
         diagnostics.push(diag("unknown-field", `Geometry id "${value}" must be lowercase-kebab.`, lineRange(line), sourceName));
@@ -287,10 +310,6 @@ function parseHeader(
       }
       if (key === "width") width = parsed;
       else height = parsed;
-    } else {
-      diagnostics.push(diag("unknown-field", `Geometry header field "${key}" is not supported.`, lineRange(line), sourceName, {
-        suggestion: 'Supported header fields: "id", "number", "width", "height", "bounds".',
-      }));
     }
   }
   if (boundsFields !== undefined) {
@@ -320,10 +339,10 @@ function finishBounds(
     }
     values[field.key] = canonical;
   }
-  const missing = ["min-x", "min-y", "max-x", "max-y"].filter((key) => values[key] === undefined);
+  const missing = GEOMETRY_BOUNDS_KEYS.filter((key) => values[key] === undefined);
   if (missing.length > 0) {
     const first = fields[0]?.line.range;
-    diagnostics.push(diag("invalid-bounds", `Geometry bounds require min-x, min-y, max-x, max-y (missing: ${missing.join(", ")}).`, first ?? ({ start: { line: 0, column: 0 }, end: { line: 0, column: 0 } } as SourceRange), sourceName));
+    diagnostics.push(diag("invalid-bounds", `Geometry bounds require ${GEOMETRY_BOUNDS_KEYS.join(", ")} (missing: ${missing.join(", ")}).`, first ?? ({ start: { line: 0, column: 0 }, end: { line: 0, column: 0 } } as SourceRange), sourceName));
     return { diagnostics };
   }
   const minX = Number(values["min-x"] ?? "0");

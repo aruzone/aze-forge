@@ -64,14 +64,18 @@ const FIELD = /^[ \t]*([A-Za-z][A-Za-z0-9-]*)[ \t]*:(.*)$/;
 const ITEM = /^[ \t]*-[ \t]*(.*)$/;
 const ENTRY = /^[ \t]*([A-Za-z][A-Za-z0-9-]*)[ \t]*:[ \t]*(.*)$/;
 const COMMENT = /^[ \t]*\/\/(?:[ \t].*)?$/;
-const HEADER_FIELDS = Object.freeze(["id", "number", "title", "description", "scale", "unit"]);
-const SIGNAL_FIELDS = Object.freeze(["ref", "clock", "phase", "width", "wave", "intervals"]);
-const GROUP_FIELDS = Object.freeze(["label", "signals"]);
-const MARKER_FIELDS = Object.freeze(["at", "label"]);
-const ARROW_FIELDS = Object.freeze(["from", "to", "label"]);
-const INTERVAL_FIELDS = Object.freeze(["state", "duration", "value"]);
-const TIME_UNITS = Object.freeze(["ns", "µs", "ms", "s"]);
-const STATE_WORDS: Readonly<Record<string, TimingIntervalState>> = Object.freeze({
+export const HEADER_FIELDS = Object.freeze(["id", "number", "title", "description", "scale", "unit"]);
+export const SIGNAL_FIELDS = Object.freeze(["ref", "clock", "phase", "width", "wave", "intervals"]);
+/** The body record kinds a timing body accepts, in dispatch order. */
+export const TIMING_BODY_KINDS = Object.freeze(["signal", "group", "marker", "arrow"]);
+export const GROUP_FIELDS = Object.freeze(["label", "signals"]);
+export const MARKER_FIELDS = Object.freeze(["at", "label"]);
+export const ARROW_FIELDS = Object.freeze(["from", "to", "label"]);
+export const INTERVAL_FIELDS = Object.freeze(["state", "duration", "value"]);
+export const TIME_UNITS = Object.freeze(["ns", "µs", "ms", "s"]);
+/** Accepted `scale:` spellings, the vocabulary the block validator enforces. */
+export const SCALE_WORDS = Object.freeze(["cycles", "time"]);
+export const STATE_WORDS: Readonly<Record<string, TimingIntervalState>> = Object.freeze({
   low: "low",
   high: "high",
   unknown: "unknown",
@@ -552,7 +556,7 @@ export function validateTimingBlock(options: TimingValidationOptions): {
 
   const scaleLine = header.get("scale");
   const scaleText = scaleLine?.value ?? "cycles";
-  if (scaleText !== "cycles" && scaleText !== "time") {
+  if (!SCALE_WORDS.includes(scaleText)) {
     diagnostics.push(diag("invalid-field", "Timing `scale:` must be cycles or time.", scaleLine?.range ?? blockRange, sourceName));
   }
   const scale: "cycles" | "time" = scaleText === "time" ? "time" : "cycles";
@@ -577,6 +581,10 @@ export function validateTimingBlock(options: TimingValidationOptions): {
   let totalIntervals = 0;
   let span = 0;
   for (const item of raws) {
+    if (!TIMING_BODY_KINDS.includes(item.kind)) {
+      diagnostics.push(diag("unknown-declaration", `Unknown timing declaration "${item.kind}".`, item.range, sourceName));
+      continue;
+    }
     if (item.kind === "signal") {
       allowedFields(item.fields, SIGNAL_FIELDS, "signal", sourceName, diagnostics);
       const get = (key: string): Field | undefined => item.fields.find((field) => field.key === key);
@@ -741,7 +749,6 @@ export function validateTimingBlock(options: TimingValidationOptions): {
       arrows.push({ from: anchors[0]!, to: anchors[1]!, ...(label === undefined ? {} : { label }), range: item.range });
       continue;
     }
-    diagnostics.push(diag("unknown-declaration", `Unknown timing declaration "${item.kind}".`, item.range, sourceName));
   }
 
   if (groups.length > MAX_TIMING_GROUPS) {

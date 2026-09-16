@@ -13,9 +13,19 @@ const COMPONENT_REF = /^[A-Z][A-Z0-9]*$/;
 const FIELD = /^[ \t]*([A-Za-z][A-Za-z0-9-]*)[ \t]*:(.*)$/;
 const ITEM = /^[ \t]*-[ \t]*kind[ \t]*:[ \t]*(.*)$/;
 const COMMENT = /^[ \t]*\/\/(?:[ \t].*)?$/;
-const ORIENTATIONS = new Set(["left-to-right", "right-to-left", "top-to-bottom", "bottom-to-top"]);
+export const HEADER_FIELDS = Object.freeze(["id", "number", "title", "description", "flow"]);
+export const FLOWS = ["left-to-right", "top-to-bottom"] as const;
+export const NODE_ROLES = ["signal", "reference"] as const;
+export const CURRENT_DIRECTIONS = ["into", "out"] as const;
+export const GATE_INPUTS = ["2", "3", "4"] as const;
+export const ORIENTATIONS = ["left-to-right", "right-to-left", "top-to-bottom", "bottom-to-top"] as const;
 const GATES = new Set(["and", "or", "nand", "nor", "xor", "xnor"]);
-const KINDS = new Set<CircuitComponentKind>(["resistor", "capacitor", "inductor", "voltage-source", "current-source", "diode", "led", "switch", "dependent-source", "op-amp", "bjt", "mosfet", "and", "or", "nand", "nor", "xor", "xnor", "not", "buffer", "mux-2to1", "mux-4to1", "d-flip-flop", "digital-input", "digital-output"]);
+export const KINDS = ["resistor", "capacitor", "inductor", "voltage-source", "current-source", "diode", "led", "switch", "dependent-source", "op-amp", "bjt", "mosfet", "and", "or", "nand", "nor", "xor", "xnor", "not", "buffer", "mux-2to1", "mux-4to1", "d-flip-flop", "digital-input", "digital-output"] as const;
+
+/** Membership that narrows, for the closed vocabularies above. */
+function oneOf<T extends string>(values: readonly T[], value: string): value is T {
+  return (values as readonly string[]).includes(value);
+}
 
 function diag(code: string, message: string, range: SourceRange, sourceName: string | undefined, severity: "error" | "warning" = "error", data?: Record<string, JsonValue>): Diagnostic {
   return createDiagnostic(`azeforge.circuit#${code}`, severity, message, { location: sourceName === undefined ? { range } : { source: sourceName, range }, ...(data === undefined ? {} : { data }) });
@@ -73,14 +83,40 @@ function terminals(kind: CircuitComponentKind, inputs?: 2 | 3 | 4): readonly str
   switch (kind) { case "resistor": case "capacitor": case "inductor": case "switch": return ["a", "b"]; case "voltage-source": case "current-source": return ["positive", "negative"]; case "diode": case "led": return ["anode", "cathode"]; case "dependent-source": return ["positive", "negative", "controlPositive", "controlNegative"]; case "op-amp": return ["nonInverting", "inverting", "output", "positiveSupply", "negativeSupply"]; case "bjt": return ["collector", "base", "emitter"]; case "mosfet": return ["drain", "gate", "source"]; case "not": case "buffer": return ["in", "out"]; case "mux-2to1": return ["d0", "d1", "s0", "out"]; case "mux-4to1": return ["d0", "d1", "d2", "d3", "s0", "s1", "out"]; case "d-flip-flop": return ["d", "clk", "q"]; case "digital-input": return ["out"]; case "digital-output": return ["in"]; }
   return [];
 }
-const ANALOG_FIELDS: Partial<Record<CircuitComponentKind, readonly string[]>> = {
-  resistor: ["ref", "orientation", "value"], capacitor: ["ref", "orientation", "value"], inductor: ["ref", "orientation", "value"],
-  "voltage-source": ["ref", "orientation", "value", "mode"], "current-source": ["ref", "orientation", "value", "mode"],
-  diode: ["ref", "orientation", "name"], led: ["ref", "orientation", "name"], switch: ["ref", "orientation", "name", "mode"],
-  "dependent-source": ["ref", "orientation", "value", "mode"], "op-amp": ["ref", "orientation", "name"],
-  bjt: ["ref", "orientation", "name", "mode"], mosfet: ["ref", "orientation", "name", "mode"],
-};
-const MODE_VALUES: Partial<Record<CircuitComponentKind, readonly string[]>> = {
+export type CircuitBodyKind = CircuitComponentKind | "node" | "connect" | "voltage-label" | "current-label";
+/** Fields each body record kind accepts (closed vocabulary the validator enforces). */
+export const FIELDS_BY_KIND: Readonly<Record<CircuitBodyKind, readonly string[]>> = Object.freeze({
+  node: ["ref", "role", "label"],
+  connect: ["terminal", "node"],
+  "voltage-label": ["positive", "negative"],
+  "current-label": ["terminal", "direction"],
+  resistor: ["ref", "orientation", "value"],
+  capacitor: ["ref", "orientation", "value"],
+  inductor: ["ref", "orientation", "value"],
+  "voltage-source": ["ref", "orientation", "value", "mode"],
+  "current-source": ["ref", "orientation", "value", "mode"],
+  diode: ["ref", "orientation", "name"],
+  led: ["ref", "orientation", "name"],
+  switch: ["ref", "orientation", "name", "mode"],
+  "dependent-source": ["ref", "orientation", "value", "mode"],
+  "op-amp": ["ref", "orientation", "name"],
+  bjt: ["ref", "orientation", "name", "mode"],
+  mosfet: ["ref", "orientation", "name", "mode"],
+  and: ["ref", "orientation", "inputs"],
+  or: ["ref", "orientation", "inputs"],
+  nand: ["ref", "orientation", "inputs"],
+  nor: ["ref", "orientation", "inputs"],
+  xor: ["ref", "orientation", "inputs"],
+  xnor: ["ref", "orientation", "inputs"],
+  not: ["ref", "orientation"],
+  buffer: ["ref", "orientation"],
+  "mux-2to1": ["ref", "orientation"],
+  "mux-4to1": ["ref", "orientation"],
+  "d-flip-flop": ["ref", "orientation"],
+  "digital-input": ["ref", "orientation", "name"],
+  "digital-output": ["ref", "orientation", "name"],
+});
+export const MODE_VALUES: Partial<Record<CircuitComponentKind, readonly string[]>> = {
   "voltage-source": ["dc", "ac"], "current-source": ["dc", "ac"], switch: ["normally-open", "normally-closed"],
   "dependent-source": ["VCVS", "VCCS", "CCVS", "CCCS"], bjt: ["npn", "pnp"], mosfet: ["nmos", "pmos"],
 };
@@ -112,28 +148,28 @@ function parseBody(lines: readonly CircuitInputLine[], diagnostics: Diagnostic[]
 export function validateCircuitBlock(options: { readonly headerLines: readonly CircuitInputLine[]; readonly bodyLines: readonly CircuitInputLine[]; readonly blockRange: SourceRange; readonly sourceName?: string; readonly symbolConvention?: string; readonly defaults?: Readonly<Record<string, unknown>> }): { readonly block?: CircuitBlock; readonly diagnostics: readonly Diagnostic[] } {
   const { headerLines, bodyLines, blockRange, sourceName, symbolConvention, defaults } = options; const diagnostics: Diagnostic[] = []; const header = new Map<string, CircuitInputLine & { value: string }>();
   for (const line of headerLines) { if (/^[ \t]*$/.test(line.text) || COMMENT.test(line.text)) continue; const match = FIELD.exec(line.text); if (match === null) { diagnostics.push(diag("unknown-field", "Circuit header entries must be `key: value` fields.", line.range, sourceName)); continue; } const key = (match[1] ?? "").toLowerCase(); if (header.has(key)) diagnostics.push(diag("duplicate-field", `Circuit header field "${key}" is declared twice.`, line.range, sourceName)); else header.set(key, { ...line, value: (match[2] ?? "").trim() }); }
-  for (const key of header.keys()) if (!new Set(["id", "number", "title", "description", "flow"]).has(key)) diagnostics.push(diag("unknown-field", `Circuit header field "${key}" is not supported.`, header.get(key)!.range, sourceName));
+  for (const key of header.keys()) if (!HEADER_FIELDS.includes(key)) diagnostics.push(diag("unknown-field", `Circuit header field "${key}" is not supported.`, header.get(key)!.range, sourceName));
   const titleLine = header.get("title"); const title = titleLine === undefined ? (diagnostics.push(diag("missing-field", "Circuit header requires `title:`.", blockRange, sourceName)), undefined) : text(titleLine.value, titleLine.range, diagnostics, sourceName);
   const descriptionLine = header.get("description"); const description = descriptionLine === undefined ? undefined : text(descriptionLine.value, descriptionLine.range, diagnostics, sourceName);
   const idLine = header.get("id"); const id = idLine?.value; if (id !== undefined && !NAME.test(id)) diagnostics.push(diag("invalid-id", "Circuit id must be lowercase-kebab.", idLine!.range, sourceName));
   const numberLine = header.get("number"); const number = numberLine === undefined ? undefined : numberLine.value === "true" ? true : numberLine.value === "false" ? false : (diagnostics.push(diag("invalid-field", "Circuit `number:` must be true or false.", numberLine.range, sourceName)), undefined);
-  const flowLine = header.get("flow"); const defaultFlow = typeof defaults?.flow === "string" ? defaults.flow : undefined; const flow = flowLine?.value ?? defaultFlow ?? "left-to-right"; if (flow !== "left-to-right" && flow !== "top-to-bottom") diagnostics.push(diag("invalid-field", "Circuit `flow:` must be left-to-right or top-to-bottom.", flowLine?.range ?? blockRange, sourceName));
+  const flowLine = header.get("flow"); const defaultFlow = typeof defaults?.flow === "string" ? defaults.flow : undefined; const flow = flowLine?.value ?? defaultFlow ?? "left-to-right"; if (!oneOf(FLOWS, flow)) diagnostics.push(diag("invalid-field", "Circuit `flow:` must be left-to-right or top-to-bottom.", flowLine?.range ?? blockRange, sourceName));
   if (symbolConvention !== "iec" && symbolConvention !== "ansi") diagnostics.push(diag("unsupported-symbol-convention", "Circuit documents require front matter `x-circuit-symbol-convention: iec | ansi`.", blockRange, sourceName));
   const raws = parseBody(bodyLines, diagnostics, sourceName); const nodes: CircuitNode[] = []; const components: CircuitComponent[] = []; const relations: CircuitRelation[] = []; const annotations: CircuitAnnotation[] = []; const nodeRefs = new Map<string, CircuitNode>(); const componentRefs = new Map<string, CircuitComponent>(); let labelCodePoints = [...(titleLine?.value ?? "")].length + [...(descriptionLine?.value ?? "")].length;
   for (const raw of raws) { const f = raw.fields; const get = (key: string): string | undefined => f.get(key)?.value; const allowed = (...keys: string[]): void => { for (const key of f.keys()) if (!keys.includes(key)) diagnostics.push(diag("unknown-field", `Circuit ${raw.kind} field "${key}" is not supported.`, f.get(key)!.range, sourceName)); };
-    if (raw.kind === "node") { allowed("ref", "role", "label"); const ref = get("ref"); if (ref === undefined || !NAME.test(ref)) { diagnostics.push(diag("invalid-node-ref", "Circuit node requires lowercase-kebab `ref:`.", raw.range, sourceName)); continue; } const role = get("role") ?? "signal"; if (role !== "signal" && role !== "reference") diagnostics.push(diag("invalid-field", "Circuit node role must be signal or reference.", f.get("role")!.range, sourceName)); const labelLine = f.get("label"); const label = labelLine === undefined ? undefined : text(labelLine.value, labelLine.range, diagnostics, sourceName); if (labelLine !== undefined) labelCodePoints += [...labelLine.value].length; const node: CircuitNode = { ref, role: role === "reference" ? "reference" : "signal", ...(label === undefined ? {} : { label }), range: raw.range }; if (nodeRefs.has(ref)) diagnostics.push(diag("duplicate-node-ref", `Circuit node "${ref}" is declared twice.`, raw.range, sourceName)); else { nodeRefs.set(ref, node); nodes.push(node); } continue; }
-    if (raw.kind === "connect") { allowed("terminal", "node"); const terminal = get("terminal"), node = get("node"); if (terminal === undefined || node === undefined) { diagnostics.push(diag("missing-field", "Circuit connect requires `terminal:` and `node:`.", raw.range, sourceName)); continue; } const dot = terminal.indexOf("."); if (dot <= 0 || dot === terminal.length - 1) { diagnostics.push(diag("invalid-terminal", "Circuit terminal must be a qualified component-terminal reference.", f.get("terminal")!.range, sourceName)); continue; } relations.push({ componentRef: terminal.slice(0, dot), terminal: terminal.slice(dot + 1), nodeId: node, range: raw.range }); continue; }
-    if (raw.kind === "voltage-label") { allowed("positive", "negative"); const positive = get("positive"), negative = get("negative"); if (positive === undefined || negative === undefined) diagnostics.push(diag("missing-field", "Voltage label requires `positive:` and `negative:`.", raw.range, sourceName)); else annotations.push({ kind: "voltage-label", positive, negative, range: raw.range }); continue; }
-    if (raw.kind === "current-label") { allowed("terminal", "direction"); const terminal = get("terminal"), direction = get("direction"); const dot = terminal?.indexOf(".") ?? -1; if (dot <= 0 || direction === undefined || (direction !== "into" && direction !== "out")) diagnostics.push(diag("invalid-annotation", "Current label requires a qualified terminal and direction into or out.", raw.range, sourceName)); else annotations.push({ kind: "current-label", componentRef: terminal!.slice(0, dot), terminal: terminal!.slice(dot + 1), direction, range: raw.range }); continue; }
-    if (!KINDS.has(raw.kind as CircuitComponentKind)) { diagnostics.push(diag("unknown-component-kind", `Circuit component kind "${raw.kind}" is not supported.`, raw.range, sourceName)); continue; }
-    const kind = raw.kind as CircuitComponentKind;
-    const allowedFields = GATES.has(kind) ? ["ref", "orientation", "inputs"] : kind === "digital-input" || kind === "digital-output" ? ["ref", "orientation", "name"] : ANALOG_FIELDS[kind] ?? ["ref", "orientation"];
+    if (raw.kind === "node") { allowed(...FIELDS_BY_KIND.node); const ref = get("ref"); if (ref === undefined || !NAME.test(ref)) { diagnostics.push(diag("invalid-node-ref", "Circuit node requires lowercase-kebab `ref:`.", raw.range, sourceName)); continue; } const role = get("role") ?? "signal"; if (!oneOf(NODE_ROLES, role)) diagnostics.push(diag("invalid-field", "Circuit node role must be signal or reference.", f.get("role")!.range, sourceName)); const labelLine = f.get("label"); const label = labelLine === undefined ? undefined : text(labelLine.value, labelLine.range, diagnostics, sourceName); if (labelLine !== undefined) labelCodePoints += [...labelLine.value].length; const node: CircuitNode = { ref, role: role === "reference" ? "reference" : "signal", ...(label === undefined ? {} : { label }), range: raw.range }; if (nodeRefs.has(ref)) diagnostics.push(diag("duplicate-node-ref", `Circuit node "${ref}" is declared twice.`, raw.range, sourceName)); else { nodeRefs.set(ref, node); nodes.push(node); } continue; }
+    if (raw.kind === "connect") { allowed(...FIELDS_BY_KIND.connect); const terminal = get("terminal"), node = get("node"); if (terminal === undefined || node === undefined) { diagnostics.push(diag("missing-field", "Circuit connect requires `terminal:` and `node:`.", raw.range, sourceName)); continue; } const dot = terminal.indexOf("."); if (dot <= 0 || dot === terminal.length - 1) { diagnostics.push(diag("invalid-terminal", "Circuit terminal must be a qualified component-terminal reference.", f.get("terminal")!.range, sourceName)); continue; } relations.push({ componentRef: terminal.slice(0, dot), terminal: terminal.slice(dot + 1), nodeId: node, range: raw.range }); continue; }
+    if (raw.kind === "voltage-label") { allowed(...FIELDS_BY_KIND["voltage-label"]); const positive = get("positive"), negative = get("negative"); if (positive === undefined || negative === undefined) diagnostics.push(diag("missing-field", "Voltage label requires `positive:` and `negative:`.", raw.range, sourceName)); else annotations.push({ kind: "voltage-label", positive, negative, range: raw.range }); continue; }
+    if (raw.kind === "current-label") { allowed(...FIELDS_BY_KIND["current-label"]); const terminal = get("terminal"), direction = get("direction"); const dot = terminal?.indexOf(".") ?? -1; if (dot <= 0 || direction === undefined || !oneOf(CURRENT_DIRECTIONS, direction)) diagnostics.push(diag("invalid-annotation", "Current label requires a qualified terminal and direction into or out.", raw.range, sourceName)); else annotations.push({ kind: "current-label", componentRef: terminal!.slice(0, dot), terminal: terminal!.slice(dot + 1), direction, range: raw.range }); continue; }
+    if (!oneOf(KINDS, raw.kind)) { diagnostics.push(diag("unknown-component-kind", `Circuit component kind "${raw.kind}" is not supported.`, raw.range, sourceName)); continue; }
+    const kind = raw.kind;
+    const allowedFields = FIELDS_BY_KIND[kind];
     allowed(...allowedFields);
     const ref = get("ref"); if (ref === undefined || !COMPONENT_REF.test(ref)) { diagnostics.push(diag("invalid-component-ref", "Circuit component requires uppercase alphanumeric `ref:`.", raw.range, sourceName)); continue; }
-    const inputsRaw = get("inputs"); const inputs = inputsRaw === undefined ? undefined : (inputsRaw === "2" || inputsRaw === "3" || inputsRaw === "4") ? Number(inputsRaw) as 2 | 3 | 4 : undefined;
+    const inputsRaw = get("inputs"); const inputs = inputsRaw !== undefined && oneOf(GATE_INPUTS, inputsRaw) ? Number(inputsRaw) as 2 | 3 | 4 : undefined;
     if (GATES.has(kind) ? inputsRaw !== undefined && inputs === undefined : inputsRaw !== undefined) diagnostics.push(diag("invalid-inputs", "Only logic gates accept `inputs: 2`, `3`, or `4`.", f.get("inputs")!.range, sourceName));
-    const orientation = get("orientation"); if (orientation !== undefined && !ORIENTATIONS.has(orientation)) diagnostics.push(diag("invalid-field", "Circuit orientation is invalid.", f.get("orientation")!.range, sourceName));
-    const validOrientation = orientation !== undefined && ORIENTATIONS.has(orientation) ? orientation as CircuitComponent["orientation"] : undefined;
+    const orientation = get("orientation"); if (orientation !== undefined && !oneOf(ORIENTATIONS, orientation)) diagnostics.push(diag("invalid-field", "Circuit orientation is invalid.", f.get("orientation")!.range, sourceName));
+    const validOrientation = orientation !== undefined && oneOf(ORIENTATIONS, orientation) ? orientation : undefined;
     const nameLine = f.get("name"); const valueLine = f.get("value"); const name = nameLine === undefined ? undefined : text(nameLine.value, nameLine.range, diagnostics, sourceName); const value = valueLine === undefined ? undefined : text(valueLine.value, valueLine.range, diagnostics, sourceName); const mode = get("mode");
     if (nameLine !== undefined) labelCodePoints += [...nameLine.value].length; if (valueLine !== undefined) labelCodePoints += [...valueLine.value].length;
     const validModes = MODE_VALUES[kind]; if (validModes !== undefined && mode !== undefined && !validModes.includes(mode)) diagnostics.push(diag("invalid-field", `${kind} mode must be ${validModes.join(" | ")}.`, f.get("mode")!.range, sourceName));
@@ -170,7 +206,7 @@ export function validateCircuitBlock(options: { readonly headerLines: readonly C
   if (subgraphs.length > 1) for (const subgraph of subgraphs) diagnostics.push(diag("disconnected-subgraph", `Circuit disconnected component subgraph contains ${subgraph.components.join(", ")} on nodes ${subgraph.nodes.join(", ")}.`, subgraph.range, sourceName, "warning"));
   if (nodes.filter((node) => node.role === "reference").length > 1) diagnostics.push(diag("multiple-reference-nodes", "Circuit may declare at most one reference node.", blockRange, sourceName));
   for (const annotation of annotations) { if (annotation.kind === "voltage-label") { if (!nodeRefs.has(annotation.positive) || !nodeRefs.has(annotation.negative)) diagnostics.push(diag("invalid-annotation", "Voltage label targets must be declared nodes.", annotation.range, sourceName)); } else { const component = componentRefs.get(annotation.componentRef); if (component === undefined || !component.terminals.includes(annotation.terminal)) diagnostics.push(diag("invalid-annotation", "Current label target must be a declared component terminal.", annotation.range, sourceName)); } }
-  const errors = diagnostics.some((entry) => entry.severity === "error"); if (errors || title === undefined || (flow !== "left-to-right" && flow !== "top-to-bottom") || (symbolConvention !== "iec" && symbolConvention !== "ansi")) return { diagnostics };
+  const errors = diagnostics.some((entry) => entry.severity === "error"); if (errors || title === undefined || !oneOf(FLOWS, flow) || (symbolConvention !== "iec" && symbolConvention !== "ansi")) return { diagnostics };
   return { diagnostics, block: { kind: "circuit", pluginVersion: CIRCUIT_PLUGIN_VERSION, range: blockRange, ...(id === undefined ? {} : { id }), ...(number === undefined ? {} : { number }), title, ...(description === undefined ? {} : { description }), flow, symbolConvention, nodes, components, relations, annotations } };
 }
 const pluginDescriptor = Object.freeze({

@@ -13,6 +13,14 @@ export const CALLOUT_VARIANTS = Object.freeze([
   "warning",
   "caution",
 ] as const);
+
+/** Header keys the callout envelope accepts before the `----` separator. */
+export const CALLOUT_HEADER_FIELDS = Object.freeze([
+  "id",
+  "variant",
+  "title",
+] as const);
+
 export const calloutSourceSchema: JsonValue = Object.freeze({
   $schema: "https://json-schema.org/draft/2020-12/schema",
   $id: "azeforge.callout/source/v1",
