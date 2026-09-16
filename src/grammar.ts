@@ -245,6 +245,8 @@ import {
   MERMAID_HEADER_FIELDS,
   SUPPORTED_DIAGRAMS,
 } from "./mermaid.js";
+import { MAX_TEX_BODY_LENGTH, TEX_HEADER_FIELDS } from "./tex.js";
+import { TEX_PROFILES } from "./tex-schemas.js";
 import {
   ALIGNMENTS,
   MAX_TABLE_COLUMNS,
@@ -2004,6 +2006,17 @@ const mermaidSpec: DirectiveSpec = {
     maxTextChars: MAX_MERMAID_TEXT_LENGTH,
   },
 };
+const texSpec: DirectiveSpec = {
+  header: headerFrom(TEX_HEADER_FIELDS, {
+    id: "identifier",
+    title: "text",
+    description: "text",
+    profile: "enum",
+  }, ["title", "description", "profile"], { profile: TEX_PROFILES }),
+  body: scalarLines(fieldsFrom(["body"], { body: "text" }, ["body"])),
+  limits: { maxSourceChars: MAX_TEX_BODY_LENGTH },
+};
+
 
 
 /**
@@ -2220,6 +2233,7 @@ const DIRECTIVE_SPECS: Readonly<Record<string, DirectiveSpec>> = Object.freeze({
   derivation: derivationSpec,
   callout: calloutSpec,
   mermaid: mermaidSpec,
+  tex: texSpec,
   table: tableSpec,
   plot: plotSpec,
   chart: chartSpec,

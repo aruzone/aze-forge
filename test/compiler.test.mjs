@@ -260,7 +260,7 @@ After
   assert.deepEqual(invalid?.diagnosticIndexes, [0]);
   assert.deepEqual(parsed.diagnostics[0]?.data, {
     type: "mystery",
-    availableTypes: ["algorithm", "bibliography", "callout", "chart", "circuit", "class", "control", "derivation", "diagram", "entity", "equation", "example", "figure", "formula", "free-body", "geometry", "mermaid", "plot", "reaction", "sequence", "state", "statement", "structure", "table", "timing"],
+    availableTypes: ["algorithm", "bibliography", "callout", "chart", "circuit", "class", "control", "derivation", "diagram", "entity", "equation", "example", "figure", "formula", "free-body", "geometry", "mermaid", "plot", "reaction", "sequence", "state", "statement", "structure", "table", "tex", "timing"],
   });
   assert.equal(
     parsed.diagnostics[0]?.code,
@@ -433,14 +433,14 @@ azemark: 2
         code: "azeforge.source#unknown-directive",
         data: {
           type: "one",
-          availableTypes: ["algorithm", "bibliography", "callout", "chart", "circuit", "class", "control", "derivation", "diagram", "entity", "equation", "example", "figure", "formula", "free-body", "geometry", "mermaid", "plot", "reaction", "sequence", "state", "statement", "structure", "table", "timing"],
+          availableTypes: ["algorithm", "bibliography", "callout", "chart", "circuit", "class", "control", "derivation", "diagram", "entity", "equation", "example", "figure", "formula", "free-body", "geometry", "mermaid", "plot", "reaction", "sequence", "state", "statement", "structure", "table", "tex", "timing"],
         },
       },
       {
         code: "azeforge.source#unknown-directive",
         data: {
           type: "two",
-          availableTypes: ["algorithm", "bibliography", "callout", "chart", "circuit", "class", "control", "derivation", "diagram", "entity", "equation", "example", "figure", "formula", "free-body", "geometry", "mermaid", "plot", "reaction", "sequence", "state", "statement", "structure", "table", "timing"],
+          availableTypes: ["algorithm", "bibliography", "callout", "chart", "circuit", "class", "control", "derivation", "diagram", "entity", "equation", "example", "figure", "formula", "free-body", "geometry", "mermaid", "plot", "reaction", "sequence", "state", "statement", "structure", "table", "tex", "timing"],
         },
       },
       {

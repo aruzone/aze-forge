@@ -315,6 +315,17 @@ export interface MermaidBlock {
   readonly title?: string;
   readonly description?: string;
 }
+export interface TexBlock {
+  readonly kind: "tex";
+  readonly range: SourceRange;
+  readonly id?: string;
+  readonly pluginVersion: string;
+  readonly title: string;
+  readonly description: string;
+  readonly profile: "circuitikz" | "tikz" | "pgfplots" | "chemfig" | "tikz-cd";
+  readonly body: string;
+}
+
 
 export interface DerivationStep {
   /** Semantic expression tree of the step (identity carrier). */
@@ -1370,6 +1381,7 @@ export type ParsedBlock =
   | CalloutBlock
   | EquationBlock
   | MermaidBlock
+  | TexBlock
   | DerivationBlock
   | PlotBlock
   | ChartBlock
@@ -1405,6 +1417,7 @@ export type AzeBlock =
   | CalloutBlock
   | EquationBlock
   | MermaidBlock
+  | TexBlock
   | DerivationBlock
   | PlotBlock
   | ChartBlock
@@ -1826,6 +1839,15 @@ export interface EquationBlockRenderer {
     context: Readonly<{ sourceName?: string }>,
   ) => string | Promise<string>;
 }
+
+export interface TexRenderer {
+  readonly render: (input: Readonly<{
+    readonly profile: TexBlock["profile"];
+    readonly title: string;
+    readonly description: string;
+    readonly body: string;
+  }>) => string | Promise<string>;
+}
 export interface MermaidBlockRenderer {
   readonly descriptor: BlockRendererDescriptor;
   readonly render: (
@@ -1930,6 +1952,7 @@ export interface CompilerOptions {
   readonly renderers?: readonly RendererDescriptor[];
   readonly policy?: CompilerPolicy;
   readonly renderTimeoutMs?: number;
+  readonly texRenderer?: TexRenderer;
 }
 
 export interface Compiler {

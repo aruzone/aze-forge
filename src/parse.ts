@@ -47,6 +47,8 @@ import {
   validateMermaidBody,
 } from "./mermaid.js";
 import { MERMAID_PLUGIN_TYPE } from "./mermaid-schemas.js";
+import { texPlugin, parseTexHeader, validateTexBody } from "./tex.js";
+import { TEX_PLUGIN_TYPE } from "./tex-schemas.js";
 import { GEOMETRY_PLUGIN_TYPE } from "./geometry-schemas.js";
 import { geometryPlugin, validateGeometryBlock, type GeometryInputLine } from "./geometry.js";
 import { FORMULA_PLUGIN_TYPE, REACTION_PLUGIN_TYPE, STRUCTURE_PLUGIN_TYPE } from "./chemistry-schemas.js";
@@ -1489,6 +1491,35 @@ function parseMermaidEnvelope(
   diagnostics.push(...validated.diagnostics);
   return finishInvalid();
 }
+function parseTexEnvelope(
+  source: string,
+  lines: readonly SourceLine[],
+  openIndex: number,
+  closingIndex: number,
+  first: SourceLine,
+  last: SourceLine,
+  options: ParseOptions,
+  diagnostics: Diagnostic[],
+): ParsedBlock {
+  const blockRange = rangeFromLines(first, last);
+  const startIndex = diagnostics.length;
+  const finishInvalid = (): ParsedBlock =>
+    invalidBlockFor(source, first, last, startIndex, diagnostics, TEX_PLUGIN_TYPE);
+  const { entries, bodyStart, separatorFound } = splitHeaderEntries(lines, openIndex, closingIndex);
+  if (!separatorFound) {
+    missingSeparatorDiagnostic(lines, openIndex, closingIndex, first, options, diagnostics);
+    return finishInvalid();
+  }
+  const validated = validateTexBody({
+    header: parseTexHeader(entries, options.sourceName),
+    body: lines.slice(bodyStart, closingIndex).map((line) => lineText(line)).join("\n"),
+    blockRange,
+    ...(options.sourceName === undefined ? {} : { sourceName: options.sourceName }),
+  });
+  diagnostics.push(...validated.diagnostics);
+  return validated.block ?? finishInvalid();
+}
+
 
 
 function parseDerivationEnvelope(
@@ -2522,6 +2553,15 @@ function parseBlocks(
       }
       if (
         closed &&
+        originalType === TEX_PLUGIN_TYPE &&
+        activeTypes.includes(TEX_PLUGIN_TYPE)
+      ) {
+        blocks.push(parseTexEnvelope(source, lines, openIndex, closingIndex, first, last, options, diagnostics));
+        continue;
+      }
+
+      if (
+        closed &&
         originalType === CALLOUT_PLUGIN_TYPE &&
         activeTypes.includes(CALLOUT_PLUGIN_TYPE)
       ) {
@@ -3345,6 +3385,7 @@ export function parseSource(source: string, options: ParseOptions = {}): ParseRe
     structurePlugin,
     controlPlugin,
     freeBodyPlugin,
+    texPlugin,
   ];
   const activeTypes = [...new Set(activePlugins.map((plugin) => plugin.descriptor.type))].sort();
   const blocks = parseBlocks(

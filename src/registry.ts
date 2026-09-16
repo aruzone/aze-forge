@@ -20,6 +20,7 @@ import {
   mermaidPlugin,
 } from "./mermaid.js";
 import { chartHtmlBlockRenderer, chartPlugin, plotHtmlBlockRenderer, plotPlugin } from "./plot.js";
+import { texPlugin } from "./tex.js";
 import { geometryHtmlBlockRenderer, geometryPlugin } from "./geometry.js";
 import {
   formulaHtmlBlockRenderer,
@@ -89,6 +90,7 @@ export function getBuiltInRegistry(): ResolvedRegistry {
       derivationPlugin,
       calloutPlugin,
       mermaidPlugin,
+      texPlugin,
       tablePlugin,
       plotPlugin,
       chartPlugin,

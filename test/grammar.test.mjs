@@ -358,7 +358,7 @@ test("every registered directive is described exactly once, in registry order", 
     registered,
   );
   assert.deepEqual(grammarDirectiveTypes(), registered);
-  assert.equal(report.directives.length, 25);
+  assert.equal(report.directives.length, 26);
 });
 
 test("each described directive carries its registry identity verbatim", () => {
@@ -853,7 +853,7 @@ test("the human report goes to stderr with empty stdout and exit 0", () => {
   assert.deepEqual(result.stdout, Buffer.alloc(0));
   const human = result.stderr.toString("utf8");
   assert.match(human, /azeforge \d+\.\d+\.\d+ grammar/);
-  assert.match(human, /directives: 25/);
+  assert.match(human, /directives: 26/);
   assert.match(human, /grammar --json/);
 });
 

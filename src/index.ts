@@ -49,6 +49,8 @@ export type {
   DiagramBlock,
   SequenceBlock,
   StateBlock,
+  TexBlock,
+  TexRenderer,
   EntityBlock,
   ClassBlock,
   ControlBlock,

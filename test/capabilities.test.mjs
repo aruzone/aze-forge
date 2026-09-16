@@ -76,11 +76,11 @@ test("capabilities --json enumerates the P0 contract in canonical order", async 
   );
   assert.deepEqual(
     payload.plugins.map(({ type }) => type),
-    ["algorithm", "bibliography", "callout", "chart", "circuit", "class", "control", "derivation", "diagram", "entity", "equation", "example", "figure", "formula", "free-body", "geometry", "mermaid", "plot", "reaction", "sequence", "state", "statement", "structure", "table", "timing"],
+    ["algorithm", "bibliography", "callout", "chart", "circuit", "class", "control", "derivation", "diagram", "entity", "equation", "example", "figure", "formula", "free-body", "geometry", "mermaid", "plot", "reaction", "sequence", "state", "statement", "structure", "table", "tex", "timing"],
   );
   assert.deepEqual(
     payload.plugins.map(({ version }) => version),
-    ["1.0.0", "1.0.0", "1.0.0", "1.0.0", "1.0.0", "1.0.0", "1.0.0", "1.0.0", "1.0.0", "1.0.0", "2.0.0", "1.0.0", "1.0.0", "1.0.0", "1.0.0", "1.0.0", "1.0.0", "1.0.0", "1.0.0", "1.0.0", "1.0.0", "1.0.0", "1.0.0", "2.0.0", "1.0.0"],
+    ["1.0.0", "1.0.0", "1.0.0", "1.0.0", "1.0.0", "1.0.0", "1.0.0", "1.0.0", "1.0.0", "1.0.0", "2.0.0", "1.0.0", "1.0.0", "1.0.0", "1.0.0", "1.0.0", "1.0.0", "1.0.0", "1.0.0", "1.0.0", "1.0.0", "1.0.0", "1.0.0", "2.0.0", "1.0.0", "1.0.0"],
   );
 
   assert.deepEqual(

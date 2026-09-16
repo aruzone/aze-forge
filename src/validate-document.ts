@@ -1314,6 +1314,19 @@ function isParsedBlock(value: unknown): value is ParsedBlock {
       (value.description === undefined || typeof value.description === "string")
     );
   }
+  if (value.kind === "tex") {
+    return (
+      hasOnlyKeys(value, ["kind", "range", "id", "pluginVersion", "title", "description", "profile", "body"]) &&
+      isSourceRange(value.range) &&
+      (value.id === undefined || typeof value.id === "string") &&
+      value.pluginVersion === "1.0.0" &&
+      typeof value.title === "string" && value.title.length > 0 &&
+      typeof value.description === "string" && value.description.length > 0 &&
+      (value.profile === "circuitikz" || value.profile === "tikz" || value.profile === "pgfplots" || value.profile === "chemfig" || value.profile === "tikz-cd") &&
+      typeof value.body === "string" && value.body.length > 0
+    );
+  }
+
   if (value.kind === "derivation") {
     return (
       hasOnlyKeys(value, [

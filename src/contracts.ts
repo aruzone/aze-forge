@@ -81,6 +81,8 @@ export type {
   Theme,
   TypedTableData,
   TypedTableCell,
+  TexBlock,
+  TexRenderer,
   SvgArtifactMetadata,
 } from "./model.js";
 
@@ -190,6 +192,15 @@ export {
   mermaidDataSchema,
   mermaidSourceSchema,
 } from "./mermaid-schemas.js";
+export {
+  TEX_BODY_SYNTAX_ID,
+  TEX_BODY_SYNTAX_VERSION,
+  TEX_PLUGIN_TYPE,
+  TEX_PLUGIN_VERSION,
+  TEX_PROFILES,
+  texDataSchema,
+  texSourceSchema,
+} from "./tex-schemas.js";
 
 export {
   TABLE_BODY_SYNTAX_ID,

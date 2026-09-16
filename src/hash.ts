@@ -1038,6 +1038,18 @@ export function documentContentHash(document: AzeDocument): ContentHash {
       }
       return projected;
     }
+    if (block.kind === "tex") {
+      return {
+        kind: block.kind,
+        pluginVersion: block.pluginVersion,
+        title: block.title,
+        description: block.description,
+        profile: block.profile,
+        body: block.body,
+        ...(block.id === undefined ? {} : { id: block.id }),
+      };
+    }
+
     if (block.kind === "footnoteDefinition") {
       return {
         kind: block.kind,

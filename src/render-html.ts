@@ -46,6 +46,7 @@ import type {
   TableBlock,
   PlotBlock,
   MermaidBlock,
+  TexBlock,
   Theme,
   CircuitBlock,
   DiagramBlock,
@@ -139,6 +140,7 @@ interface RenderContext {
   readonly equationFragments: ReadonlyMap<EquationBlock, string>;
   readonly derivationFragments: ReadonlyMap<DerivationBlock, string>;
   readonly mermaidFragments: ReadonlyMap<MermaidBlock, string>;
+  readonly texFragments: ReadonlyMap<TexBlock, string>;
   readonly diagramFragments: ReadonlyMap<DiagramBlock, string>;
   readonly renderCallout: (
     block: CalloutBlock,
@@ -257,6 +259,8 @@ function renderBlockBody(block: AzeBlock, context: RenderContext): string {
         context.mermaidFragments.get(block) ??
         '<figure class="aze-mermaid"></figure>'
       );
+    case "tex":
+      return context.texFragments.get(block) ?? '<figure class="aze-tex"></figure>';
     case "diagram":
       return (
         context.diagramFragments.get(block) ??
@@ -588,6 +592,7 @@ export function createHtmlLayout(
   controlDependencyClosureValue: JsonValue = {},
   freeBodyDependencyClosureValue: JsonValue = {},
   pluginRenderers: HtmlPluginRenderers = {},
+  texFragments: ReadonlyMap<TexBlock, string> = new Map(),
 ): HtmlLayout {
   const renderCallout =
     pluginRenderers.renderCallout ?? renderCalloutFragment;
@@ -628,6 +633,7 @@ export function createHtmlLayout(
     equationFragments,
     derivationFragments,
     mermaidFragments,
+    texFragments,
     diagramFragments,
     renderCallout,
     renderPlot,
@@ -723,6 +729,7 @@ export async function renderHtml(
   controlDependencyClosureValue: JsonValue = {},
   freeBodyDependencyClosureValue: JsonValue = {},
   pluginRenderers: HtmlPluginRenderers = {},
+  texFragments: ReadonlyMap<TexBlock, string> = new Map(),
   assetManifest: readonly AssetManifestEntry[] = [],
 ): Promise<Artifact> {
   const layout = createHtmlLayout(
@@ -741,6 +748,7 @@ export async function renderHtml(
     controlDependencyClosureValue,
     freeBodyDependencyClosureValue,
     pluginRenderers,
+    texFragments,
   );
   const rendererFingerprint = sha256(
     canonicalJson({

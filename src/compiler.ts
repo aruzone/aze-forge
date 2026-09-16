@@ -68,6 +68,8 @@ import type {
   EquationBlock,
   MermaidBlock,
   MermaidBlockRenderer,
+  TexBlock,
+  TexRenderer,
 } from "./model.js";
 import {
   MermaidBrowserParseError,
@@ -79,6 +81,9 @@ import {
   sanitizeMermaidFragment,
 } from "./mermaid.js";
 import { MERMAID_PLUGIN_TYPE } from "./mermaid-schemas.js";
+import { TEX_PLUGIN_TYPE } from "./tex-schemas.js";
+import { checkSvg } from "./assets.js";
+import { escapeHtml } from "./html-fragment.js";
 import { DIAGRAM_PLUGIN_TYPE } from "./diagram-schemas.js";
 import { DiagramRenderError, diagramDependencyClosure } from "./diagram-render.js";
 import { DiagramLayoutError } from "./diagram-layout.js";
@@ -445,6 +450,53 @@ function mermaidTargets(document: AzeDocument): readonly MermaidTarget[] {
   });
   return targets;
 }
+function texTargets(document: AzeDocument): readonly TexBlock[] {
+  const targets: TexBlock[] = [];
+  walkBlocks(document.blocks, (block) => {
+    if (block.kind === TEX_PLUGIN_TYPE) targets.push(block);
+  });
+  return targets;
+}
+
+async function renderTexFragments(
+  document: AzeDocument,
+  renderer: TexRenderer | undefined,
+  sourceName: string | undefined,
+): Promise<{ readonly fragments: ReadonlyMap<TexBlock, string>; readonly diagnostics: readonly Diagnostic[] }> {
+  const targets = texTargets(document);
+  if (targets.length === 0) return { fragments: new Map(), diagnostics: [] };
+  if (renderer === undefined) {
+    return {
+      fragments: new Map(),
+      diagnostics: [groupedAdapterDiagnostic(
+        "azeforge.renderer#adapter-missing",
+        "No trusted TeX renderer is configured for tex Blocks.",
+        targets.map((block) => ({ block })),
+        sourceName,
+        { blockType: TEX_PLUGIN_TYPE },
+        "Configure a trusted local TeX renderer or the pinned Aze Forge TeX-renderer container.",
+        TEX_PLUGIN_TYPE,
+      )],
+    };
+  }
+  const fragments = new Map<TexBlock, string>();
+  const diagnostics: Diagnostic[] = [];
+  for (const block of targets) {
+    try {
+      const svg = await renderer.render({ profile: block.profile, title: block.title, description: block.description, body: block.body });
+      if (checkSvg(svg) !== "ok") throw new Error("Renderer returned unsafe or malformed SVG.");
+      const accessibleSvg = svg.replace(/^(<svg\b[^>]*>)/, `$1<title>${escapeHtml(block.title)}</title><desc>${escapeHtml(block.description)}</desc>`);
+      fragments.set(block, `<figure class="aze-tex" data-tex-profile="${block.profile}">${accessibleSvg}</figure>`);
+    } catch (error) {
+      diagnostics.push(createDiagnostic(
+        "azeforge.tex#render-failed", "error", "The trusted TeX renderer failed to produce a safe SVG.",
+        { location: sourceName === undefined ? { range: block.range } : { source: sourceName, range: block.range }, data: { profile: block.profile, detail: error instanceof Error ? error.message : String(error) }, suggestion: "Check the renderer logs and the TeX body; shell escape and filesystem access must remain disabled." },
+      ));
+    }
+  }
+  return { fragments, diagnostics };
+}
+
 
 
 function pluginBlocks(document: AzeDocument, blockType: string): readonly ParsedBlock[] {
@@ -2838,6 +2890,11 @@ export function createCompiler(options: CompilerOptions = {}): Compiler {
           compileOptions.sourceName,
           renderTimeoutMs,
         );
+        const texPreflight = await renderTexFragments(
+          validation.document,
+          options.texRenderer,
+          compileOptions.sourceName,
+        );
         const derivationPreflight = await renderDerivationFragments(
           validation.document,
           selectedRenderer.id,
@@ -2895,6 +2952,7 @@ export function createCompiler(options: CompilerOptions = {}): Compiler {
           ...modelsPreflight.diagnostics,
           ...engineeringPreflight.diagnostics,
           ...pluginPreflight.diagnostics,
+          ...texPreflight.diagnostics,
         ];
         if (preflightDiagnostics.length > 0) {
           return {
@@ -3006,6 +3064,7 @@ export function createCompiler(options: CompilerOptions = {}): Compiler {
           controlDependencyClosure(),
           freeBodyDependencyClosure(),
           pluginRenderers,
+          texPreflight.fragments,
         ] as const;
         const htmlLayout = createHtmlLayout(
           renderArguments[0],
@@ -3022,6 +3081,8 @@ export function createCompiler(options: CompilerOptions = {}): Compiler {
           renderArguments[12],
           renderArguments[13],
           renderArguments[14],
+          renderArguments[15],
+          renderArguments[16],
         );
         const artifact =
           compileOptions.format === "html"
