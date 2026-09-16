@@ -1237,7 +1237,7 @@ export function validateGeometryBlock(options: {
       warnings.push(diag("geometry-out-of-bounds", `Geometry declarations outside explicit bounds are clipped: ${outside.join(", ")}.`, blockRange, sourceName, { severity: "warning", data: { names: outside as unknown as JsonValue } }));
     }
   }
-  return { block, diagnostics: warnings };
+  return { block, diagnostics: [...diagnostics, ...warnings] };
 }
 
 /* ------------------------------------------------------------------ *

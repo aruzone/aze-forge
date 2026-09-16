@@ -223,6 +223,37 @@ test("unused guides and out-of-bounds resolutions warn without failing", async (
   assert.ok(clippedCompiled.diagnostics.some((d) => d.code === "azeforge.geometry#geometry-out-of-bounds" && d.severity === "warning"));
 });
 
+test("the header faults the parser raises reach the caller", async () => {
+  const compiler = createCompiler();
+
+  const stray = await compiler.compile(bodySource(point("a", 0, 0), "bogus: x\n"), {
+    format: "html",
+  });
+  const unknown = stray.diagnostics.find(
+    (diagnostic) => diagnostic.code === "azeforge.geometry#unknown-field",
+  );
+  assert.ok(unknown !== undefined, "a stray header key is reported");
+  assert.match(unknown.message, /"bogus"/);
+
+  const duplicate = await compiler.compile(
+    bodySource(point("a", 0, 0), "number: true\nnumber: false\n"),
+    { format: "html" },
+  );
+  assert.ok(
+    duplicate.diagnostics.some((diagnostic) => diagnostic.code === "azeforge.geometry#duplicate-field"),
+    "a repeated header field is reported",
+  );
+
+  const bounds = await compiler.compile(
+    bodySource(point("a", 0, 0), "bounds:\n  min-x: 5\n  min-y: -1\n  max-x: -5\n  max-y: 1\n"),
+    { format: "html" },
+  );
+  assert.ok(
+    bounds.diagnostics.some((diagnostic) => diagnostic.code === "azeforge.geometry#invalid-bounds"),
+    "invalid bounds are reported",
+  );
+});
+
 test("capabilities reports the versioned geometry evaluator and limits", async () => {
   const report = await buildCapabilities();
   assert.ok(report.plugins.some((plugin) => plugin.type === "geometry" && plugin.version === "1.0.0"));

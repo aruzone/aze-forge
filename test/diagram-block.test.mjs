@@ -345,9 +345,18 @@ test("an unregistered flow is #unknown-flow and the mode default otherwise", () 
   assert.equal(explicit.block.flow, "bottom-to-top");
 });
 
-test("envelope faults stay with the core parser and id/number pass through", () => {
-  const result = validate(
+test("unregistered header keys report #unknown-field while id/number pass through", () => {
+  const stray = validate(
     "mode: flowchart\nnumber: maybe\ncolour: red\nnumber: true\n",
+    "- kind: node\n  name: a\n- kind: edge\n  from: a\n  to: a",
+  );
+  assertCode(stray, "unknown-field", { field: "colour" });
+  assertOnly(stray, ["unknown-field"]);
+
+  // The same header without the stray key still compiles, and `id`/`number`
+  // stay out of the block: this family reads them, it does not validate them.
+  const result = validate(
+    "mode: flowchart\nnumber: maybe\nnumber: true\n",
     "- kind: node\n  name: a\n- kind: edge\n  from: a\n  to: a",
   );
   assert.deepEqual(result.diagnostics, []);

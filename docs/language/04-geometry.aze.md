@@ -104,7 +104,6 @@ point and nothing should be inferred.
 :::: geometry
 id: coordinate-triangle
 number: true
-caption: Coordinate-based triangle with explicit altitude marks
 ----
 - kind: point
   name: a
@@ -250,7 +249,6 @@ an exterior point and picks between its two branches.
 :::: geometry
 id: constructed-tangent
 number: true
-caption: Constructed circle tangent using backward-only references
 ----
 - kind: point
   name: center

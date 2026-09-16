@@ -510,19 +510,24 @@ export function validateDiagramBlock(options: DiagramValidationOptions): {
   const diagnostics: Diagnostic[] = [];
   let labelCodePoints = 0;
 
-  /* Envelope faults (unknown header properties, repeated singletons) belong
-   * to the core parser; the family reads the fields it registers
-   * (DIAGRAM_HEADER_FIELDS) and leaves the rest alone. */
+  /* Header faults are this family's to report: `allowedFields` below rejects a
+   * key outside DIAGRAM_HEADER_FIELDS, the same way timing, control, plot,
+   * circuit and geometry report theirs. Repeated keys keep first-wins silence,
+   * and `id`/`number` are read as authored, never validated here. */
+  const entries: Field[] = [];
   const header = new Map<DiagramHeaderKey, Field>();
   for (const line of headerLines) {
     if (/^[ \t]*$/.test(line.text) || COMMENT.test(line.text)) continue;
     const match = FIELD.exec(line.text);
     if (match === null) continue;
     const key = (match[1] ?? "").toLowerCase();
+    const field = { key, value: (match[2] ?? "").trim(), range: line.range };
+    entries.push(field);
     if (!oneOf(DIAGRAM_HEADER_FIELDS, key)) continue;
     if (header.has(key)) continue;
-    header.set(key, { key, value: (match[2] ?? "").trim(), range: line.range });
+    header.set(key, field);
   }
+  allowedFields(entries, DIAGRAM_HEADER_FIELDS, "header", sourceName, diagnostics);
 
   const modeLine = header.get("mode");
   const modeText = modeLine?.value ?? "";
