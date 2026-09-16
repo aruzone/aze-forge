@@ -217,6 +217,28 @@ azeforge render invalid.aze.md --output preserved.html; echo "exit: $?"
 cat preserved.html
 ```
 
+## Try it: ask what the language accepts
+
+`azeforge grammar` publishes every registered directive as data — header keys,
+body records, field vocabularies, ceilings — derived from the same tables the
+validators use, so it cannot drift from what compiles:
+
+```bash
+azeforge grammar --json | jq '.directives | length'
+# 25
+azeforge grammar --json --directive plot | jq -c '.directives[0].header.fields | map(.key)'
+# ["id","number","width","height","legend","grid","parameters","x-axis","y-axis"]
+azeforge grammar --json --directive plot | jq -c '[.directives[0].body.records[].kind]'
+# ["function","line","scatter"]
+azeforge version --json | jq -c '.schemas[] | select(.id=="azeforge.grammar/v1")'
+# {"id":"azeforge.grammar/v1","version":1}
+```
+
+`--directive <type>` narrows the report to one directive and an unknown type
+exits `2`; without `--json` the human report goes to stderr and stdout stays
+empty. The JSON document validates against the packaged
+`schemas/grammar.json`.
+
 ## Try it: live rebuild and preview
 
 Recompile on every save, or preview in a loopback browser tab:
@@ -267,13 +289,13 @@ reachable through the package (deep imports resolve to nothing):
 
 | Entry point | Responsibility |
 | --- | --- |
-| `@aruzone/aze-forge` | `createCompiler` and high-level compiler operations |
+| `@aruzone/aze-forge` | `createCompiler`, high-level compiler operations, and `buildGrammarDocument` |
 | `@aruzone/aze-forge/contracts` | Public types, JSON schemas and schema identifiers, without Node-only imports or engine initialization |
 | `@aruzone/aze-forge/adapters` | Trusted registry/adapter contracts and the root-confined filesystem asset adapter |
 
 ```js
-import { createCompiler } from "@aruzone/aze-forge";
-import { createVersionReport } from "@aruzone/aze-forge/contracts";
+import { createCompiler, buildGrammarDocument } from "@aruzone/aze-forge";
+import { createVersionReport, GRAMMAR_SCHEMA_ID } from "@aruzone/aze-forge/contracts";
 import { getBuiltInRegistry } from "@aruzone/aze-forge/adapters";
 ```
 
