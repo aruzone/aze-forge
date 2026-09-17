@@ -51,6 +51,7 @@ import type {
   CircuitBlock,
   DiagramBlock,
   TimingBlock,
+  Sha256Hash,
 } from "./model.js";
 import { renderTableFragment } from "./table.js";
 import { renderAlgorithmFragment } from "./algorithm.js";
@@ -593,6 +594,7 @@ export function createHtmlLayout(
   freeBodyDependencyClosureValue: JsonValue = {},
   pluginRenderers: HtmlPluginRenderers = {},
   texFragments: ReadonlyMap<TexBlock, string> = new Map(),
+  texRendererIdentity?: Sha256Hash,
 ): HtmlLayout {
   const renderCallout =
     pluginRenderers.renderCallout ?? renderCalloutFragment;
@@ -708,6 +710,7 @@ export function createHtmlLayout(
             },
           }
         : {}),
+      ...(texRendererIdentity === undefined ? {} : { tex: { rendererIdentity: texRendererIdentity } }),
     },
   };
 }
@@ -730,6 +733,7 @@ export async function renderHtml(
   freeBodyDependencyClosureValue: JsonValue = {},
   pluginRenderers: HtmlPluginRenderers = {},
   texFragments: ReadonlyMap<TexBlock, string> = new Map(),
+  texRendererIdentity?: Sha256Hash,
   assetManifest: readonly AssetManifestEntry[] = [],
 ): Promise<Artifact> {
   const layout = createHtmlLayout(
@@ -749,6 +753,7 @@ export async function renderHtml(
     freeBodyDependencyClosureValue,
     pluginRenderers,
     texFragments,
+    texRendererIdentity,
   );
   const rendererFingerprint = sha256(
     canonicalJson({

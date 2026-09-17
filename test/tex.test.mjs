@@ -35,12 +35,32 @@ test("a trusted renderer embeds accessible SVG in the HTML artifact", async () =
         assert.match(body, /\\draw/);
         return '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="10" viewBox="0 0 20 10" role="img"><path d="M0 0H20"/></svg>';
       },
+      rendererIdentity: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     },
   }).compile(source("tikz"), { format: "html" });
   assert.deepEqual(compiled.diagnostics, []);
   const html = Buffer.from(compiled.artifact.bytes).toString("utf8");
   assert.match(html, /<figure class="aze-tex" data-tex-profile="tikz">/);
   assert.match(html, /<title>Analog filter<\/title><desc>A passive low-pass filter\.<\/desc>/);
+});
+
+test("TeX renderer identity affects artifact fingerprints but not document content", async () => {
+  const render = () => '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="10" viewBox="0 0 20 10" role="img"><path d="M0 0H20"/></svg>';
+  const compile = (rendererIdentity) => createCompiler({ texRenderer: { rendererIdentity, render } }).compile(source("tikz"), { format: "html" });
+  const first = await compile("sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+  const second = await compile("sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
+  assert.deepEqual(first.diagnostics, []);
+  assert.deepEqual(second.diagnostics, []);
+  assert.equal(first.contentHash, second.contentHash);
+  assert.notEqual(first.artifact?.metadata.rendererFingerprint, second.artifact?.metadata.rendererFingerprint);
+});
+
+test("TeX refuses a renderer without an immutable manifest identity", async () => {
+  const compiled = await createCompiler({
+    texRenderer: { render: () => '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="10" viewBox="0 0 20 10" role="img"><path d="M0 0H20"/></svg>' },
+  }).compile(source("tikz"), { format: "html" });
+  assert.equal(compiled.artifact, undefined);
+  assert.deepEqual(compiled.diagnostics.map(({ code }) => code), ["azeforge.tex#protocol-invalid"]);
 });
 
 

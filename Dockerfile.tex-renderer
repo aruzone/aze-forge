@@ -1,0 +1,40 @@
+# Official AzeForge TeX renderer. Build only on Linux/amd64 with a locally
+# retained tex-renderer/texlive2026.iso verified by its accompanying checksum.
+FROM ubuntu@sha256:496754492fb28b4d3049432f2ca787449331e23fb14f0dd3fffea86bf5a93eb4 AS installer
+
+ARG TEXLIVE_ISO_SHA512=4a9071bb567c3bdd6443378dedc8e485aea4a2f1203ec8ed7c17f6787093b9c37636a037032c0be63352e3d0bf98cf5616dab19fdcd7cb83f766b3e085b620ff
+RUN test "$(dpkg --print-architecture)" = amd64
+RUN apt-get update && apt-get install --no-install-recommends -y xorriso perl ca-certificates && rm -rf /var/lib/apt/lists/*
+COPY tex-renderer/texlive2026.iso /tmp/texlive2026.iso
+COPY tex-renderer/texlive.profile tex-renderer/package-closure.lock /tmp/
+RUN printf '%s  %s\n' "$TEXLIVE_ISO_SHA512" /tmp/texlive2026.iso | sha512sum --check --strict
+RUN mkdir /iso /texlive \
+ && xorriso -osirrox on -indev /tmp/texlive2026.iso -extract / /iso \
+ && test -s /iso/tlpkg/texlive.tlpdb \
+ && test -s /iso/tlpkg/texlive.tlpdb.sha512
+RUN /iso/install-tl --profile /tmp/texlive.profile
+# The verified ISO supplies TeX Live's repository metadata. Use a canonical
+# file URI so tlmgr reads that local repository without network fallback.
+RUN set -x \
+ && /texlive/bin/*/tlmgr -v --repository file:///iso --verify-repo=main install latex latex-bin graphics xcolor amsmath pgf circuitikz pgfplots chemfig tikz-cd xstring lm cm amsfonts dvisvgm \
+ && echo "--- TeX Live configuration" \
+ && /texlive/bin/*/tlmgr conf
+RUN awk '/^name / { name = $2; next } /^revision / { if (name != "") print name, $2; name = "" }' /texlive/tlpkg/texlive.tlpdb \
+ | LC_ALL=C sort > /texlive/packages.txt \
+ && test -s /texlive/packages.txt \
+ && diff -u /tmp/package-closure.lock /texlive/packages.txt
+RUN sha256sum /texlive/tlpkg/texlive.tlpdb > /texlive/tlpdb.sha256 \
+ && /texlive/bin/*/mktexlsr \
+ && /texlive/bin/*/fmtutil-sys --all
+
+FROM ubuntu@sha256:496754492fb28b4d3049432f2ca787449331e23fb14f0dd3fffea86bf5a93eb4
+RUN test "$(dpkg --print-architecture)" = amd64
+COPY --from=installer /texlive /opt/texlive
+COPY tex-renderer/entrypoint.sh /usr/local/bin/azeforge-tex-renderer
+RUN useradd --system --uid 10001 --home /nonexistent --shell /usr/sbin/nologin renderer \
+ && rm -f /opt/texlive/bin/*/tlmgr \
+ && chmod -R a-w /opt/texlive \
+ && chmod 0555 /usr/local/bin/azeforge-tex-renderer
+ENV PATH=/opt/texlive/bin/x86_64-linux:$PATH
+USER renderer
+ENTRYPOINT ["/usr/local/bin/azeforge-tex-renderer"]

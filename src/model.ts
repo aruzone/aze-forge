@@ -1841,6 +1841,8 @@ export interface EquationBlockRenderer {
 }
 
 export interface TexRenderer {
+  /** SHA-256 of the immutable official renderer release manifest. */
+  readonly rendererIdentity: Sha256Hash;
   readonly render: (input: Readonly<{
     readonly profile: TexBlock["profile"];
     readonly title: string;

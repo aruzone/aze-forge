@@ -479,6 +479,20 @@ async function renderTexFragments(
       )],
     };
   }
+  if (!/^sha256:[a-f0-9]{64}$/.test(renderer.rendererIdentity)) {
+    return {
+      fragments: new Map(),
+      diagnostics: [groupedAdapterDiagnostic(
+        "azeforge.tex#protocol-invalid",
+        "The trusted TeX renderer did not provide an immutable manifest hash.",
+        targets.map((block) => ({ block })),
+        sourceName,
+        { blockType: TEX_PLUGIN_TYPE },
+        "Configure rendererIdentity with the SHA-256 hash of the renderer release manifest.",
+        TEX_PLUGIN_TYPE,
+      )],
+    };
+  }
   const fragments = new Map<TexBlock, string>();
   const diagnostics: Diagnostic[] = [];
   for (const block of targets) {
@@ -3065,6 +3079,7 @@ export function createCompiler(options: CompilerOptions = {}): Compiler {
           freeBodyDependencyClosure(),
           pluginRenderers,
           texPreflight.fragments,
+          texTargets(validation.document).length === 0 ? undefined : options.texRenderer?.rendererIdentity,
         ] as const;
         const htmlLayout = createHtmlLayout(
           renderArguments[0],
@@ -3083,6 +3098,7 @@ export function createCompiler(options: CompilerOptions = {}): Compiler {
           renderArguments[14],
           renderArguments[15],
           renderArguments[16],
+          renderArguments[17],
         );
         const artifact =
           compileOptions.format === "html"
