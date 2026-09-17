@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 set -eu
 
 # The host supplies read-only rootfs, no network, dropped capabilities,
@@ -15,6 +15,7 @@ export openout_any=p
 export openin_any=p
 
 workspace=$(mktemp -d /tmp/azeforge-tex.XXXXXX)
+cd "$workspace"
 cleanup() { rm -rf "$workspace"; }
 trap cleanup EXIT HUP INT TERM
 # A new session lets timeout kill the entire TeX/dvisvgm process group. File
@@ -23,6 +24,7 @@ if setsid timeout --kill-after=1s 15s "$@" >"$workspace/stdout" 2>"$workspace/st
   test "$(wc -c <"$workspace/stdout")" -le 8388608
   cat "$workspace/stdout"
 else
+  cat "$workspace/stdout" >&2
   cat "$workspace/stderr" >&2
   exit 1
 fi
