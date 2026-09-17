@@ -180,7 +180,7 @@ process.stdout.write(JSON.stringify({ plugins: registry.plugins.length }));
   const contractsResult = await run(contractsConsumer);
   assert.ok(contractsResult.schemas > 0);
   assert.equal(contractsResult.equationId, "azeforge.equation/source/v2");
-  assert.equal(contractsResult.capabilities, "azeforge.capabilities/v1");
+  assert.equal(contractsResult.capabilities, "azeforge.capabilities/v2");
 
   const adaptersResult = await run(adaptersConsumer);
   assert.ok(adaptersResult.plugins > 0);

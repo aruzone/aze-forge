@@ -15,8 +15,8 @@ export const texSourceSchema: JsonValue = Object.freeze({
   required: ["title", "description", "profile"],
   properties: {
     id: { type: "string", pattern: "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$" },
-    title: { type: "string", minLength: 1, maxLength: 200 },
-    description: { type: "string", minLength: 1, maxLength: 1000 },
+    title: { type: "string", minLength: 1 },
+    description: { type: "string", minLength: 1 },
     profile: { enum: [...TEX_PROFILES] },
   },
 });
@@ -28,8 +28,8 @@ export const texDataSchema: JsonValue = Object.freeze({
   required: ["kind", "pluginVersion", "title", "description", "profile", "body"],
   properties: {
     kind: { const: "tex" }, pluginVersion: { const: "1.0.0" },
-    title: { type: "string", minLength: 1, maxLength: 200 },
-    description: { type: "string", minLength: 1, maxLength: 1000 },
-    profile: { enum: [...TEX_PROFILES] }, body: { type: "string", minLength: 1, maxLength: 50000 },
+    title: { type: "string", minLength: 1 },
+    description: { type: "string", minLength: 1 },
+    profile: { enum: [...TEX_PROFILES] }, body: { type: "string", minLength: 1, maxLength: 50000, pattern: "^[\\t\\n\\x20-\\x7e]+$" },
   },
 });

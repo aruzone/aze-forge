@@ -97,6 +97,8 @@ import {
   MAX_MERMAID_TEXT_LENGTH,
 } from "./mermaid.js";
 import { MERMAID_VERSION } from "./mermaid-schemas.js";
+import { MAX_TEX_BODY_LENGTH } from "./tex.js";
+import { TEX_PROFILES } from "./tex-schemas.js";
 import {
   D3_ARRAY_VERSION,
   D3_SCALE_VERSION,
@@ -340,6 +342,10 @@ export interface CapabilitiesReport {
       language: typeof EQUATION_LATEX_LANGUAGE_VERSION;
       availability: EngineAvailability;
     }>;
+    readonly tex: Readonly<{
+      profiles: typeof TEX_PROFILES;
+      availability: EngineAvailability;
+    }>;
     readonly mermaid: Readonly<{
       version: typeof MERMAID_VERSION;
       availability: EngineAvailability;
@@ -563,6 +569,10 @@ export async function buildCapabilities(
         maxHtmlBytes: PDF_MAX_HTML_BYTES,
         maxTempBytes: PDF_MAX_TEMP_BYTES,
       },
+      tex: {
+        profiles: TEX_PROFILES,
+        bodySyntax: "azeforge.tex/v1",
+      },
     },
     limits: {
       diagnostics: {
@@ -592,6 +602,9 @@ export async function buildCapabilities(
         mermaid: {
           maxSourceChars: MAX_MERMAID_SOURCE_LENGTH,
           maxTextChars: MAX_MERMAID_TEXT_LENGTH,
+        },
+        tex: {
+          maxBodyChars: MAX_TEX_BODY_LENGTH,
         },
         plot: {
           maxSeries: MAX_PLOT_SERIES,
@@ -763,6 +776,10 @@ export async function buildCapabilities(
         availability: bundled,
       },
       mermaid: { version: MERMAID_VERSION, availability: bundled },
+      tex: {
+        profiles: TEX_PROFILES,
+        availability: "unknown",
+      },
       plot: {
         emitter: PLOT_EMITTER_VERSION,
         eval: PLOT_EVAL_VERSION,

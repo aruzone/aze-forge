@@ -1,8 +1,8 @@
 import type { JsonValue } from "./model.js";
 import { runtimeSupportJsonSchema } from "./runtime-support.js";
 
-export const CAPABILITIES_SCHEMA_ID = "azeforge.capabilities/v1" as const;
-export const CAPABILITIES_SCHEMA_VERSION = 1 as const;
+export const CAPABILITIES_SCHEMA_ID = "azeforge.capabilities/v2" as const;
+export const CAPABILITIES_SCHEMA_VERSION = 2 as const;
 
 const versionPattern =
   "^(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)$";
@@ -185,7 +185,7 @@ export const capabilitiesJsonSchema: JsonValue = Object.freeze({
     security: { type: "object" },
     engines: {
       type: "object",
-      required: ["browser", "katex", "mermaid", "plot", "geometry", "chemistry", "timing", "diagram", "models", "control", "freeBody", "fonts"],
+      required: ["browser", "katex", "tex", "mermaid", "plot", "geometry", "chemistry", "timing", "diagram", "models", "control", "freeBody", "fonts"],
       additionalProperties: false,
       properties: {
         browser: {
@@ -207,6 +207,15 @@ export const capabilitiesJsonSchema: JsonValue = Object.freeze({
           properties: {
             version: { type: "string", minLength: 1 },
             language: { type: "string", minLength: 1 },
+            availability,
+          },
+        },
+        tex: {
+          type: "object",
+          required: ["profiles", "availability"],
+          additionalProperties: false,
+          properties: {
+            profiles: { type: "array", minItems: 1, items: { type: "string", minLength: 1 } },
             availability,
           },
         },

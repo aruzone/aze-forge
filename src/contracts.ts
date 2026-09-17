@@ -198,6 +198,7 @@ export {
   TEX_PLUGIN_TYPE,
   TEX_PLUGIN_VERSION,
   TEX_PROFILES,
+  type TexProfile,
   texDataSchema,
   texSourceSchema,
 } from "./tex-schemas.js";

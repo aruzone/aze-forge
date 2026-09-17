@@ -1510,9 +1510,13 @@ function parseTexEnvelope(
     missingSeparatorDiagnostic(lines, openIndex, closingIndex, first, options, diagnostics);
     return finishInvalid();
   }
+  const bodyLines = lines.slice(bodyStart, closingIndex);
   const validated = validateTexBody({
     header: parseTexHeader(entries, options.sourceName),
-    body: lines.slice(bodyStart, closingIndex).map((line) => lineText(line)).join("\n"),
+    bodyLines: bodyLines.map((line) => ({
+      text: lineText(line),
+      range: rangeFromLines(line, line),
+    })),
     blockRange,
     ...(options.sourceName === undefined ? {} : { sourceName: options.sourceName }),
   });
