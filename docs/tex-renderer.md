@@ -41,32 +41,55 @@ If the configured renderer is unavailable, compilation of a document that contai
 ## Official renderer release
 
 `Dockerfile.tex-renderer` is the Linux/amd64 image recipe. It accepts only a
-locally retained `tex-renderer/texlive2026.iso`; the build verifies the TUG
-SHA-512 before extraction, installs the closed profile inventory, compares the
-resolved package revisions to `tex-renderer/package-closure.lock`, removes
-`tlmgr`, and makes `/opt/texlive` read-only. It never installs TeX packages
-from a mirror or at runtime.
+locally retained `tex-renderer/texlive2026.iso`; the approved TUG SHA-512 is
+embedded in the recipe and verified before extraction. The build installs the
+closed profile inventory from that ISO, compares resolved package revisions to
+`tex-renderer/package-closure.lock`, removes OS and TeX package-management
+commands from the runtime tree, and makes `/opt/texlive` read-only. It never
+installs TeX packages from a mirror or at runtime.
 
-After publishing the image by digest, generate release assets from the build
-evidence:
+After publishing the image by digest, seal release assets from verified build
+evidence. The output directory must not already exist:
 
 ```bash
 node scripts/tex-release.mjs create \
   --input <verified-build-evidence> \
-  --output <empty-release-directory> \
-  --image-digest sha256:<published-image-digest>
+  --output <new-release-directory> \
+  --image-digest sha256:<published-image-digest> \
+  --gpl-review <completed-gpl-review.json>
 ```
 
-The creator writes a versioned manifest, SBOM, notices, provenance, and
-GPL-bearing-image review record exactly once. Its `rendererIdentity` is the
-manifest's SHA-256 and is the required `TexRenderer.rendererIdentity`; the
-compiler includes it in TeX Artifact fingerprints, never the Document content
-hash.
+The evidence directory supplies the installed `texlive.tlpdb` and resolved
+package closure, fixed profile preambles, TeX/dvisvgm versions and argv, font
+inventory, five-profile corpus hashes, SPDX SBOM, notices, and provenance
+bound to the published image digest. The creator validates those inputs,
+stages every release asset, then publishes a versioned manifest, SBOM, notices,
+provenance, and GPL review exactly once. The files are made read-only; reruns
+against an existing release directory fail rather than replace an asset.
 
-Before public publication, a reviewer must complete
-`GPL-PUBLICATION-REVIEW.md` in the release directory. The review covers the
-corresponding-source path and notices for CircuiTikZ, dvisvgm, and PGFPlots;
-do not publish the image until it is signed.
+`<completed-gpl-review.json>` is review evidence, never a generated approval
+template. It must have this shape:
+
+```json
+{
+  "schema": "azeforge.tex-renderer.gpl-publication-review/v1",
+  "imageDigest": "sha256:<published-image-digest>",
+  "correspondingSource": "https://example.invalid/source-offer",
+  "approvedBy": "Release reviewer",
+  "approvedOn": "2026-09-17",
+  "reviewedAssets": [
+    "tex-renderer-v1.NOTICES",
+    "tex-renderer-v1.provenance.json",
+    "tex-renderer-v1.sbom.spdx.json"
+  ]
+}
+```
+
+The completed review is itself a hashed manifest asset, covering the
+corresponding-source path and notices for CircuiTikZ, dvisvgm, and PGFPlots.
+Its `rendererIdentity` is the manifest's SHA-256 and is the required
+`TexRenderer.rendererIdentity`; the compiler includes it in TeX Artifact
+fingerprints, never the Document content hash.
 
 ## Web integration
 
