@@ -23,6 +23,36 @@ Install the configured TeX toolchain and SVG converter on the machine running `a
 
 Use the project's pinned renderer version where reproducible output matters. A locally installed TeX distribution may produce different SVG after package or font updates.
 
+To render a local Source file through a sealed release manifest, use the exact
+digest the manifest records:
+
+```bash
+node scripts/tex-local-render.mjs \
+  --source report.aze.md \
+  --output report.html \
+  --image registry.example/aze-forge-tex-renderer@sha256:<published-image-digest> \
+  --renderer-manifest release/tex-renderer-v1.manifest.json
+```
+
+The image reference must end in the manifest's `image.digest`; the wrapper
+refuses a mutable image tag for a sealed manifest. A scratch manifest without
+`image.digest` may use `aze-forge-tex-renderer:local`, but its output is a
+noncanonical visual smoke.
+
+This repository does not ship a published renderer image or sealed manifest, so
+there is no current value for `<published-image-digest>`. For an immediate local
+visual smoke, create a scratch manifest and use the locally built tag:
+
+```bash
+printf '%s\n' '{"kind":"local-render-smoke"}' >/tmp/tex-local-smoke.manifest.json
+node scripts/tex-local-render.mjs \
+  --source report.aze.md \
+  --output report.html \
+  --image aze-forge-tex-renderer:local \
+  --renderer-manifest /tmp/tex-local-smoke.manifest.json
+rm /tmp/tex-local-smoke.manifest.json
+```
+
 ## Server and CI deployment
 
 Run the pinned Aze Forge TeX-renderer container beside the Aze Forge compiler, or start it as a short-lived job for each compilation. The compiler sends the `tex` profile body and accessibility metadata to that renderer and embeds the returned SVG.
