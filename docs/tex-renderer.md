@@ -90,30 +90,27 @@ commands, and makes `/opt/texlive` read-only.
 3. Publish that exact image. Copy the registry's OCI manifest digest as
    `IMAGE_DIGEST`. It must have the form `sha256:<64 lowercase hex characters>`.
    Do not use a mutable tag as release evidence.
-4. Collect evidence from the image identified by `IMAGE_DIGEST`. The evidence
-   directory must contain:
+4. Create evidence from the published digest. The collector rejects tags,
+   extracts the installed TeX Live closure and font files from Linux/amd64,
+   runs the five fixed profile fixtures, records the actual tool versions, and
+   asks Docker Scout for an SPDX SBOM. It requires `docker scout sbom` and a
+   human-maintained notices file:
 
-   ```text
-   texlive.tlpdb
-   packages.txt
-   corpus.json
-   tools.json
-   sbom.spdx.json
-   NOTICES
-   provenance.json
-   fonts/
-   preambles/
-     chemfig.tex
-     circuitikz.tex
-     pgfplots.tex
-     tikz.tex
-     tikz-cd.tex
+   ```bash
+   export IMAGE='docker.io/kkumaresan/aze-forge-tex-renderer@sha256:<published-image-digest>'
+
+   node scripts/tex-release-evidence.mjs collect \
+     --image "$IMAGE" \
+     --output evidence \
+     --notices <reviewed-notices-file> \
+     --builder '<release-builder>' \
+     --source-revision '<git-commit>'
    ```
 
-   `texlive.tlpdb` and `packages.txt` must describe the installed closure.
-   `corpus.json` must include input and output SHA-256 values for all five
-   profiles. `tools.json` records the locked `latex` and `dvisvgm` versions and
-   argv. `provenance.json.imageDigest` must equal `IMAGE_DIGEST`.
+   The output directory must not exist. The collector creates
+   `texlive.tlpdb`, `packages.txt`, `corpus.json`, `tools.json`,
+   `sbom.spdx.json`, `NOTICES`, `provenance.json`, `fonts/`, and
+   `preambles/`. `provenance.json.imageDigest` equals the digest in `IMAGE`.
 5. Complete GPL publication review. The review must name a durable,
    public corresponding-source URL and cover the generated SBOM and notices
    for CircuitikZ, dvisvgm, and PGFPlots.
@@ -137,12 +134,9 @@ commands, and makes `/opt/texlive` read-only.
    renderer identity, corresponding-source URL, and verification result, then
    close issue #97.
 
-### Current gap
-
-`scripts/tex-release.mjs` validates and seals evidence. It does not collect the
-evidence directory. The repository has no repeatable evidence-collection
-command yet. Do not hand-assemble a release from test fixtures or guessed
-metadata. Add that collector before performing the publication procedure.
+The collector creates machine-derived evidence. Do not replace its files with
+test fixtures or guessed metadata. A human still supplies `NOTICES` and the
+GPL publication review because those are legal review records.
 
 `gpl-review.json` is review evidence, never a generated approval template. It
 must have this shape:

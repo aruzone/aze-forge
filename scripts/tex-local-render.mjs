@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { readFile, writeFile } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { documentFor } from "./tex-renderer-document.mjs";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const DEFAULT_IMAGE = "azeforge-tex-renderer:local";
@@ -22,29 +23,6 @@ function sealedImageDigest(manifest) {
   return digest;
 }
 
-
-function documentFor(profile, body) {
-  const packages = {
-    circuitikz: "\\usepackage{circuitikz}",
-    tikz: "\\usepackage{tikz}",
-    pgfplots: "\\usepackage{pgfplots}",
-    chemfig: "\\usepackage{chemfig}",
-    "tikz-cd": "\\usepackage{tikz-cd}",
-  };
-  const packageDeclaration = packages[profile];
-  if (packageDeclaration === undefined) fail(`Unsupported TeX profile: ${profile}`);
-  const wrappedBody = profile === "circuitikz" || profile === "tikz" || profile === "pgfplots"
-    ? `\\begin{tikzpicture}\n${body}\n\\end{tikzpicture}`
-    : body;
-  return String.raw`\documentclass{article}
-\def\pgfsysdriver{pgfsys-dvisvgm.def}
-${packageDeclaration}
-\pagestyle{empty}
-\begin{document}
-${wrappedBody}
-\end{document}
-`;
-}
 
 function run(command, args, input) {
   return new Promise((resolve, reject) => {

@@ -24,7 +24,7 @@ RUN /iso/install-tl --profile /tmp/texlive.profile
 # The verified ISO supplies TeX Live's repository metadata. Use a canonical
 # file URI so tlmgr reads that local repository without network fallback.
 RUN set -x \
- && /texlive/bin/*/tlmgr --repository file:///iso --verify-repo=main install latex latex-bin graphics xcolor amsmath pgf circuitikz pgfplots chemfig tikz-cd xstring lm cm amsfonts dvisvgm \
+ && /texlive/bin/*/tlmgr --repository file:///iso --verify-repo=main install latex latex-bin graphics xcolor amsmath pgf circuitikz pgfplots chemfig simplekv tikz-cd xstring lm cm amsfonts dvisvgm \
  && echo "--- TeX Live configuration" \
  && /texlive/bin/*/tlmgr conf
 RUN set -eu; \
