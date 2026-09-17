@@ -1,0 +1,17 @@
+Aze Forge TeX renderer v1
+OCI image digest: sha256:befbadc886338638d5b2e6ac4e564a95c62bd47822f1118b226dee02deffad56
+Aze Forge source revision: fc27e0752bda933e2bd69487cfd32bf71989751a
+TeX Live ISO: 2026, SHA-512 4a9071bb567c3bdd6443378dedc8e485aea4a2f1203ec8ed7c17f6787093b9c37636a037032c0be63352e3d0bf98cf5616dab19fdcd7cb83f766b3e085b620ff
+Corresponding source: https://github.com/aruzone/aze-forge/releases/download/tex-renderer-v1-source-befbadc88633/azeforge-tex-renderer-source-befbadc88633.tar.gz
+Corresponding source archive SHA-256: 39dbf4103b4af291117a3413d9ca91d0d9d52561fc67acb15ef192b0dec02485
+
+The renderer package closure includes the following reviewed TeX Live components:
+
+- CircuitikZ, TeX Live revision 77600
+- dvisvgm, TeX Live revision 77830
+- dvisvgm Linux binary, TeX Live revision 77966
+- PGFPlots, TeX Live revision 77682
+- Chemfig, TeX Live revision 77682
+- SimpleKV, TeX Live revision 77682
+
+The corresponding-source archive preserves the TeX Live 2026 ISO source tree and package database used to build this image. It contains the component-specific license and copyright files reviewed with the generated SPDX SBOM.
