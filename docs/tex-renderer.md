@@ -68,37 +68,84 @@ Do not expose a host TeX installation directly to document compilation requests.
 
 If the configured renderer is unavailable, compilation of a document that contains a `tex` Technical object must fail with an actionable diagnostic. It must not fall back to the native Circuit renderer or omit the object.
 
-## Official renderer release
+## Releasing the official renderer
 
-`Dockerfile.tex-renderer` is the Linux/amd64 image recipe. It accepts only a
-locally retained `tex-renderer/texlive2026.iso`; the approved TUG SHA-512 is
-embedded in the recipe and verified before extraction. The build installs the
-closed profile inventory from that ISO, compares resolved package revisions to
+Issue #97 remains open until the image and its sealed release assets exist.
+Rendering through a locally tagged image only checks the compiler integration.
+It does not create a canonical renderer identity.
+
+`Dockerfile.tex-renderer` builds only for Linux/amd64. It requires the locally
+retained `tex-renderer/texlive2026.iso` and verifies the TUG SHA-512 before
+extracting it. The build compares the installed TeX Live closure with
 `tex-renderer/package-closure.lock`, removes OS and TeX package-management
-commands from the runtime tree, and makes `/opt/texlive` read-only. It never
-installs TeX packages from a mirror or at runtime.
+commands, and makes `/opt/texlive` read-only.
 
-After publishing the image by digest, seal release assets from verified build
-evidence. The output directory must not already exist:
+### Release procedure
 
-```bash
-node scripts/tex-release.mjs create \
-  --input <verified-build-evidence> \
-  --output <new-release-directory> \
-  --image-digest sha256:<published-image-digest> \
-  --gpl-review <completed-gpl-review.json>
-```
+1. Choose an OCI registry location and obtain permission to publish the image.
+   Record its repository reference, for example
+   `ghcr.io/aruzone/aze-forge-tex-renderer`.
+2. Build the checked-out source for Linux/amd64 with the retained ISO. Run the
+   renderer profile corpus and runtime-hardening checks against that image.
+3. Publish that exact image. Copy the registry's OCI manifest digest as
+   `IMAGE_DIGEST`. It must have the form `sha256:<64 lowercase hex characters>`.
+   Do not use a mutable tag as release evidence.
+4. Collect evidence from the image identified by `IMAGE_DIGEST`. The evidence
+   directory must contain:
 
-The evidence directory supplies the installed `texlive.tlpdb` and resolved
-package closure, fixed profile preambles, TeX/dvisvgm versions and argv, font
-inventory, five-profile corpus hashes, SPDX SBOM, notices, and provenance
-bound to the published image digest. The creator validates those inputs,
-stages every release asset, then publishes a versioned manifest, SBOM, notices,
-provenance, and GPL review exactly once. The files are made read-only; reruns
-against an existing release directory fail rather than replace an asset.
+   ```text
+   texlive.tlpdb
+   packages.txt
+   corpus.json
+   tools.json
+   sbom.spdx.json
+   NOTICES
+   provenance.json
+   fonts/
+   preambles/
+     chemfig.tex
+     circuitikz.tex
+     pgfplots.tex
+     tikz.tex
+     tikz-cd.tex
+   ```
 
-`<completed-gpl-review.json>` is review evidence, never a generated approval
-template. It must have this shape:
+   `texlive.tlpdb` and `packages.txt` must describe the installed closure.
+   `corpus.json` must include input and output SHA-256 values for all five
+   profiles. `tools.json` records the locked `latex` and `dvisvgm` versions and
+   argv. `provenance.json.imageDigest` must equal `IMAGE_DIGEST`.
+5. Complete GPL publication review. The review must name a durable,
+   public corresponding-source URL and cover the generated SBOM and notices
+   for CircuitikZ, dvisvgm, and PGFPlots.
+6. Seal the release into a new output directory:
+
+   ```bash
+   node scripts/tex-release.mjs create \
+     --input evidence \
+     --output release/tex-renderer-v1 \
+     --image-digest "$IMAGE_DIGEST" \
+     --gpl-review gpl-review.json
+   ```
+
+   The command validates the evidence, writes the manifest, SBOM, notices,
+   provenance, and GPL review once, then makes them read-only. It prints the
+   manifest SHA-256 as `rendererIdentity`.
+7. Run `scripts/tex-local-render.mjs` with the published image pinned to
+   `IMAGE_DIGEST` and the sealed manifest. The result must report
+   `canonical:true`, and its `rendererIdentity` must equal the SHA-256 of the
+   manifest bytes. Comment with the image digest, release asset location,
+   renderer identity, corresponding-source URL, and verification result, then
+   close issue #97.
+
+### Current gap
+
+`scripts/tex-release.mjs` validates and seals evidence. It does not collect the
+evidence directory. The repository has no repeatable evidence-collection
+command yet. Do not hand-assemble a release from test fixtures or guessed
+metadata. Add that collector before performing the publication procedure.
+
+`gpl-review.json` is review evidence, never a generated approval template. It
+must have this shape:
 
 ```json
 {
@@ -114,12 +161,6 @@ template. It must have this shape:
   ]
 }
 ```
-
-The completed review is itself a hashed manifest asset, covering the
-corresponding-source path and notices for CircuiTikZ, dvisvgm, and PGFPlots.
-Its `rendererIdentity` is the manifest's SHA-256 and is the required
-`TexRenderer.rendererIdentity`; the compiler includes it in TeX Artifact
-fingerprints, never the Document content hash.
 
 ## Web integration
 
