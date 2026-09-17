@@ -51,6 +51,7 @@ export type {
   StateBlock,
   TexBlock,
   TexRenderer,
+  TexRendererFailureCategory,
   EntityBlock,
   ClassBlock,
   ControlBlock,
@@ -60,6 +61,7 @@ export type {
   Sha256Hash,
   AssetManifestEntry,
 } from "./model.js";
+export { TexRendererFailure } from "./model.js";
 export { DEFAULT_RENDER_TIMEOUT_MS } from "./compiler.js";
 export { CompilerConfigurationError } from "./configuration-error.js";
 export { DEFAULT_DIAGNOSTIC_LIMITS } from "./diagnostics.js";

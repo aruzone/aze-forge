@@ -1840,6 +1840,27 @@ export interface EquationBlockRenderer {
   ) => string | Promise<string>;
 }
 
+export type TexRendererFailureCategory =
+  | "adapter-unavailable"
+  | "timeout"
+  | "resource-limit"
+  | "sandbox-denied"
+  | "compile-failed"
+  | "protocol-invalid";
+
+/**
+ * A renderer may throw this failure to report a safe, stable TeX failure
+ * category. The compiler deliberately does not expose error messages because
+ * adapters may include host-specific paths in them.
+ */
+export class TexRendererFailure extends Error {
+  override readonly name = "TexRendererFailure";
+
+  constructor(readonly category: TexRendererFailureCategory) {
+    super(category);
+  }
+}
+
 export interface TexRenderer {
   /** SHA-256 of the immutable official renderer release manifest. */
   readonly rendererIdentity: Sha256Hash;

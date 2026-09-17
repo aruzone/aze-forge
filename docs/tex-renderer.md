@@ -19,60 +19,52 @@ The body is preserved after `----`, must be non-empty printable ASCII plus tabs/
 
 ## Local authoring
 
-Install the configured TeX toolchain and SVG converter on the machine running `azeforge`. The toolchain must include the packages required by the selected profile. Aze Forge invokes it only when the document contains a `tex` Technical object.
-
-Use the project's pinned renderer version where reproducible output matters. A locally installed TeX distribution may produce different SVG after package or font updates.
-
-To render a local Source file through a sealed release manifest, use the exact
-digest the manifest records:
-
-```bash
-node scripts/tex-local-render.mjs \
-  --source report.aze.md \
-  --output report.html \
-  --image registry.example/aze-forge-tex-renderer@sha256:<published-image-digest> \
-  --renderer-manifest release/tex-renderer-v1.manifest.json
-```
-
-The image reference must end in the manifest's `image.digest`; the wrapper
-refuses a mutable image tag for a sealed manifest. A scratch manifest without
-`image.digest` may use `aze-forge-tex-renderer:local`, but its output is a
-noncanonical visual smoke.
-
-This repository does not ship a published renderer image or sealed manifest, so
-there is no current value for `<published-image-digest>`. For an immediate local
-visual smoke, create a scratch manifest and use the locally built tag:
+The local wrapper is a reviewed opt-in path for authoring machines. It runs the
+fixed-argv renderer image with a private tmpfs workspace, no network,
+read-only root, dropped capabilities, `no-new-privileges`, one CPU, 512 MiB
+memory, 64 processes, and a 15-second wall clock. Its result is always marked
+`canonical:false`, including when an image digest matches a release manifest.
 
 ```bash
-printf '%s\n' '{"kind":"local-render-smoke"}' >/tmp/tex-local-smoke.manifest.json
 node scripts/tex-local-render.mjs \
   --source report.aze.md \
   --output report.html \
   --image aze-forge-tex-renderer:local \
-  --renderer-manifest /tmp/tex-local-smoke.manifest.json
-rm /tmp/tex-local-smoke.manifest.json
+  --renderer-manifest /tmp/tex-local.manifest.json
 ```
+
+The local wrapper never executes a host TeX binary. It passes the profile-owned
+TeX input on standard input to the image entrypoint; the entrypoint owns the
+workspace, fixed TeX and dvisvgm argv, bounded logs and response, and
+process-group cleanup.
 
 ## Server and CI deployment
 
-Run the pinned Aze Forge TeX-renderer container beside the Aze Forge compiler, or start it as a short-lived job for each compilation. The compiler sends the `tex` profile body and accessibility metadata to that renderer and embeds the returned SVG.
+Use only the canonical wrapper with the official image repository and the exact
+digest named by the sealed release manifest:
 
-Do not expose a host TeX installation directly to document compilation requests. The renderer container must:
+```bash
+node scripts/tex-canonical-render.mjs \
+  --source report.aze.md \
+  --output report.html \
+  --image ghcr.io/aruzone/aze-forge-tex-renderer@sha256:<published-image-digest> \
+  --renderer-manifest release/tex-renderer-v1/tex-renderer-v1.manifest.json
+```
 
-- disable TeX shell escape;
-- have no network access;
-- read and write only its temporary workspace;
-- enforce CPU, memory, output-size, and wall-clock limits;
-- include only the approved packages for supported profiles; and
-- pin the TeX Live, package, font, and SVG conversion versions.
+It rejects every repository other than the official one, mutable tags, missing
+manifest digest, and a digest mismatch. Its successful result is
+`canonical:true`. Browser clients and the compiler never invoke TeX directly.
 
-If the configured renderer is unavailable, compilation of a document that contains a `tex` Technical object must fail with an actionable diagnostic. It must not fall back to the native Circuit renderer or omit the object.
+The canonical image disables shell escape and permits only its private
+workspace. Each batch is capped at 15 seconds, one CPU, 512 MiB memory, 64
+processes, 64 MiB workspace, 1 MiB request input, 8 MiB response output, and
+4 MiB captured logs; hosts may lower, never raise, those limits. If a document
+contains a `tex` Block and the renderer is unavailable, compilation emits an
+actionable diagnostic and produces no Artifact. Documents without `tex` Blocks
+do not require the renderer.
 
 ## Releasing the official renderer
 
-Issue #97 remains open until the image and its sealed release assets exist.
-Rendering through a locally tagged image only checks the compiler integration.
-It does not create a canonical renderer identity.
 
 `Dockerfile.tex-renderer` builds only for Linux/amd64. It requires the locally
 retained `tex-renderer/texlive2026.iso` and verifies the TUG SHA-512 before
@@ -127,8 +119,8 @@ commands, and makes `/opt/texlive` read-only.
    The command validates the evidence, writes the manifest, SBOM, notices,
    provenance, and GPL review once, then makes them read-only. It prints the
    manifest SHA-256 as `rendererIdentity`.
-7. Run `scripts/tex-local-render.mjs` with the published image pinned to
-   `IMAGE_DIGEST` and the sealed manifest. The result must report
+7. Run `scripts/tex-canonical-render.mjs` with the official image repository,
+   published image digest, and sealed manifest. The result must report
    `canonical:true`, and its `rendererIdentity` must equal the SHA-256 of the
    manifest bytes. Comment with the image digest, release asset location,
    renderer identity, corresponding-source URL, and verification result, then

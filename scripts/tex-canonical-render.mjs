@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { documentFor } from "./tex-renderer-document.mjs";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
-const DEFAULT_IMAGE = "azeforge-tex-renderer:local";
+const OFFICIAL_IMAGE_REPOSITORY = "ghcr.io/aruzone/aze-forge-tex-renderer";
 
 function fail(message) {
   throw new Error(message);
@@ -16,17 +16,23 @@ function option(name) {
   if (index < 0 || process.argv[index + 1] === undefined) fail(`Missing ${name}.`);
   return process.argv[index + 1];
 }
-function sealedImageDigest(manifest) {
+
+function officialImage(manifest, suppliedImage) {
   const digest = manifest?.image?.digest;
-  if (digest === undefined) return undefined;
-  if (typeof digest !== "string" || !/^sha256:[a-f0-9]{64}$/.test(digest)) fail("Renderer manifest image.digest must be a sha256 digest.");
-  return digest;
+  if (typeof digest !== "string" || !/^sha256:[a-f0-9]{64}$/.test(digest)) fail("The canonical renderer requires a sealed manifest image digest.");
+  const image = `${OFFICIAL_IMAGE_REPOSITORY}@${digest}`;
+  if (suppliedImage !== image) fail("The canonical renderer requires the official digest-pinned image.");
+  return image;
 }
 
-
-function run(command, args, input) {
+function run(image, input) {
   return new Promise((resolve, reject) => {
-    const child = spawn(command, args, { cwd: ROOT, stdio: ["pipe", "pipe", "pipe"] });
+    const child = spawn("docker", [
+      "run", "--rm", "--interactive", "--platform", "linux/amd64", "--network", "none", "--read-only",
+      "--tmpfs", "/tmp:rw,noexec,nosuid,size=64m", "--cap-drop", "ALL",
+      "--security-opt", "no-new-privileges", "--pids-limit", "64", "--memory", "512m", "--cpus", "1",
+      image,
+    ], { cwd: ROOT, stdio: ["pipe", "pipe", "pipe"] });
     const stdout = [];
     const stderr = [];
     child.stdout.on("data", (chunk) => stdout.push(chunk));
@@ -35,7 +41,7 @@ function run(command, args, input) {
     child.once("close", (code, signal) => {
       const result = { code, signal, stdout: Buffer.concat(stdout), stderr: Buffer.concat(stderr) };
       if (code === 0) resolve(result);
-      else reject(new Error(`docker run failed (${signal ?? `exit ${code}`}): ${result.stderr.toString("utf8")}`));
+      else reject(new Error(`TeX renderer failed (${signal ?? `exit ${code}`}).`));
     });
     child.stdin.end(input);
   });
@@ -44,7 +50,7 @@ function run(command, args, input) {
 const sourcePath = option("--source");
 const outputPath = option("--output");
 const manifestPath = option("--renderer-manifest");
-const image = process.argv.includes("--image") ? option("--image") : DEFAULT_IMAGE;
+const suppliedImage = option("--image");
 const [source, manifestBytes] = await Promise.all([readFile(sourcePath, "utf8"), readFile(manifestPath)]);
 let manifest;
 try {
@@ -52,21 +58,14 @@ try {
 } catch {
   fail("Renderer manifest must be valid JSON.");
 }
-const imageDigest = sealedImageDigest(manifest);
-if (imageDigest !== undefined && !image.endsWith(`@${imageDigest}`)) fail("A sealed renderer manifest requires a digest-pinned image reference.");
-const canonical = false;
+const image = officialImage(manifest, suppliedImage);
 const rendererIdentity = `sha256:${createHash("sha256").update(manifestBytes).digest("hex")}`;
 const { createCompiler } = await import("../dist/index.js");
 const compiler = createCompiler({
   texRenderer: {
     rendererIdentity,
     async render({ profile, body }) {
-      const result = await run("docker", [
-        "run", "--rm", "--interactive", "--platform", "linux/amd64", "--network", "none", "--read-only",
-        "--tmpfs", "/tmp:rw,noexec,nosuid,size=64m", "--cap-drop", "ALL",
-        "--security-opt", "no-new-privileges", "--pids-limit", "64", "--memory", "512m", "--cpus", "1",
-        image,
-      ], documentFor(profile, body));
+      const result = await run(image, documentFor(profile, body));
       return result.stdout.toString("utf8").replace(/^\s*(?:<\?xml[^?]*\?>\s*)?(?:<!--[\s\S]*?-->\s*)?/, "");
     },
   },
@@ -74,4 +73,4 @@ const compiler = createCompiler({
 const compiled = await compiler.compile(source, { format: "html", sourceName: sourcePath });
 if (compiled.artifact === undefined) fail(JSON.stringify(compiled.diagnostics));
 await writeFile(outputPath, compiled.artifact.bytes);
-process.stdout.write(`${JSON.stringify({ source: sourcePath, output: outputPath, rendererIdentity, canonical, artifactHash: compiled.artifact.metadata.artifactHash, bytes: compiled.artifact.bytes.length })}\n`);
+process.stdout.write(`${JSON.stringify({ source: sourcePath, output: outputPath, rendererIdentity, canonical: true, artifactHash: compiled.artifact.metadata.artifactHash, bytes: compiled.artifact.bytes.length })}\n`);

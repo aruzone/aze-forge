@@ -6,7 +6,7 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 
-import { createCompiler } from "../dist/index.js";
+import { createCompiler, TexRendererFailure } from "../dist/index.js";
 import { TEX_PLUGIN_VERSION, TEX_PROFILES } from "../dist/contracts.js";
 
 const CLI_PATH = fileURLToPath(new URL("../dist/cli.js", import.meta.url));
@@ -42,6 +42,41 @@ test("a trusted renderer embeds accessible SVG in the HTML artifact", async () =
   const html = Buffer.from(compiled.artifact.bytes).toString("utf8");
   assert.match(html, /<figure class="aze-tex" data-tex-profile="tikz">/);
   assert.match(html, /<title>Analog filter<\/title><desc>A passive low-pass filter\.<\/desc>/);
+});
+
+test("TeX renderer failures map to source diagnostics without host details", async () => {
+  const identity = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+  const cases = [
+    ["adapter-unavailable", "azeforge.tex#adapter-unavailable"],
+    ["timeout", "azeforge.tex#timeout"],
+    ["resource-limit", "azeforge.tex#resource-limit"],
+    ["sandbox-denied", "azeforge.tex#sandbox-denied"],
+    ["compile-failed", "azeforge.tex#compile-failed"],
+    ["protocol-invalid", "azeforge.tex#protocol-invalid"],
+  ];
+  for (const [category, code] of cases) {
+    const compiled = await createCompiler({
+      texRenderer: {
+        rendererIdentity: identity,
+        render: () => {
+          throw new TexRendererFailure(category);
+        },
+      },
+    }).compile(source("tikz"), { format: "html", sourceName: "figure.aze.md" });
+    assert.equal(compiled.artifact, undefined, category);
+    assert.deepEqual(compiled.diagnostics.map(({ code: actual }) => actual), [code], category);
+    assert.equal(compiled.diagnostics[0]?.location.source, "figure.aze.md", category);
+  }
+  const redacted = await createCompiler({
+    texRenderer: {
+      rendererIdentity: identity,
+      render: () => {
+        throw new Error("/private/var/folders/secret/figure.tex");
+      },
+    },
+  }).compile(source("tikz"), { format: "html", sourceName: "figure.aze.md" });
+  assert.deepEqual(redacted.diagnostics.map(({ code }) => code), ["azeforge.tex#compile-failed"]);
+  assert.doesNotMatch(JSON.stringify(redacted.diagnostics), /\/private\/var\/folders\/secret/);
 });
 
 test("TeX renderer identity affects artifact fingerprints but not document content", async () => {

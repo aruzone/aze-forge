@@ -83,8 +83,10 @@ export type {
   TypedTableCell,
   TexBlock,
   TexRenderer,
+  TexRendererFailureCategory,
   SvgArtifactMetadata,
 } from "./model.js";
+export { TexRendererFailure } from "./model.js";
 
 export { TOOL_VERSION } from "./tool-version.js";
 

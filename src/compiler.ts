@@ -57,6 +57,7 @@ import type {
   SourceRange,
   ValidationResult,
 } from "./model.js";
+import { TexRendererFailure } from "./model.js";
 import {
   EquationSanitizerError,
   katexDependencyClosure,
@@ -338,6 +339,16 @@ function withRenderTimeout<T>(work: Promise<T>, timeoutMs: number): Promise<T> {
   });
 }
 
+function withAbort<T>(work: Promise<T>, signal: AbortSignal | undefined): Promise<T> {
+  if (signal === undefined) return work;
+  throwIfCancelled(signal);
+  return new Promise<T>((resolve, reject) => {
+    const abort = () => reject(new CompilerCancelledError());
+    signal.addEventListener("abort", abort, { once: true });
+    work.then(resolve, reject).finally(() => signal.removeEventListener("abort", abort));
+  });
+}
+
 class BlockRendererSyncError extends Error {
   readonly adapterId: string;
   readonly blockType: string;
@@ -458,10 +469,58 @@ function texTargets(document: AzeDocument): readonly TexBlock[] {
   return targets;
 }
 
+function texRendererFailureDiagnostic(
+  category: TexRendererFailure["category"],
+  block: TexBlock,
+  sourceName: string | undefined,
+): Diagnostic {
+  const details = {
+    "adapter-unavailable": {
+      message: "The trusted TeX renderer is unavailable.",
+      suggestion: "Start the configured TeX renderer and verify its image or command is available.",
+    },
+    timeout: {
+      message: "The trusted TeX renderer exceeded its time limit.",
+      suggestion: "Simplify the TeX body to fit the renderer time limit.",
+    },
+    "resource-limit": {
+      message: "The trusted TeX renderer exceeded a resource limit.",
+      suggestion: "Simplify the TeX body to fit the renderer resource limits.",
+    },
+    "sandbox-denied": {
+      message: "The trusted TeX renderer denied a sandboxed operation.",
+      suggestion: "Remove the denied operation from the TeX body.",
+    },
+    "compile-failed": {
+      message: "The trusted TeX renderer could not compile this TeX body.",
+      suggestion: "Correct the TeX body and try again.",
+    },
+    "protocol-invalid": {
+      message: "The trusted TeX renderer returned an invalid response.",
+      suggestion: "Update or reconfigure the trusted TeX renderer.",
+    },
+  } as const;
+  const detail = details[category];
+  return createDiagnostic(
+    `azeforge.tex#${category}`,
+    "error",
+    detail.message,
+    {
+      location: sourceName === undefined
+        ? { range: block.range }
+        : { source: sourceName, range: block.range },
+      data: { profile: block.profile },
+      suggestion: detail.suggestion,
+    },
+  );
+}
+
 async function renderTexFragments(
   document: AzeDocument,
   renderer: TexRenderer | undefined,
   sourceName: string | undefined,
+  timeoutMs: number,
+  signal: AbortSignal | undefined,
 ): Promise<{ readonly fragments: ReadonlyMap<TexBlock, string>; readonly diagnostics: readonly Diagnostic[] }> {
   const targets = texTargets(document);
   if (targets.length === 0) return { fragments: new Map(), diagnostics: [] };
@@ -497,14 +556,15 @@ async function renderTexFragments(
   const diagnostics: Diagnostic[] = [];
   for (const block of targets) {
     try {
-      const svg = await renderer.render({ profile: block.profile, title: block.title, description: block.description, body: block.body });
-      if (checkSvg(svg) !== "ok") throw new Error("Renderer returned unsafe or malformed SVG.");
+      const svg = await withAbort(withRenderTimeout(Promise.resolve(renderer.render({ profile: block.profile, title: block.title, description: block.description, body: block.body })), timeoutMs), signal);
+      if (checkSvg(svg) !== "ok") throw new TexRendererFailure("protocol-invalid");
       const accessibleSvg = svg.replace(/^(<svg\b[^>]*>)/, `$1<title>${escapeHtml(block.title)}</title><desc>${escapeHtml(block.description)}</desc>`);
       fragments.set(block, `<figure class="aze-tex" data-tex-profile="${block.profile}">${accessibleSvg}</figure>`);
     } catch (error) {
-      diagnostics.push(createDiagnostic(
-        "azeforge.tex#render-failed", "error", "The trusted TeX renderer failed to produce a safe SVG.",
-        { location: sourceName === undefined ? { range: block.range } : { source: sourceName, range: block.range }, data: { profile: block.profile, detail: error instanceof Error ? error.message : String(error) }, suggestion: "Check the renderer logs and the TeX body; shell escape and filesystem access must remain disabled." },
+      diagnostics.push(texRendererFailureDiagnostic(
+        error instanceof TexRendererFailure ? error.category : "compile-failed",
+        block,
+        sourceName,
       ));
     }
   }
@@ -2908,6 +2968,8 @@ export function createCompiler(options: CompilerOptions = {}): Compiler {
           validation.document,
           options.texRenderer,
           compileOptions.sourceName,
+          renderTimeoutMs,
+          compileOptions.signal,
         );
         const derivationPreflight = await renderDerivationFragments(
           validation.document,
