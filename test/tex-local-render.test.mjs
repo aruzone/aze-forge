@@ -72,7 +72,7 @@ test("canonical renderer marks an official digest-pinned non-TeX compilation can
   await writeFile(source, "---\nazemark: 2\n---\n\n# Report\n");
   await writeFile(manifest, JSON.stringify({ image: { digest: IMAGE_DIGEST } }));
 
-  const result = render(source, output, manifest, `ghcr.io/aruzone/aze-forge-tex-renderer@${IMAGE_DIGEST}`, CANONICAL_SCRIPT);
+  const result = render(source, output, manifest, `docker.io/kkumaresan/aze-forge-tex-renderer@${IMAGE_DIGEST}`, CANONICAL_SCRIPT);
 
   assert.equal(result.status, 0, result.stderr);
   assert.equal(JSON.parse(result.stdout).canonical, true);

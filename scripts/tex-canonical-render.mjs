@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { documentFor } from "./tex-renderer-document.mjs";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
-const OFFICIAL_IMAGE_REPOSITORY = "ghcr.io/aruzone/aze-forge-tex-renderer";
+const OFFICIAL_IMAGE_REPOSITORY = "docker.io/kkumaresan/aze-forge-tex-renderer";
 
 function fail(message) {
   throw new Error(message);

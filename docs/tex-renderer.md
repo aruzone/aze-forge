@@ -47,7 +47,7 @@ digest named by the sealed release manifest:
 node scripts/tex-canonical-render.mjs \
   --source report.aze.md \
   --output report.html \
-  --image ghcr.io/aruzone/aze-forge-tex-renderer@sha256:<published-image-digest> \
+  --image docker.io/kkumaresan/aze-forge-tex-renderer@sha256:befbadc886338638d5b2e6ac4e564a95c62bd47822f1118b226dee02deffad56 \
   --renderer-manifest release/tex-renderer-v1/tex-renderer-v1.manifest.json
 ```
 
