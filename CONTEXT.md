@@ -300,6 +300,10 @@ _Avoid_: derivation, example callout
 A composition-owned wrapper Block giving ordinary Markdown content a document identifier, caption and figure-class number.
 _Avoid_: image, plot, illustration
 
+**TeX SVG projection**:
+The single canonical, namespaced, self-contained SVG the compiler derives from one renderer figure's raw output; every Artifact format embeds this one validated value.
+_Avoid_: raw dvisvgm output, renderer SVG, sanitized SVG
+
 **Numbering class**:
 One flat document-order counter of one object kind; every numbered Block consumes exactly one value in appearance order, and no counter resets in the alpha.
 _Avoid_: counter, chapter numbering, sequence

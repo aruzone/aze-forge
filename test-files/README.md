@@ -53,6 +53,15 @@ done
 | `plot/01-rc-response.aze.md` | Native `plot` Block: function series with `parameters:` scientific-input normalization plus scatter series with symmetric/asymmetric error bars; deterministic browser-free SVG with legend and `<title>`/`<desc>`. |
 | `chart/01-grouped-bar.aze.md` | `grouped-bar` chart with error bars plus a `histogram` with explicit edges; authored category order, resolved edge list, render-derived counts. |
 
+## TeX renderer corpus
+
+`test-files/tex/` holds the five-profile TeX renderer corpus (`chemfig`,
+`circuitikz`, `pgfplots`, `tikz`, `tikz-cd`), one Source per profile mirroring
+the sealed release corpus fixtures in
+[`scripts/tex-fixtures.mjs`](../scripts/tex-fixtures.mjs). These Sources
+validate without a renderer; rendering them needs the trusted TeX renderer
+described in [`docs/tex-renderer.md`](../docs/tex-renderer.md).
+
 ## Invalid (each exits `1`)
 
 | File | Expected `render` codes |

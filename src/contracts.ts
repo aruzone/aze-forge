@@ -97,6 +97,17 @@ export {
   TEX_RENDER_REQUEST_MAX_BYTES,
   TEX_RENDER_RESPONSE_MAX_BYTES,
 } from "./model.js";
+export {
+  TEX_SVG_NORMALIZER_VERSION,
+  TexSvgError,
+  projectTexSvg,
+  texFigureFragment,
+} from "./tex-svg.js";
+export type {
+  TexFigureFragmentOptions,
+  TexSvgProjectionOptions,
+  TexSvgRejection,
+} from "./tex-svg.js";
 
 export { TOOL_VERSION } from "./tool-version.js";
 

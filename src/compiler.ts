@@ -92,8 +92,7 @@ import {
 } from "./mermaid.js";
 import { MERMAID_PLUGIN_TYPE } from "./mermaid-schemas.js";
 import { TEX_PLUGIN_TYPE } from "./tex-schemas.js";
-import { checkSvg, stripSvgPreamble } from "./assets.js";
-import { escapeHtml } from "./html-fragment.js";
+import { TexSvgError, texFigureFragment } from "./tex-svg.js";
 import { DIAGRAM_PLUGIN_TYPE } from "./diagram-schemas.js";
 import { DiagramRenderError, diagramDependencyClosure } from "./diagram-render.js";
 import { DiagramLayoutError } from "./diagram-layout.js";
@@ -595,13 +594,21 @@ async function renderTexFragments(
     const block = targets[result.index];
     if (block === undefined) continue;
     if (result.status === "ok") {
-      const svg = stripSvgPreamble(result.svg);
-      if (checkSvg(svg) !== "ok") {
+      try {
+        fragments.set(
+          block,
+          texFigureFragment({
+            svg: result.svg,
+            requestIndex: result.index,
+            profile: block.profile,
+            title: block.title,
+            description: block.description,
+          }),
+        );
+      } catch (error) {
+        if (!(error instanceof TexSvgError)) throw error;
         diagnostics.push(texRendererFailureDiagnostic("protocol-invalid", block, sourceName));
-        continue;
       }
-      const accessibleSvg = svg.replace(/^(<svg\b[^>]*>)/, `$1<title>${escapeHtml(block.title)}</title><desc>${escapeHtml(block.description)}</desc>`);
-      fragments.set(block, `<figure class="aze-tex" data-tex-profile="${block.profile}">${accessibleSvg}</figure>`);
       continue;
     }
     diagnostics.push(texRendererFailureDiagnostic(

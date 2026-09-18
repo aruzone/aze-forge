@@ -199,12 +199,37 @@ tex Block in aze.md
         -> TeX Live and latex
         -> DVI
         -> dvisvgm
-        -> SVG
+        -> raw dvisvgm SVG per figure
         -> one batch response
-        -> SVG safety validation
-        -> title and description added
-        -> embedded in the final Artifact
+        -> canonical projection (parse, validate, namespace, re-serialize)
+        -> embedded unchanged in the final Artifact
 ```
+
+## Canonical projection
+
+The renderer's raw `dvisvgm` SVG is never embedded directly. The compiler
+parses the returned document and re-serializes exactly one canonical
+projection. It refuses malformed XML, a DOCTYPE, unsafe elements, an internal
+`<style>` element whose selectors the namespace rewrite cannot follow,
+event-handler attributes, external references and `@import`, a figure without
+the SVG namespace or finite bounded geometry, and any `#id`/`url(#id)`
+reference to an identifier the figure does not declare. A refusal is reported
+as `azeforge.tex#protocol-invalid` and suppresses the whole Artifact rather
+than publishing a partial figure.
+
+The projection prefixes every identifier and rewrites every reference with the
+figure's zero-based batch index (`tex-<index>-`), removes comments, metadata,
+and formatting whitespace, fixes attribute order and XML escaping, and
+quantizes generated numbers to six decimals without touching authored text. It
+then injects the authored `title` and `description` as the root's accessible
+`<title>` and `<desc>`, sets `role="img"`, and wraps the result in
+`<figure class="aze-tex" data-tex-profile="…">`.
+
+The projection is frozen as `TEX_SVG_NORMALIZER_VERSION`
+(`azeforge.tex-svg-normalizer/v1`), matching the sealed renderer manifest's
+`normalizer.version`. This one validated SVG is embedded unchanged in the HTML
+layout, and the whole-document SVG, PNG, and PDF Artifacts all derive from that
+same layout — TeX runs once per compilation and never once per format.
 
 ## How the compiler connects the pieces
 

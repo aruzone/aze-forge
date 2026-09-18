@@ -71,6 +71,59 @@ to `compile-failed`. Adapter `message` and `detail` text is never copied into
 compiler diagnostics, and `bodyLocation` is mapped back onto AzeMark Source.
 One failed figure or one invalid transport suppresses the whole Artifact.
 
+## Canonical SVG projection
+
+The trusted renderer returns raw `dvisvgm` SVG: an XML declaration, a
+generator comment, single-quoted attributes, and per-page identifiers such as
+`page1` or `pgfcp1`. The compiler parses that document — never regex-rewrites
+it — and re-serializes exactly one canonical projection. The projection is
+frozen as `TEX_SVG_NORMALIZER_VERSION` (`azeforge.tex-svg-normalizer/v1`,
+`src/tex-svg.ts`), the same value sealed as `normalizer.version` in
+`release/tex-renderer-v1/tex-renderer-v1.manifest.json`.
+
+Parsing refuses a document the compiler cannot read faithfully: malformed XML,
+a DOCTYPE, unsafe elements (`script`, `foreignObject`, animation elements, and
+foreign embeddings), an internal `<style>` element whose selectors the
+namespace rewrite cannot follow, event-handler attributes, external references
+and `@import`, a figure without the SVG namespace or without finite, bounded
+geometry, and any `#id` or `url(#id)` reference to an identifier the figure
+does not declare. A rejection is the stable
+`azeforge.tex#protocol-invalid` diagnostic and suppresses the whole Artifact;
+the compiler still never publishes a partial document.
+
+The rewrite prefixes every identifier and rewrites every reference with the
+figure's zero-based batch index as `tex-<index>-`, so figures in one batch
+never collide. The projection removes comments, generator metadata, and
+formatting whitespace; fixes attribute order and XML escaping; and quantizes
+generated numbers to six decimals without touching authored text.
+
+The compiler injects the authored `title` and `description` as the root's
+accessible `<title>` and `<desc>`, sets `role="img"`, and wraps the result in
+the compiler-owned figure:
+
+```html
+<figure class="aze-tex" data-tex-profile="tikz">
+  ...canonical SVG...
+</figure>
+```
+
+That one projection is embedded unchanged in the HTML layout. The
+whole-document SVG, PNG, and PDF Artifacts all derive from the same layout, so
+TeX runs once per compilation and never once per format.
+
+The acceptance check renders the sealed five-profile corpus twice on canonical
+Linux/amd64, requires byte-identical normalized SVG and byte-identical rendered
+PNG pixels, and asserts every Artifact format carries the same projection:
+
+```bash
+node scripts/tex-canonical-verify.mjs \
+  --renderer-manifest release/tex-renderer-v1/tex-renderer-v1.manifest.json
+```
+
+It resolves the image from the manifest's sealed digest and refuses any other
+reference. For a locally built image, pass `--local --image <tag>`; the report
+is then marked `canonical:false`.
+
 ## Local authoring
 
 The local wrapper is a reviewed opt-in path for authoring machines. It runs the

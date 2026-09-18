@@ -1,0 +1,47 @@
+name: tex-canonical
+
+# The canonical TeX renderer acceptance needs canonical Linux/amd64, the
+# sealed renderer image, and the pinned browser, so it runs on its own job
+# rather than in the per-OS matrix. It renders the five-profile corpus twice
+# and requires byte-identical normalized SVG plus pixel-identical PNG bytes.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 6 * * 1"
+  pull_request:
+    paths:
+      - "src/tex-svg.ts"
+      - "src/tex-adapter.ts"
+      - "src/compiler.ts"
+      - "scripts/tex-*.mjs"
+      - "test/tex*.test.mjs"
+      - "test-files/tex/**"
+      - "release/tex-renderer-v1/**"
+      - ".github/workflows/tex-canonical.yml"
+
+jobs:
+  canonical:
+    name: canonical TeX renderer (ubuntu 24.04 x64, node 24)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      # See ci.yml browser-smoke: Chrome's sandbox needs unprivileged user
+      # namespaces on Ubuntu 24.04 runners; ephemeral host configuration.
+      - name: Enable unprivileged user namespaces
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+      - run: npm run build --silent
+      - name: Assert canonical architecture
+        run: node -e "if (process.arch !== 'x64') throw new Error('Canonical evidence requires x64')"
+      - name: Verify the canonical TeX projection
+        run: node scripts/tex-canonical-verify.mjs --renderer-manifest release/tex-renderer-v1/tex-renderer-v1.manifest.json --output tex-canonical-report.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: tex-canonical-report
+          if-no-files-found: ignore
+          path: tex-canonical-report.json

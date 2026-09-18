@@ -4,19 +4,12 @@ import { access, chmod, copyFile, lstat, mkdir, mkdtemp, readFile, readdir, rena
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { TEX_PROFILES, documentFor } from "./tex-renderer-document.mjs";
+import { TEX_PROFILE_BODIES } from "./tex-fixtures.mjs";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const PACKAGE_LOCK = join(ROOT, "tex-renderer", "package-closure.lock");
 const LATEX_ARGV = ["latex", "-interaction=nonstopmode", "-halt-on-error", "-no-shell-escape", "-output-format=dvi", "figure.tex"];
 const DVISVGM_ARGV = ["dvisvgm", "--page=1", "--no-fonts=1", "--precision=6", "--output=output.svg", "figure.dvi"];
-const FIXTURES = Object.freeze({
-  chemfig: "\\chemfig{H-C(-[2]H)(-[6]H)-H}",
-  circuitikz: "\\draw (0,0) to[R] (2,0) to[C] (2,-2) node[ground] {};",
-  pgfplots: "\\begin{axis}\\addplot coordinates {(0,0) (1,1)};\\end{axis}",
-  tikz: "\\draw (0,0) -- (1,1);",
-  "tikz-cd": "\\begin{tikzcd} A \\arrow[r] & B \\end{tikzcd}",
-});
-
 function fail(message) { throw new Error(message); }
 function sha256(value) { return `sha256:${createHash("sha256").update(value).digest("hex")}`; }
 function option(name) {
@@ -140,7 +133,7 @@ async function collect() {
         profile,
         title: profile,
         description: `${profile} release corpus fixture`,
-        body: FIXTURES[profile],
+        body: TEX_PROFILE_BODIES[profile],
         range: { start: { line: 1, column: 1, offset: 0 }, end: { line: 1, column: 1, offset: 0 } },
       })),
     };
@@ -160,7 +153,7 @@ async function collect() {
       if (result?.status !== "ok" || typeof result.svg !== "string") {
         fail(`Corpus fixture ${profile} failed: ${result?.diagnostic?.code ?? "invalid response"}.`);
       }
-      fixtures.push({ profile, inputHash: sha256(documentFor(profile, FIXTURES[profile])), outputHash: sha256(result.svg) });
+      fixtures.push({ profile, inputHash: sha256(documentFor(profile, TEX_PROFILE_BODIES[profile])), outputHash: sha256(result.svg) });
     }
     await writeFile(join(staging, "corpus.json"), `${JSON.stringify({ fixtures })}\n`, { flag: "wx" });
     await writeFile(join(staging, "tools.json"), `${JSON.stringify({ latex: { version: latexVersion, argv: LATEX_ARGV }, dvisvgm: { version: dvisvgmVersion, argv: DVISVGM_ARGV } })}\n`, { flag: "wx" });
