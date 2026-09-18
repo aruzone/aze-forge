@@ -159,6 +159,53 @@ for f in docs/language/*.aze.md; do
 done
 ```
 
+## Local TeX rendering
+
+`tex` Blocks are compiled by the isolated renderer image, never by host TeX
+and never by the compiler. Local authoring uses the reviewed wrapper in
+`scripts/tex-local-render.mjs`, which runs the fixed-argv entrypoint with no
+network, a read-only root, a tmpfs workspace, dropped capabilities,
+`no-new-privileges`, one CPU, 512 MiB memory, 64 processes, and a 15-second
+wall clock. Its output is always noncanonical.
+
+Build the local image first; `Dockerfile.tex-renderer` targets Linux/amd64 and
+needs the retained TeX Live ISO (see
+[`docs/tex-renderer.md`](tex-renderer.md#restoring-the-tex-live-iso)):
+
+```bash
+docker build --platform linux/amd64 \
+  -f Dockerfile.tex-renderer \
+  -t aze-forge-tex-renderer:local .
+```
+
+Render the profile coverage Source — `docs/language/14-tex.aze.md`, which
+exercises CircuitikZ, TikZ, PGFPlots, Chemfig, and TikZ-CD — with a scratch
+manifest:
+
+```bash
+npm run build
+printf '%s\n' '{"kind":"local-tex-smoke"}' >/tmp/azeforge-local-tex-manifest.json
+node scripts/tex-local-render.mjs \
+  --source docs/language/14-tex.aze.md \
+  --output /tmp/azeforge-tex-coverage.html \
+  --image aze-forge-tex-renderer:local \
+  --renderer-manifest /tmp/azeforge-local-tex-manifest.json
+```
+
+One-command image smoke, which renders a fixed CircuitikZ Source from a private
+temporary directory and asserts the compiled figure:
+
+```bash
+node scripts/tex-local-smoke.mjs
+node scripts/tex-local-smoke.mjs --image aze-forge-tex-renderer:local
+```
+
+Both scripts report `rendererIdentity` and `canonical:false`. Sealed
+`image.digest` manifests require a digest-pinned image reference. Canonical CI
+and server compilation must use `scripts/tex-canonical-render.mjs` with the
+published digest-pinned image and sealed release manifest; see
+[`docs/tex-renderer.md`](tex-renderer.md).
+
 ## Acceptance runner
 
 ```bash

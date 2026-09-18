@@ -43,7 +43,7 @@ prose names it. Nothing else warns.
 | `11-structured-content.aze.md` | The `table`, `algorithm`, `statement` and `example` directives: typed columns with grouped headers and missing values, the six pseudocode statement forms, theorem-family statements with proofs, and worked examples composing nested mathematics. |
 | `12-composition.aze.md` | The `figure` wrapper, the `bibliography` directive, `@`-references and parenthetical groups, citation locators, and endnote-rendered footnotes. |
 | `13-diagnostics.aze.md` | The one intentionally invalid document: representative broken Blocks per family, each naming the exact diagnostic code and remedy the compiler produces. |
-| `14-tex.aze.md` | Every isolated `tex` renderer profile — CircuitikZ, TikZ, PGFPlots, Chemfig, and TikZ-CD. Render it with the local wrapper and a local renderer image. |
+| `14-tex.aze.md` | Every isolated `tex` renderer profile — CircuitikZ, TikZ, PGFPlots, Chemfig, and TikZ-CD. It needs the renderer image; see [Local TeX rendering](../development.md#local-tex-rendering). |
 
 ## Approved constraints
 
