@@ -55,9 +55,18 @@ import type {
   Theme,
   PlotBlock,
   SourceRange,
+  TexRendererFailureCategory,
   ValidationResult,
 } from "./model.js";
-import { TexRendererFailure } from "./model.js";
+import {
+  buildTexRenderRequest,
+  runTexRendererBatch,
+  TexAdapterCancelled,
+  TexAdapterFailure,
+  texBodyRange,
+  texResultCategory,
+} from "./tex-adapter.js";
+import { sourceLines } from "./source-map.js";
 import {
   EquationSanitizerError,
   katexDependencyClosure,
@@ -83,7 +92,7 @@ import {
 } from "./mermaid.js";
 import { MERMAID_PLUGIN_TYPE } from "./mermaid-schemas.js";
 import { TEX_PLUGIN_TYPE } from "./tex-schemas.js";
-import { checkSvg } from "./assets.js";
+import { checkSvg, stripSvgPreamble } from "./assets.js";
 import { escapeHtml } from "./html-fragment.js";
 import { DIAGRAM_PLUGIN_TYPE } from "./diagram-schemas.js";
 import { DiagramRenderError, diagramDependencyClosure } from "./diagram-render.js";
@@ -322,6 +331,9 @@ function validateTheme(theme: Theme): void {
 
 export const DEFAULT_RENDER_TIMEOUT_MS = 5000;
 
+/** Fixed deployment ceiling for one TeX renderer batch; hosts may only lower it. */
+export const DEFAULT_TEX_RENDER_TIMEOUT_MS = 15000;
+
 class RenderTimeoutError extends Error {
   constructor() {
     super("The equation Block renderer timed out.");
@@ -341,17 +353,6 @@ function withRenderTimeout<T>(work: Promise<T>, timeoutMs: number, onTimeout?: (
     (value) => { clearTimeout(timer); return value; },
     (error: unknown) => { clearTimeout(timer); throw error; },
   );
-}
-
-function withAbort<T>(work: Promise<T>, signal: AbortSignal | undefined): Promise<T> {
-  if (signal === undefined) return work;
-  throwIfCancelled(signal);
-  return new Promise<T>((resolve, reject) => {
-    const abort = () => reject(new CompilerCancelledError());
-    const complete = () => signal.removeEventListener("abort", abort);
-    signal.addEventListener("abort", abort, { once: true });
-    work.then((value) => { complete(); resolve(value); }, (error) => { complete(); reject(error); });
-  });
 }
 
 class BlockRendererSyncError extends Error {
@@ -474,56 +475,76 @@ function texTargets(document: AzeDocument): readonly TexBlock[] {
   return targets;
 }
 
+const TEX_FAILURE_DETAILS: Readonly<Record<TexRendererFailureCategory, { readonly message: string; readonly suggestion: string }>> = {
+  "adapter-unavailable": {
+    message: "The trusted TeX renderer is unavailable.",
+    suggestion: "Start the configured TeX renderer and verify its image or command is available.",
+  },
+  timeout: {
+    message: "The trusted TeX renderer exceeded its time limit.",
+    suggestion: "Simplify the TeX body to fit the renderer time limit.",
+  },
+  "resource-limit": {
+    message: "The trusted TeX renderer exceeded a resource limit.",
+    suggestion: "Simplify the TeX body to fit the renderer resource limits.",
+  },
+  "sandbox-denied": {
+    message: "The trusted TeX renderer denied a sandboxed operation.",
+    suggestion: "Remove the denied operation from the TeX body.",
+  },
+  "compile-failed": {
+    message: "The trusted TeX renderer could not compile this TeX body.",
+    suggestion: "Correct the TeX body and try again.",
+  },
+  "protocol-invalid": {
+    message: "The trusted TeX renderer returned an invalid response.",
+    suggestion: "Update or reconfigure the trusted TeX renderer.",
+  },
+};
+
 function texRendererFailureDiagnostic(
-  category: TexRendererFailure["category"],
+  category: TexRendererFailureCategory,
   block: TexBlock,
   sourceName: string | undefined,
+  range: SourceRange = block.range,
 ): Diagnostic {
-  const details = {
-    "adapter-unavailable": {
-      message: "The trusted TeX renderer is unavailable.",
-      suggestion: "Start the configured TeX renderer and verify its image or command is available.",
-    },
-    timeout: {
-      message: "The trusted TeX renderer exceeded its time limit.",
-      suggestion: "Simplify the TeX body to fit the renderer time limit.",
-    },
-    "resource-limit": {
-      message: "The trusted TeX renderer exceeded a resource limit.",
-      suggestion: "Simplify the TeX body to fit the renderer resource limits.",
-    },
-    "sandbox-denied": {
-      message: "The trusted TeX renderer denied a sandboxed operation.",
-      suggestion: "Remove the denied operation from the TeX body.",
-    },
-    "compile-failed": {
-      message: "The trusted TeX renderer could not compile this TeX body.",
-      suggestion: "Correct the TeX body and try again.",
-    },
-    "protocol-invalid": {
-      message: "The trusted TeX renderer returned an invalid response.",
-      suggestion: "Update or reconfigure the trusted TeX renderer.",
-    },
-  } as const;
-  const detail = details[category];
+  const detail = TEX_FAILURE_DETAILS[category];
   return createDiagnostic(
     `azeforge.tex#${category}`,
     "error",
     detail.message,
     {
       location: sourceName === undefined
-        ? { range: block.range }
-        : { source: sourceName, range: block.range },
+        ? { range }
+        : { source: sourceName, range },
       data: { profile: block.profile },
       suggestion: detail.suggestion,
     },
   );
 }
 
+function texBatchFailureDiagnostics(
+  category: TexRendererFailureCategory,
+  targets: readonly TexBlock[],
+  sourceName: string | undefined,
+): readonly Diagnostic[] {
+  const detail = TEX_FAILURE_DETAILS[category];
+  return [groupedAdapterDiagnostic(
+    `azeforge.tex#${category}`,
+    detail.message,
+    targets.map((block) => ({ block })),
+    sourceName,
+    { blockType: TEX_PLUGIN_TYPE },
+    detail.suggestion,
+    TEX_PLUGIN_TYPE,
+  )];
+}
+
 async function renderTexFragments(
   document: AzeDocument,
   renderer: TexRenderer | undefined,
   sourceName: string | undefined,
+  source: string,
   timeoutMs: number,
   signal: AbortSignal | undefined,
 ): Promise<{ readonly fragments: ReadonlyMap<TexBlock, string>; readonly diagnostics: readonly Diagnostic[] }> {
@@ -557,27 +578,40 @@ async function renderTexFragments(
       )],
     };
   }
+  let response;
+  try {
+    response = await runTexRendererBatch(renderer, buildTexRenderRequest(targets), { timeoutMs, ...(signal === undefined ? {} : { signal }) });
+  } catch (error) {
+    if (error instanceof TexAdapterCancelled || error instanceof CompilerCancelledError) {
+      throw new CompilerCancelledError();
+    }
+    const category = error instanceof TexAdapterFailure ? error.category : "compile-failed";
+    return { fragments: new Map(), diagnostics: texBatchFailureDiagnostics(category, targets, sourceName) };
+  }
+  const lines = sourceLines(source);
   const fragments = new Map<TexBlock, string>();
   const diagnostics: Diagnostic[] = [];
-  for (const block of targets) {
-    const controller = new AbortController();
-    const abortRenderer = () => controller.abort();
-    signal?.addEventListener("abort", abortRenderer, { once: true });
-    try {
-      const svg = await withAbort(withRenderTimeout(Promise.resolve(renderer.render({ profile: block.profile, title: block.title, description: block.description, body: block.body, signal: controller.signal })), timeoutMs, abortRenderer), signal);
-      if (checkSvg(svg) !== "ok") throw new TexRendererFailure("protocol-invalid");
+  for (const result of response.results) {
+    const block = targets[result.index];
+    if (block === undefined) continue;
+    if (result.status === "ok") {
+      const svg = stripSvgPreamble(result.svg);
+      if (checkSvg(svg) !== "ok") {
+        diagnostics.push(texRendererFailureDiagnostic("protocol-invalid", block, sourceName));
+        continue;
+      }
       const accessibleSvg = svg.replace(/^(<svg\b[^>]*>)/, `$1<title>${escapeHtml(block.title)}</title><desc>${escapeHtml(block.description)}</desc>`);
       fragments.set(block, `<figure class="aze-tex" data-tex-profile="${block.profile}">${accessibleSvg}</figure>`);
-    } catch (error) {
-      if (error instanceof CompilerCancelledError) throw error;
-      diagnostics.push(texRendererFailureDiagnostic(
-        error instanceof TexRendererFailure ? error.category : error instanceof RenderTimeoutError ? "timeout" : "compile-failed",
-        block,
-        sourceName,
-      ));
-    } finally {
-      signal?.removeEventListener("abort", abortRenderer);
+      continue;
     }
+    diagnostics.push(texRendererFailureDiagnostic(
+      texResultCategory(result),
+      block,
+      sourceName,
+      result.diagnostic.bodyLocation === undefined
+        ? block.range
+        : texBodyRange(block, result.diagnostic.bodyLocation, lines),
+    ));
   }
   return { fragments, diagnostics };
 }
@@ -2747,6 +2781,17 @@ export function createCompiler(options: CompilerOptions = {}): Compiler {
       "Render timeout must be a positive integer no greater than the default (5000 ms).",
     );
   }
+  const texRenderTimeoutMs = options.texRenderTimeoutMs ?? DEFAULT_TEX_RENDER_TIMEOUT_MS;
+  if (
+    !Number.isInteger(texRenderTimeoutMs) ||
+    texRenderTimeoutMs <= 0 ||
+    texRenderTimeoutMs > DEFAULT_TEX_RENDER_TIMEOUT_MS
+  ) {
+    throw new CompilerConfigurationError(
+      "azeforge.config#tex-render-timeout",
+      "TeX render timeout must be a positive integer no greater than the default (15000 ms).",
+    );
+  }
 
   let fontFacesPromise: Promise<readonly EmbeddedFontFace[]> | undefined;
   const compiler: Compiler = {
@@ -2979,7 +3024,8 @@ export function createCompiler(options: CompilerOptions = {}): Compiler {
           validation.document,
           options.texRenderer,
           compileOptions.sourceName,
-          renderTimeoutMs,
+          source,
+          texRenderTimeoutMs,
           compileOptions.signal,
         );
         const derivationPreflight = await renderDerivationFragments(

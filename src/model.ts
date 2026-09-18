@@ -1848,29 +1848,78 @@ export type TexRendererFailureCategory =
   | "compile-failed"
   | "protocol-invalid";
 
-/**
- * A renderer may throw this failure to report a safe, stable TeX failure
- * category. The compiler deliberately does not expose error messages because
- * adapters may include host-specific paths in them.
- */
-export class TexRendererFailure extends Error {
-  override readonly name = "TexRendererFailure";
+/** Versioned batch protocol spoken over stdin/stdout by a TeX renderer command. */
+export const TEX_RENDERER_PROTOCOL = "azeforge.tex-renderer/v1" as const;
 
-  constructor(readonly category: TexRendererFailureCategory) {
-    super(category);
-  }
+/** Maximum UTF-8 request bytes the batch protocol accepts. */
+export const TEX_RENDER_REQUEST_MAX_BYTES = 1_048_576;
+
+/** Maximum UTF-8 response bytes the compiler accepts from a TeX renderer command. */
+export const TEX_RENDER_RESPONSE_MAX_BYTES = 8_388_608;
+
+/** One ordered figure of a renderer batch request. */
+export interface TexRenderFigureRequest {
+  /** Zero-based position of this figure in Source order. */
+  readonly index: number;
+  readonly profile: TexBlock["profile"];
+  readonly title: string;
+  readonly description: string;
+  readonly body: string;
+  /** Compiler-owned Source range of the originating tex Block. */
+  readonly range: SourceRange;
 }
 
+/** The single UTF-8 JSON request sent to one renderer command invocation. */
+export interface TexRenderRequest {
+  readonly protocol: typeof TEX_RENDERER_PROTOCOL;
+  readonly figures: readonly TexRenderFigureRequest[];
+}
+
+/** A location inside the raw TeX body, relative to the body's first line. */
+export interface TexBodyLocation {
+  readonly line: number;
+  readonly column: number;
+  readonly endLine?: number;
+  readonly endColumn?: number;
+}
+
+/** Adapter-reported failure detail; never contains host paths or raw logs. */
+export interface TexRenderDiagnostic {
+  readonly code: string;
+  readonly message: string;
+  readonly bodyLocation?: TexBodyLocation;
+  readonly detail?: string;
+}
+
+export type TexRenderResult =
+  | { readonly index: number; readonly status: "ok"; readonly svg: string }
+  | {
+      readonly index: number;
+      readonly status: "error";
+      readonly diagnostic: TexRenderDiagnostic;
+    };
+
+/** The single UTF-8 JSON response a renderer command writes to standard output. */
+export interface TexRenderResponse {
+  readonly protocol: typeof TEX_RENDERER_PROTOCOL;
+  /** SHA-256 of the immutable official renderer release manifest. */
+  readonly rendererIdentity: Sha256Hash;
+  readonly results: readonly TexRenderResult[];
+}
+
+/**
+ * A deployment-configured, fixed-argv command that renders every tex Block of
+ * one compiler invocation in a single batch. The request carries only
+ * compiler-owned figure data: never an executable, argv, path, or limit
+ * setting derived from Source.
+ */
 export interface TexRenderer {
   /** SHA-256 of the immutable official renderer release manifest. */
   readonly rendererIdentity: Sha256Hash;
-  readonly render: (input: Readonly<{
-    readonly profile: TexBlock["profile"];
-    readonly title: string;
-    readonly description: string;
-    readonly body: string;
-    readonly signal?: AbortSignal;
-  }>) => string | Promise<string>;
+  /** Executable resolved from deployment configuration, never from Source. */
+  readonly command: string;
+  /** Fixed argv passed to the executable; author content is never appended. */
+  readonly args?: readonly string[];
 }
 export interface MermaidBlockRenderer {
   readonly descriptor: BlockRendererDescriptor;
@@ -1976,6 +2025,8 @@ export interface CompilerOptions {
   readonly renderers?: readonly RendererDescriptor[];
   readonly policy?: CompilerPolicy;
   readonly renderTimeoutMs?: number;
+  /** Wall-clock deadline for one TeX renderer batch; hosts may only lower it. */
+  readonly texRenderTimeoutMs?: number;
   readonly texRenderer?: TexRenderer;
 }
 

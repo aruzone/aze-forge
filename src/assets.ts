@@ -163,11 +163,17 @@ function jpegDimensions(bytes: Buffer): { width: number; height: number } | unde
 
 type SniffedMedia = AssetManifestEntry["mediaType"] | undefined;
 
-function stripSvgPreamble(text: string): string {
+/**
+ * Removes the BOM, a leading XML declaration, and leading comments so the SVG
+ * root element is observable. Renderer output such as dvisvgm carries a
+ * generator comment ahead of its root element.
+ */
+export function stripSvgPreamble(text: string): string {
   const withoutBom = text.replace(/^﻿/, "").trimStart();
-  return withoutBom.startsWith("<?xml")
+  const withoutDeclaration = withoutBom.startsWith("<?xml")
     ? withoutBom.replace(/^<\?xml\s[^?]*\?>\s*/, "")
     : withoutBom;
+  return withoutDeclaration.replace(/^(?:<!--[\s\S]*?-->\s*)*/, "");
 }
 
 function sniffMediaType(bytes: Buffer): SniffedMedia {

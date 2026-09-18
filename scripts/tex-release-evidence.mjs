@@ -49,8 +49,8 @@ function run(command, args, input) {
     if (input !== undefined) child.stdin.end(input);
   });
 }
-async function docker(image, command, input) {
-  return run("docker", ["run", "--rm", "--interactive", "--platform", "linux/amd64", "--network", "none", "--read-only", "--tmpfs", "/tmp:rw,noexec,nosuid,size=64m", "--cap-drop", "ALL", "--security-opt", "no-new-privileges", "--pids-limit", "64", "--memory", "512m", image, "sh", "-ceu", command], input);
+async function dockerBatch(image, request) {
+  return run("docker", ["run", "--rm", "--interactive", "--platform", "linux/amd64", "--network", "none", "--read-only", "--tmpfs", "/tmp:rw,noexec,nosuid,size=64m", "--cap-drop", "ALL", "--security-opt", "no-new-privileges", "--pids-limit", "64", "--memory", "512m", image], Buffer.from(JSON.stringify(request)));
 }
 async function dockerShell(image, command) {
   return run("docker", ["run", "--rm", "--platform", "linux/amd64", "--network", "none", "--read-only", "--tmpfs", "/tmp:rw,noexec,nosuid,size=64m", "--cap-drop", "ALL", "--security-opt", "no-new-privileges", "--pids-limit", "64", "--memory", "512m", "--entrypoint", "/bin/sh", image, "-ceu", command]);
@@ -133,16 +133,34 @@ async function collect() {
     await mkdir(join(staging, "preambles"));
     for (const profile of TEX_PROFILES) await writeFile(join(staging, "preambles", `${profile}.tex`), documentFor(profile, ""), { flag: "wx" });
     await captureFonts(image, staging);
+    const request = {
+      protocol: "azeforge.tex-renderer/v1",
+      figures: TEX_PROFILES.map((profile, index) => ({
+        index,
+        profile,
+        title: profile,
+        description: `${profile} release corpus fixture`,
+        body: FIXTURES[profile],
+        range: { start: { line: 1, column: 1, offset: 0 }, end: { line: 1, column: 1, offset: 0 } },
+      })),
+    };
+    let response;
+    try {
+      response = JSON.parse((await dockerBatch(image, request)).toString("utf8"));
+    } catch (error) {
+      fail(`Corpus fixtures failed: ${error.message}`);
+    }
+    if (response?.protocol !== "azeforge.tex-renderer/v1" || !Array.isArray(response.results)) {
+      fail("Corpus fixtures returned an invalid renderer response.");
+    }
+    const results = new Map(response.results.map((result) => [result.index, result]));
     const fixtures = [];
-    for (const profile of TEX_PROFILES) {
-      const input = documentFor(profile, FIXTURES[profile]);
-      let svg;
-      try {
-        svg = await docker(image, "cat > figure.tex; latex -interaction=nonstopmode -halt-on-error -no-shell-escape -output-format=dvi figure.tex >/dev/null; dvisvgm --page=1 --no-fonts=1 --precision=6 --output=output.svg figure.dvi >/dev/null; cat output.svg", input);
-      } catch (error) {
-        fail(`Corpus fixture ${profile} failed: ${error.message}`);
+    for (const [index, profile] of TEX_PROFILES.entries()) {
+      const result = results.get(index);
+      if (result?.status !== "ok" || typeof result.svg !== "string") {
+        fail(`Corpus fixture ${profile} failed: ${result?.diagnostic?.code ?? "invalid response"}.`);
       }
-      fixtures.push({ profile, inputHash: sha256(input), outputHash: sha256(svg) });
+      fixtures.push({ profile, inputHash: sha256(documentFor(profile, FIXTURES[profile])), outputHash: sha256(result.svg) });
     }
     await writeFile(join(staging, "corpus.json"), `${JSON.stringify({ fixtures })}\n`, { flag: "wx" });
     await writeFile(join(staging, "tools.json"), `${JSON.stringify({ latex: { version: latexVersion, argv: LATEX_ARGV }, dvisvgm: { version: dvisvgmVersion, argv: DVISVGM_ARGV } })}\n`, { flag: "wx" });

@@ -37,7 +37,10 @@ if (args[0] === "scout" && args[1] === "sbom") process.stdout.write(JSON.stringi
 else if (command.includes("cat /opt/texlive/tlpkg/texlive.tlpdb")) process.stdout.write(readFileSync(process.env.FAKE_TLPDB));
 else if (command.includes("latex --version")) process.stdout.write("pdfTeX 3.141592653-2.6-1.40.29 (TeX Live 2026)\\ndvisvgm 3.6\\n");
 else if (command.includes("tar -C /opt/texlive/texmf-dist")) process.stdout.write(readFileSync(process.env.FAKE_FONTS_TAR));
-else if (command.includes("cat > figure.tex")) process.stdout.write("<svg/>\\n");
+else if (command.includes("@sha256:")) {
+  const request = JSON.parse(readFileSync(0, "utf8"));
+  process.stdout.write(JSON.stringify({ protocol: request.protocol, rendererIdentity: "sha256:" + "a".repeat(64), results: request.figures.map((figure) => ({ index: figure.index, status: "ok", svg: "<svg/>\\n" })) }));
+}
 else process.exitCode = 1;
 `;
   const docker = join(bin, "docker");

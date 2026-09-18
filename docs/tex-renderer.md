@@ -17,6 +17,60 @@ profile: tikz
 
 The body is preserved after `----`, must be non-empty printable ASCII plus tabs/newlines, and is limited to 50,000 characters. Source rejects document/package declarations, filesystem/import commands, shell escape, and font selection; the profile-owned preamble and sandbox remain renderer responsibilities.
 
+## Batch adapter contract
+
+The compiler talks to a TeX renderer through a deployment-configured,
+fixed-argv command:
+
+```ts
+createCompiler({
+  texRenderer: {
+    rendererIdentity: "sha256:<64 hex>", // SHA-256 of the release manifest
+    command: "docker",                    // resolved from deployment config
+    args: ["run", "--rm", "-i", "..."],   // fixed argv
+  },
+});
+```
+
+`command` and `args` come from deployment configuration only. Author Source
+never contributes an executable, an argv entry, a path, or a limit setting. The
+compiler spawns that command once per compiler invocation — never once per
+Block — and sends every `tex` figure in one batch.
+
+The command reads one UTF-8 JSON request from standard input (at most 1 MiB):
+
+```json
+{"protocol":"azeforge.tex-renderer/v1","figures":[{"index":0,"profile":"tikz","title":"T","description":"D","body":"\\draw (0,0) -- (1,1);","range":{"start":{"line":5,"column":1,"offset":20},"end":{"line":13,"column":5,"offset":175}}}]}
+```
+
+and writes one UTF-8 JSON response to standard output (at most 8 MiB):
+
+```json
+{"protocol":"azeforge.tex-renderer/v1","rendererIdentity":"sha256:<64 hex>","results":[{"index":0,"status":"ok","svg":"<svg .../>"},{"index":1,"status":"error","diagnostic":{"code":"compile-failed","message":"...","bodyLocation":{"line":2,"column":3}}}]}
+```
+
+The response carries exactly one result per requested `index`, ordered by
+ascending `index`. The compiler rejects the whole batch when the transport is
+malformed, the protocol discriminant is wrong, the returned identity differs
+from the configured one, or the result set does not match the request.
+
+The compiler enforces a 15-second batch deadline
+(`texRenderTimeoutMs`; hosts may only lower it) plus cancellation, and aborts
+the command's process group on expiry. `TEX_RENDERER_PROTOCOL`
+(`azeforge.tex-renderer/v1`), `TEX_RENDER_REQUEST_MAX_BYTES` (1 MiB),
+`TEX_RENDER_RESPONSE_MAX_BYTES` (8 MiB), and `DEFAULT_TEX_RENDER_TIMEOUT_MS`
+(15000) are exported from `@aruzone/aze-forge`.
+
+Adapter failures and figure errors become stable diagnostics. A missing
+renderer is `azeforge.renderer#adapter-missing`; a failing batch is
+`azeforge.tex#adapter-unavailable`, `azeforge.tex#timeout`,
+`azeforge.tex#resource-limit`, `azeforge.tex#sandbox-denied`,
+`azeforge.tex#compile-failed`, or `azeforge.tex#protocol-invalid`. The
+adapter's `output-limit` code maps to `resource-limit`; any unknown code maps
+to `compile-failed`. Adapter `message` and `detail` text is never copied into
+compiler diagnostics, and `bodyLocation` is mapped back onto AzeMark Source.
+One failed figure or one invalid transport suppresses the whole Artifact.
+
 ## Local authoring
 
 The local wrapper is a reviewed opt-in path for authoring machines. It runs the
@@ -33,10 +87,14 @@ node scripts/tex-local-render.mjs \
   --renderer-manifest /tmp/tex-local.manifest.json
 ```
 
-The local wrapper never executes a host TeX binary. It passes the profile-owned
-TeX input on standard input to the image entrypoint; the entrypoint owns the
-workspace, fixed TeX and dvisvgm argv, bounded logs and response, and
-process-group cleanup.
+The local wrapper never executes a host TeX binary. It spawns the fixed-argv
+renderer image once per compilation and writes the batch request as one UTF-8
+JSON document on the entrypoint's standard input; the entrypoint owns the
+workspace, builds the profile-owned preamble, runs the fixed TeX and dvisvgm
+argv per figure, writes one JSON response on standard output, and performs
+process-group cleanup. The host wrapper supplies only the docker invocation
+and the manifest-derived identity through
+`docker run -e AZEFORGE_TEX_RENDERER_IDENTITY=sha256:...`.
 
 ## Server and CI deployment
 
@@ -53,7 +111,11 @@ node scripts/tex-canonical-render.mjs \
 
 It rejects every repository other than the official one, mutable tags, missing
 manifest digest, and a digest mismatch. Its successful result is
-`canonical:true`. Browser clients and the compiler never invoke TeX directly.
+`canonical:true`. It starts one container per compilation, passes the
+manifest-derived identity with
+`docker run -e AZEFORGE_TEX_RENDERER_IDENTITY=sha256:...`, and exchanges the
+batch JSON request and response on the container's standard input and output.
+Browser clients and the compiler never invoke TeX directly.
 
 The canonical image disables shell escape and permits only its private
 workspace. Each batch is capped at 15 seconds, one CPU, 512 MiB memory, 64
@@ -164,6 +226,6 @@ must have this shape:
 
 ## Web integration
 
-`aze-forge-web` needs a renderer endpoint or container-job integration available to its compilation workers. Browser clients must never run TeX. The web application sends the authored TeX body, profile, title, and description to its trusted server-side compilation path, then serves only Aze Forge's final artifact.
+`aze-forge-web` needs a renderer endpoint or container-job integration available to its compilation workers. Browser clients must never run TeX. The web application sends the authored TeX figures to its trusted server-side compilation path, which runs the batch adapter for the whole compilation and then serves only Aze Forge's final artifact.
 
 The web deployment should treat TeX as an optional capability. Documents without `tex` Technical objects compile without this renderer. Documents with one require the pinned renderer before compilation begins.

@@ -162,11 +162,18 @@ done
 ## Local TeX rendering
 
 `tex` Blocks are compiled by the isolated renderer image, never by host TeX
-and never by the compiler. Local authoring uses the reviewed wrapper in
+and never by the compiler. The compiler spawns one deployment-configured,
+fixed-argv renderer command per invocation and exchanges the
+`azeforge.tex-renderer/v1` batch JSON request and response on its standard
+input and output. Local authoring uses the reviewed wrapper in
 `scripts/tex-local-render.mjs`, which runs the fixed-argv entrypoint with no
 network, a read-only root, a tmpfs workspace, dropped capabilities,
 `no-new-privileges`, one CPU, 512 MiB memory, 64 processes, and a 15-second
-wall clock. Its output is always noncanonical.
+wall clock. Its output is always noncanonical. The compiler-owned batch limits
+are a 1 MiB request, an 8 MiB response, and a 15-second deadline
+(`texRenderTimeoutMs`, which hosts may only lower); `TEX_RENDERER_PROTOCOL`,
+`TEX_RENDER_REQUEST_MAX_BYTES`, `TEX_RENDER_RESPONSE_MAX_BYTES`, and
+`DEFAULT_TEX_RENDER_TIMEOUT_MS` are the public constants.
 
 Build the local image first; `Dockerfile.tex-renderer` targets Linux/amd64 and
 needs the retained TeX Live ISO (see

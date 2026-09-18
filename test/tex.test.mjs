@@ -1,16 +1,45 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 
-import { createCompiler, TexRendererFailure } from "../dist/index.js";
-import { TEX_PLUGIN_VERSION, TEX_PROFILES } from "../dist/contracts.js";
+import { createCompiler } from "../dist/index.js";
+import { TEX_PLUGIN_VERSION, TEX_PROFILES, TEX_RENDERER_PROTOCOL } from "../dist/contracts.js";
 
 const CLI_PATH = fileURLToPath(new URL("../dist/cli.js", import.meta.url));
+const IDENTITY = `sha256:${"a".repeat(64)}`;
+const OTHER_IDENTITY = `sha256:${"b".repeat(64)}`;
 const source = (profile = "circuitikz") => `---\nazemark: 2\n---\n\n:::: tex\nid: analog-filter\ntitle: Analog filter\ndescription: A passive low-pass filter.\nprofile: ${profile}\n----\n\\draw (0,0) to[R] (2,0) to[C] (2,-2) -- (0,-2) -- cycle;\n::::\n`;
+const twoBlockSource = () => `${source("tikz")}\n${source("tikz").replace("analog-filter", "second-figure").replace("Analog filter", "Second figure")}`;
+
+const svg = (width = 20, height = 10) =>
+  `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img"><path d="M0 0H${width}"/></svg>`;
+
+async function adapter(directory, name, body) {
+  const path = join(directory, name);
+  await writeFile(path, body, { mode: 0o755 });
+  await chmod(path, 0o755);
+  return { command: process.execPath, args: [path] };
+}
+
+/** An adapter that approves a fixed request shape and returns per-figure results. */
+async function fixedAdapter(directory, name, identity, figureResult) {
+  return await adapter(
+    directory,
+    name,
+    `const chunks = [];
+process.stdin.on("data", (chunk) => chunks.push(chunk));
+process.stdin.on("end", () => {
+  const request = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+  const results = request.figures.map((figure) => (${figureResult})(figure));
+  process.stdout.write(JSON.stringify({ protocol: request.protocol, rendererIdentity: ${JSON.stringify(identity)}, results }));
+});
+`,
+  );
+}
 
 test("TeX profiles parse as semantic blocks and fail closed without a renderer", async () => {
   const compiler = createCompiler();
@@ -27,94 +56,254 @@ test("TeX profiles parse as semantic blocks and fail closed without a renderer",
   }
 });
 
-test("a trusted renderer embeds accessible SVG in the HTML artifact", async () => {
+test("one command renders every tex Block of one invocation with accessible SVG", async (context) => {
+  const directory = await mkdtemp(join(tmpdir(), "azeforge-tex-adapter-"));
+  context.after(() => rm(directory, { recursive: true, force: true }));
+  const record = join(directory, "record.json");
+  const renderer = await adapter(
+    directory,
+    "adapter.mjs",
+    `import { appendFileSync } from "node:fs";
+const chunks = [];
+process.stdin.on("data", (chunk) => chunks.push(chunk));
+process.stdin.on("end", () => {
+  const request = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+  appendFileSync(${JSON.stringify(record)}, JSON.stringify(request) + "\\n");
+  const results = request.figures.map((figure) => ({ index: figure.index, status: "ok", svg: ${JSON.stringify(svg())} }));
+  process.stdout.write(JSON.stringify({ protocol: request.protocol, rendererIdentity: ${JSON.stringify(IDENTITY)}, results }));
+});
+`,
+  );
+  assert.equal(renderer.args.length, 1);
   const compiled = await createCompiler({
-    texRenderer: {
-      render: ({ profile, body }) => {
-        assert.equal(profile, "tikz");
-        assert.match(body, /\\draw/);
-        return '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="10" viewBox="0 0 20 10" role="img"><path d="M0 0H20"/></svg>';
-      },
-      rendererIdentity: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-    },
-  }).compile(source("tikz"), { format: "html" });
+    texRenderer: { rendererIdentity: IDENTITY, ...renderer },
+  }).compile(twoBlockSource(), { format: "html" });
+
   assert.deepEqual(compiled.diagnostics, []);
   const html = Buffer.from(compiled.artifact.bytes).toString("utf8");
   assert.match(html, /<figure class="aze-tex" data-tex-profile="tikz">/);
   assert.match(html, /<title>Analog filter<\/title><desc>A passive low-pass filter\.<\/desc>/);
+  assert.match(html, /<title>Second figure<\/title>/);
+
+  const requests = (await readFile(record, "utf8")).trim().split("\n").map((line) => JSON.parse(line));
+  assert.equal(requests.length, 1, "the adapter command runs once per compiler invocation");
+  const request = requests[0];
+  assert.equal(request.protocol, TEX_RENDERER_PROTOCOL);
+  assert.deepEqual(request.figures.map(({ index }) => index), [0, 1]);
+  assert.deepEqual(request.figures.map(({ profile }) => profile), ["tikz", "tikz"]);
+  assert.equal(request.figures[0].title, "Analog filter");
+  assert.equal(request.figures[0].description, "A passive low-pass filter.");
+  assert.match(request.figures[0].body, /\\draw/);
+  assert.equal(request.figures[0].range.start.line, 5);
+  assert.equal(request.figures[1].range.start.line > request.figures[0].range.end.line, true);
 });
 
-test("TeX renderer failures map to source diagnostics without host details", async () => {
-  const identity = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+test("compiler strips the renderer XML declaration and generator comment", async (context) => {
+  const directory = await mkdtemp(join(tmpdir(), "azeforge-tex-preamble-"));
+  context.after(() => rm(directory, { recursive: true, force: true }));
+  const renderer = await fixedAdapter(
+    directory,
+    "dvisvgm-shape.mjs",
+    IDENTITY,
+    `(figure) => ({ index: figure.index, status: "ok", svg: "<?xml version='1.0' encoding='UTF-8'?>\\n<!-- This file was generated by dvisvgm 3.6 -->\\n" + ${JSON.stringify(svg())} })`,
+  );
+  const compiled = await createCompiler({
+    texRenderer: { rendererIdentity: IDENTITY, ...renderer },
+  }).compile(source("tikz"), { format: "html" });
+  assert.deepEqual(compiled.diagnostics, []);
+  const html = Buffer.from(compiled.artifact.bytes).toString("utf8");
+  assert.match(html, /<figure class="aze-tex" data-tex-profile="tikz"><svg xmlns="http:\/\/www\.w3\.org\/2000\/svg"/);
+  assert.match(html, /<title>Analog filter<\/title><desc>A passive low-pass filter\.<\/desc>/);
+  assert.doesNotMatch(html, /dvisvgm|<\?xml/);
+});
+
+test("TeX renderer failures map to stable source diagnostics without host details", async (context) => {
+  const directory = await mkdtemp(join(tmpdir(), "azeforge-tex-failures-"));
+  context.after(() => rm(directory, { recursive: true, force: true }));
   const cases = [
-    ["adapter-unavailable", "azeforge.tex#adapter-unavailable"],
-    ["timeout", "azeforge.tex#timeout"],
-    ["resource-limit", "azeforge.tex#resource-limit"],
-    ["sandbox-denied", "azeforge.tex#sandbox-denied"],
-    ["compile-failed", "azeforge.tex#compile-failed"],
-    ["protocol-invalid", "azeforge.tex#protocol-invalid"],
+    ["adapter-unavailable", 125, "no such image"],
+    ["resource-limit", 137, "killed"],
+    ["sandbox-denied", 1, "operation not permitted"],
+    ["compile-failed", 1, "/private/var/folders/secret/figure.tex:12: Undefined control sequence."],
   ];
-  for (const [category, code] of cases) {
+  for (const [category, exitCode, stderr] of cases) {
+    const renderer = await adapter(
+      directory,
+      `${category}.mjs`,
+      `process.stdin.resume();
+process.stdin.on("end", () => { process.stderr.write(${JSON.stringify(`${stderr}\n`)}); process.exit(${exitCode}); });
+`,
+    );
     const compiled = await createCompiler({
-      texRenderer: {
-        rendererIdentity: identity,
-        render: () => {
-          throw new TexRendererFailure(category);
-        },
-      },
+      texRenderer: { rendererIdentity: IDENTITY, ...renderer },
     }).compile(source("tikz"), { format: "html", sourceName: "figure.aze.md" });
     assert.equal(compiled.artifact, undefined, category);
-    assert.deepEqual(compiled.diagnostics.map(({ code: actual }) => actual), [code], category);
+    assert.deepEqual(compiled.diagnostics.map(({ code }) => code), [`azeforge.tex#${category}`], category);
     assert.equal(compiled.diagnostics[0]?.location.source, "figure.aze.md", category);
+    assert.doesNotMatch(JSON.stringify(compiled.diagnostics), /private\/var\/folders/, category);
   }
-  const redacted = await createCompiler({
-    texRenderer: {
-      rendererIdentity: identity,
-      render: () => {
-        throw new Error("/private/var/folders/secret/figure.tex");
-      },
-    },
+
+  const missing = await createCompiler({
+    texRenderer: { rendererIdentity: IDENTITY, command: join(directory, "absent-renderer"), args: [] },
   }).compile(source("tikz"), { format: "html", sourceName: "figure.aze.md" });
-  assert.deepEqual(redacted.diagnostics.map(({ code }) => code), ["azeforge.tex#compile-failed"]);
-  assert.doesNotMatch(JSON.stringify(redacted.diagnostics), /\/private\/var\/folders\/secret/);
+  assert.equal(missing.artifact, undefined);
+  assert.deepEqual(missing.diagnostics.map(({ code }) => code), ["azeforge.tex#adapter-unavailable"]);
+
+  const slow = await adapter(directory, "slow.mjs", `process.stdin.resume(); setInterval(() => {}, 1000);\n`);
+  const timedOut = await createCompiler({
+    texRenderer: { rendererIdentity: IDENTITY, ...slow },
+    texRenderTimeoutMs: 200,
+  }).compile(source("tikz"), { format: "html", sourceName: "figure.aze.md" });
+  assert.equal(timedOut.artifact, undefined);
+  assert.deepEqual(timedOut.diagnostics.map(({ code }) => code), ["azeforge.tex#timeout"]);
+
+  const garbage = await adapter(directory, "garbage.mjs", `process.stdin.resume(); process.stdin.on("end", () => { process.stdout.write("not json"); });\n`);
+  const invalid = await createCompiler({
+    texRenderer: { rendererIdentity: IDENTITY, ...garbage },
+  }).compile(source("tikz"), { format: "html", sourceName: "figure.aze.md" });
+  assert.equal(invalid.artifact, undefined);
+  assert.deepEqual(invalid.diagnostics.map(({ code }) => code), ["azeforge.tex#protocol-invalid"]);
 });
 
-test("TeX renderer cancellation aborts the adapter and reports compiler cancellation", async () => {
+test("TeX renderer cancellation aborts the command and reports compiler cancellation", async (context) => {
+  const directory = await mkdtemp(join(tmpdir(), "azeforge-tex-cancel-"));
+  context.after(() => rm(directory, { recursive: true, force: true }));
+  const renderer = await adapter(
+    directory,
+    "blocking.mjs",
+    `import { writeFileSync } from "node:fs";
+writeFileSync(process.argv[2], "");
+process.stdin.resume();
+setInterval(() => {}, 1000);
+`,
+  );
+  const started = join(directory, "started");
   const controller = new AbortController();
   const compiling = createCompiler({
-    texRenderer: {
-      rendererIdentity: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-      render: ({ signal }) => new Promise((resolve) => {
-        const complete = () => resolve('<svg xmlns="http://www.w3.org/2000/svg" width="20" height="10" viewBox="0 0 20 10" role="img"/>');
-        if (signal?.aborted === true) complete();
-        else signal?.addEventListener("abort", complete, { once: true });
-      }),
-    },
+    texRenderer: { rendererIdentity: IDENTITY, ...renderer, args: [...renderer.args, started] },
   }).compile(source("tikz"), { format: "html", signal: controller.signal });
+  for (let attempt = 0; attempt < 200; attempt += 1) {
+    try {
+      await readFile(started);
+      break;
+    } catch {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+  }
   controller.abort();
   const compiled = await compiling;
   assert.deepEqual(compiled.diagnostics.map(({ code }) => code), ["azeforge.compiler#cancelled"]);
 });
 
-test("TeX renderer identity affects artifact fingerprints but not document content", async () => {
-  const render = () => '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="10" viewBox="0 0 20 10" role="img"><path d="M0 0H20"/></svg>';
-  const compile = (rendererIdentity) => createCompiler({ texRenderer: { rendererIdentity, render } }).compile(source("tikz"), { format: "html" });
-  const first = await compile("sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
-  const second = await compile("sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
+test("TeX renderer identity is protocol-checked and affects artifact fingerprints", async (context) => {
+  const directory = await mkdtemp(join(tmpdir(), "azeforge-tex-identity-"));
+  context.after(() => rm(directory, { recursive: true, force: true }));
+  const compile = async (identity) => {
+    const renderer = await fixedAdapter(directory, `adapter-${identity.slice(7, 12)}.mjs`, identity, `() => ({ index: figure.index, status: "ok", svg: ${JSON.stringify(svg())} })`);
+    return await createCompiler({ texRenderer: { rendererIdentity: identity, ...renderer } }).compile(source("tikz"), { format: "html" });
+  };
+  const first = await compile(IDENTITY);
+  const second = await compile(OTHER_IDENTITY);
   assert.deepEqual(first.diagnostics, []);
   assert.deepEqual(second.diagnostics, []);
   assert.equal(first.contentHash, second.contentHash);
   assert.notEqual(first.artifact?.metadata.rendererFingerprint, second.artifact?.metadata.rendererFingerprint);
+
+  const mismatched = await fixedAdapter(directory, "mismatch.mjs", OTHER_IDENTITY, `() => ({ index: figure.index, status: "ok", svg: ${JSON.stringify(svg())} })`);
+  const rejected = await createCompiler({
+    texRenderer: { rendererIdentity: IDENTITY, ...mismatched },
+  }).compile(source("tikz"), { format: "html" });
+  assert.equal(rejected.artifact, undefined);
+  assert.deepEqual(rejected.diagnostics.map(({ code }) => code), ["azeforge.tex#protocol-invalid"]);
 });
 
 test("TeX refuses a renderer without an immutable manifest identity", async () => {
   const compiled = await createCompiler({
-    texRenderer: { render: () => '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="10" viewBox="0 0 20 10" role="img"><path d="M0 0H20"/></svg>' },
+    texRenderer: { command: "absent", args: [] },
   }).compile(source("tikz"), { format: "html" });
   assert.equal(compiled.artifact, undefined);
   assert.deepEqual(compiled.diagnostics.map(({ code }) => code), ["azeforge.tex#protocol-invalid"]);
 });
 
+test("invalid protocol framing produces one protocol diagnostic", async (context) => {
+  const directory = await mkdtemp(join(tmpdir(), "azeforge-tex-protocol-"));
+  context.after(() => rm(directory, { recursive: true, force: true }));
+  const responses = {
+    duplicate: (request) => ({ protocol: request.protocol, rendererIdentity: identity, results: request.figures.map(() => ({ index: 0, status: "ok", svg })) }),
+    missing: (request) => ({ protocol: request.protocol, rendererIdentity: identity, results: request.figures.map((figure) => ({ index: figure.index + 1, status: "ok", svg })) }),
+    unsafe: (request) => ({ protocol: request.protocol, rendererIdentity: identity, results: request.figures.map((figure) => ({ index: figure.index, status: "ok", svg: "<html><script/></html>" })) }),
+    wrongProtocol: (request) => ({ protocol: "azeforge.tex-renderer/v0", rendererIdentity: identity, results: request.figures.map((figure) => ({ index: figure.index, status: "ok", svg })) }),
+  };
+  for (const [name, respond] of Object.entries(responses)) {
+    const renderer = await adapter(
+      directory,
+      `${name}.mjs`,
+      `const svg = ${JSON.stringify(svg())};
+const identity = ${JSON.stringify(IDENTITY)};
+const chunks = [];
+process.stdin.on("data", (chunk) => chunks.push(chunk));
+process.stdin.on("end", () => {
+  const request = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+  process.stdout.write(JSON.stringify((${respond.toString()})(request)));
+});
+`,
+    );
+    const compiled = await createCompiler({
+      texRenderer: { rendererIdentity: IDENTITY, ...renderer },
+    }).compile(twoBlockSource(), { format: "html", sourceName: "figure.aze.md" });
+    assert.equal(compiled.artifact, undefined, name);
+    const codes = compiled.diagnostics.map(({ code }) => code);
+    assert.equal(codes.length > 0, true, name);
+    assert.equal(codes.every((code) => code === "azeforge.tex#protocol-invalid"), true, name);
+  }
+});
+
+test("TeX body locations map back onto the authored Source", async (context) => {
+  const directory = await mkdtemp(join(tmpdir(), "azeforge-tex-location-"));
+  context.after(() => rm(directory, { recursive: true, force: true }));
+  const renderer = await fixedAdapter(
+    directory,
+    "body-location.mjs",
+    IDENTITY,
+    `(figure) => ({ index: figure.index, status: "error", diagnostic: { code: "compile-failed", message: "Undefined control sequence.", bodyLocation: { line: 1, column: 1 } } })`,
+  );
+  const compiled = await createCompiler({
+    texRenderer: { rendererIdentity: IDENTITY, ...renderer },
+  }).compile(source("tikz"), { format: "html", sourceName: "figure.aze.md" });
+  assert.equal(compiled.artifact, undefined);
+  assert.deepEqual(compiled.diagnostics.map(({ code }) => code), ["azeforge.tex#compile-failed"]);
+  assert.equal(compiled.diagnostics[0]?.location.range.start.line, 11);
+
+  const outside = await fixedAdapter(
+    directory,
+    "outside-body.mjs",
+    IDENTITY,
+    `(figure) => ({ index: figure.index, status: "error", diagnostic: { code: "compile-failed", message: "Out of range.", bodyLocation: { line: 99, column: 1 } } })`,
+  );
+  const rejected = await createCompiler({
+    texRenderer: { rendererIdentity: IDENTITY, ...outside },
+  }).compile(source("tikz"), { format: "html" });
+  assert.equal(rejected.artifact, undefined);
+  assert.deepEqual(rejected.diagnostics.map(({ code }) => code), ["azeforge.tex#protocol-invalid"]);
+});
+
+test("adapter error codes map onto compiler categories", async (context) => {
+  const directory = await mkdtemp(join(tmpdir(), "azeforge-tex-codes-"));
+  context.after(() => rm(directory, { recursive: true, force: true }));
+  const codes = [["output-limit", "resource-limit"], ["sandbox-denied", "sandbox-denied"], ["mystery", "compile-failed"]];
+  for (const [adapterCode, category] of codes) {
+    const renderer = await fixedAdapter(
+      directory,
+      `${adapterCode}.mjs`,
+      IDENTITY,
+      `(figure) => ({ index: figure.index, status: "error", diagnostic: { code: ${JSON.stringify(adapterCode)}, message: "failure" } })`,
+    );
+    const compiled = await createCompiler({
+      texRenderer: { rendererIdentity: IDENTITY, ...renderer },
+    }).compile(source("tikz"), { format: "html" });
+    assert.deepEqual(compiled.diagnostics.map(({ code }) => code), [`azeforge.tex#${category}`], adapterCode);
+  }
+});
 
 test("TeX rejects document and package commands in authored figure bodies", () => {
   const parsed = createCompiler().parse(source().replace("\\draw", "\\usepackage{unsafe}\n\\draw"));

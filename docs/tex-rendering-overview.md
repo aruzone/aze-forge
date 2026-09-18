@@ -193,13 +193,14 @@ The `title` and `description` provide accessibility metadata. They are not visib
 tex Block in aze.md
         -> AzeMark parser
         -> TeX Block validation
-        -> compiler sends profile, body, title, and description
-        -> trusted TeX renderer
-        -> controlled TeX document
+        -> compiler writes one batch request for the invocation
+        -> trusted TeX renderer command
+        -> profile-owned TeX document per figure
         -> TeX Live and latex
         -> DVI
         -> dvisvgm
         -> SVG
+        -> one batch response
         -> SVG safety validation
         -> title and description added
         -> embedded in the final Artifact
@@ -218,9 +219,32 @@ The compiler in `src/compiler.ts` coordinates the process:
 7. It embeds CSS, fonts, figures, links, numbering, accessibility metadata, and dependency fingerprints.
 8. It produces the requested Artifact format.
 
-For `tex` Blocks, the compiler finds each Block, checks that a renderer is configured, sends the Block to that renderer, validates the returned SVG, stores the SVG against the Block, and gives the resulting map to the HTML renderer.
+For `tex` Blocks, the compiler finds every Block, checks that a renderer is
+configured, spawns the configured fixed-argv command once for the whole
+compiler invocation, writes one batch request on its standard input, and reads
+one batch response. It validates each returned SVG, stores it against its
+Block, and gives the resulting map to the HTML renderer. A failed figure or a
+malformed response suppresses the whole Artifact.
 
-A missing TeX renderer is an error. AzeForge does not omit the figure, insert a blank placeholder, fall back to another renderer, or continue silently.
+The configured renderer is a deployment-owned command:
+
+```ts
+createCompiler({
+  texRenderer: {
+    rendererIdentity: "sha256:<64 hex>", // SHA-256 of the release manifest
+    command: "docker",                    // resolved from deployment config
+    args: ["run", "--rm", "-i", "..."],   // fixed argv
+  },
+});
+```
+
+`command` and `args` come from deployment configuration only. Author Source
+never contributes an executable, an argv entry, a path, or a limit setting. The
+compiler enforces the batch limits: a 1 MiB request, an 8 MiB response, and a
+15-second wall-clock deadline (`texRenderTimeoutMs`, which hosts may only
+lower). A missing TeX renderer is an error. AzeForge does not omit the figure,
+insert a blank placeholder, fall back to another renderer, or continue
+silently.
 
 ## Local development
 
@@ -244,8 +268,9 @@ azeforge render equation.aze.md --output equation.html
 
 ### Files containing explicit `tex` Blocks
 
-A file containing a `tex` Block needs a trusted `TexRenderer`. For local
-authoring, use the reviewed local wrapper:
+A file containing a `tex` Block needs a trusted `TexRenderer`: a
+deployment-configured fixed-argv command plus the manifest SHA-256 as
+`rendererIdentity`. For local authoring, use the reviewed local wrapper:
 
 ```bash
 node scripts/tex-local-render.mjs \
@@ -255,11 +280,13 @@ node scripts/tex-local-render.mjs \
   --renderer-manifest /tmp/tex-local.manifest.json
 ```
 
-The wrapper hashes the manifest for `rendererIdentity`, then starts the
-fixed-argv renderer container for each TeX Block. It sends the
-profile-owned TeX document on standard input and receives only SVG on standard
-output. The image entrypoint, not the compiler or wrapper, owns the private
-workspace and invokes `latex` then `dvisvgm`.
+The wrapper hashes the manifest for `rendererIdentity`, passes it to the
+container as `AZEFORGE_TEX_RENDERER_IDENTITY`, and starts the fixed-argv
+renderer container once for the whole compilation. It writes the
+`azeforge.tex-renderer/v1` batch request on the container's standard input and
+reads one batch response on standard output. The image entrypoint, not the
+compiler or wrapper, owns the private workspace, builds each profile-owned
+preamble, and invokes `latex` then `dvisvgm` per figure.
 
 The Docker invocation has no network, a read-only root filesystem, a 64 MiB
 temporary workspace, dropped capabilities, `no-new-privileges`, one CPU,

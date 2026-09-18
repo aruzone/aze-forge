@@ -84,9 +84,19 @@ export type {
   TexBlock,
   TexRenderer,
   TexRendererFailureCategory,
+  TexRenderFigureRequest,
+  TexRenderRequest,
+  TexRenderResponse,
+  TexRenderResult,
+  TexRenderDiagnostic,
+  TexBodyLocation,
   SvgArtifactMetadata,
 } from "./model.js";
-export { TexRendererFailure } from "./model.js";
+export {
+  TEX_RENDERER_PROTOCOL,
+  TEX_RENDER_REQUEST_MAX_BYTES,
+  TEX_RENDER_RESPONSE_MAX_BYTES,
+} from "./model.js";
 
 export { TOOL_VERSION } from "./tool-version.js";
 

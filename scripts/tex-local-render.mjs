@@ -1,10 +1,7 @@
 import { createHash } from "node:crypto";
 import { readFile, writeFile } from "node:fs/promises";
-import { spawn } from "node:child_process";
-import { fileURLToPath } from "node:url";
-import { documentFor } from "./tex-renderer-document.mjs";
+import { dockerTexRendererArgs } from "./tex-renderer-command.mjs";
 
-const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const DEFAULT_IMAGE = "azeforge-tex-renderer:local";
 
 function fail(message) {
@@ -24,34 +21,6 @@ function sealedImageDigest(manifest) {
 }
 
 
-function failureCategory(code, signal, stderr) {
-  if (signal !== null || code === 124) return "timeout";
-  if (code === 125) return "adapter-unavailable";
-  if (code === 137 || /limit|quota|no space|file too large|resource temporarily unavailable/i.test(stderr)) return "resource-limit";
-  if (/denied|not permitted|not allowed|shell escape|network is unreachable|read-only file system/i.test(stderr)) return "sandbox-denied";
-  return "compile-failed";
-}
-
-function run(command, args, input, signal, failRenderer) {
-  return new Promise((resolve, reject) => {
-    const child = spawn(command, args, { cwd: ROOT, detached: true, stdio: ["pipe", "pipe", "pipe"] });
-    const stdout = [];
-    const stderr = [];
-    const cancel = () => { if (child.pid !== undefined) process.kill(-child.pid, "SIGTERM"); };
-    signal?.addEventListener("abort", cancel, { once: true });
-    child.stdout.on("data", (chunk) => stdout.push(chunk));
-    child.stderr.on("data", (chunk) => stderr.push(chunk));
-    child.once("error", reject);
-    child.once("close", (code, exitSignal) => {
-      signal?.removeEventListener("abort", cancel);
-      const result = { code, signal: exitSignal, stdout: Buffer.concat(stdout), stderr: Buffer.concat(stderr) };
-      if (code === 0) resolve(result);
-      else reject(failRenderer(failureCategory(code, exitSignal, result.stderr.toString("utf8"))));
-    });
-    child.stdin.end(input);
-  });
-}
-
 const sourcePath = option("--source");
 const outputPath = option("--output");
 const manifestPath = option("--renderer-manifest");
@@ -67,19 +36,12 @@ const imageDigest = sealedImageDigest(manifest);
 if (imageDigest !== undefined && !image.endsWith(`@${imageDigest}`)) fail("A sealed renderer manifest requires a digest-pinned image reference.");
 const canonical = false;
 const rendererIdentity = `sha256:${createHash("sha256").update(manifestBytes).digest("hex")}`;
-const { createCompiler, TexRendererFailure } = await import("../dist/index.js");
+const { createCompiler } = await import("../dist/index.js");
 const compiler = createCompiler({
   texRenderer: {
     rendererIdentity,
-    async render({ profile, body, signal }) {
-      const result = await run("docker", [
-        "run", "--rm", "--interactive", "--platform", "linux/amd64", "--network", "none", "--read-only",
-        "--tmpfs", "/tmp:rw,noexec,nosuid,size=64m", "--cap-drop", "ALL",
-        "--security-opt", "no-new-privileges", "--pids-limit", "64", "--memory", "512m", "--cpus", "1",
-        image,
-      ], documentFor(profile, body), signal, (category) => new TexRendererFailure(category));
-      return result.stdout.toString("utf8").replace(/^\s*(?:<\?xml[^?]*\?>\s*)?(?:<!--[\s\S]*?-->\s*)?/, "");
-    },
+    command: "docker",
+    args: dockerTexRendererArgs(image, rendererIdentity),
   },
 });
 const compiled = await compiler.compile(source, { format: "html", sourceName: sourcePath });
