@@ -1869,6 +1869,7 @@ export interface TexRenderer {
     readonly title: string;
     readonly description: string;
     readonly body: string;
+    readonly signal?: AbortSignal;
   }>) => string | Promise<string>;
 }
 export interface MermaidBlockRenderer {

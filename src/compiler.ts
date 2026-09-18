@@ -329,14 +329,18 @@ class RenderTimeoutError extends Error {
   }
 }
 
-function withRenderTimeout<T>(work: Promise<T>, timeoutMs: number): Promise<T> {
+function withRenderTimeout<T>(work: Promise<T>, timeoutMs: number, onTimeout?: () => void): Promise<T> {
   let timer: NodeJS.Timeout | undefined;
   const timeout = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new RenderTimeoutError()), timeoutMs);
+    timer = setTimeout(() => {
+      onTimeout?.();
+      reject(new RenderTimeoutError());
+    }, timeoutMs);
   });
-  return Promise.race([work, timeout]).finally(() => {
-    clearTimeout(timer);
-  });
+  return Promise.race([work, timeout]).then(
+    (value) => { clearTimeout(timer); return value; },
+    (error: unknown) => { clearTimeout(timer); throw error; },
+  );
 }
 
 function withAbort<T>(work: Promise<T>, signal: AbortSignal | undefined): Promise<T> {
@@ -344,8 +348,9 @@ function withAbort<T>(work: Promise<T>, signal: AbortSignal | undefined): Promis
   throwIfCancelled(signal);
   return new Promise<T>((resolve, reject) => {
     const abort = () => reject(new CompilerCancelledError());
+    const complete = () => signal.removeEventListener("abort", abort);
     signal.addEventListener("abort", abort, { once: true });
-    work.then(resolve, reject).finally(() => signal.removeEventListener("abort", abort));
+    work.then((value) => { complete(); resolve(value); }, (error) => { complete(); reject(error); });
   });
 }
 
@@ -555,17 +560,23 @@ async function renderTexFragments(
   const fragments = new Map<TexBlock, string>();
   const diagnostics: Diagnostic[] = [];
   for (const block of targets) {
+    const controller = new AbortController();
+    const abortRenderer = () => controller.abort();
+    signal?.addEventListener("abort", abortRenderer, { once: true });
     try {
-      const svg = await withAbort(withRenderTimeout(Promise.resolve(renderer.render({ profile: block.profile, title: block.title, description: block.description, body: block.body })), timeoutMs), signal);
+      const svg = await withAbort(withRenderTimeout(Promise.resolve(renderer.render({ profile: block.profile, title: block.title, description: block.description, body: block.body, signal: controller.signal })), timeoutMs, abortRenderer), signal);
       if (checkSvg(svg) !== "ok") throw new TexRendererFailure("protocol-invalid");
       const accessibleSvg = svg.replace(/^(<svg\b[^>]*>)/, `$1<title>${escapeHtml(block.title)}</title><desc>${escapeHtml(block.description)}</desc>`);
       fragments.set(block, `<figure class="aze-tex" data-tex-profile="${block.profile}">${accessibleSvg}</figure>`);
     } catch (error) {
+      if (error instanceof CompilerCancelledError) throw error;
       diagnostics.push(texRendererFailureDiagnostic(
-        error instanceof TexRendererFailure ? error.category : "compile-failed",
+        error instanceof TexRendererFailure ? error.category : error instanceof RenderTimeoutError ? "timeout" : "compile-failed",
         block,
         sourceName,
       ));
+    } finally {
+      signal?.removeEventListener("abort", abortRenderer);
     }
   }
   return { fragments, diagnostics };

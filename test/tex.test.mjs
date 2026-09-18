@@ -79,6 +79,23 @@ test("TeX renderer failures map to source diagnostics without host details", asy
   assert.doesNotMatch(JSON.stringify(redacted.diagnostics), /\/private\/var\/folders\/secret/);
 });
 
+test("TeX renderer cancellation aborts the adapter and reports compiler cancellation", async () => {
+  const controller = new AbortController();
+  const compiling = createCompiler({
+    texRenderer: {
+      rendererIdentity: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      render: ({ signal }) => new Promise((resolve) => {
+        const complete = () => resolve('<svg xmlns="http://www.w3.org/2000/svg" width="20" height="10" viewBox="0 0 20 10" role="img"/>');
+        if (signal?.aborted === true) complete();
+        else signal?.addEventListener("abort", complete, { once: true });
+      }),
+    },
+  }).compile(source("tikz"), { format: "html", signal: controller.signal });
+  controller.abort();
+  const compiled = await compiling;
+  assert.deepEqual(compiled.diagnostics.map(({ code }) => code), ["azeforge.compiler#cancelled"]);
+});
+
 test("TeX renderer identity affects artifact fingerprints but not document content", async () => {
   const render = () => '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="10" viewBox="0 0 20 10" role="img"><path d="M0 0H20"/></svg>';
   const compile = (rendererIdentity) => createCompiler({ texRenderer: { rendererIdentity, render } }).compile(source("tikz"), { format: "html" });

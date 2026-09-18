@@ -25,23 +25,34 @@ function officialImage(manifest, suppliedImage) {
   return image;
 }
 
-function run(image, input) {
+function failureCategory(code, signal, stderr) {
+  if (signal !== null || code === 124) return "timeout";
+  if (code === 125) return "adapter-unavailable";
+  if (code === 137 || /limit|quota|no space|file too large|resource temporarily unavailable/i.test(stderr)) return "resource-limit";
+  if (/denied|not permitted|not allowed|shell escape|network is unreachable|read-only file system/i.test(stderr)) return "sandbox-denied";
+  return "compile-failed";
+}
+
+function run(image, input, signal, failRenderer) {
   return new Promise((resolve, reject) => {
     const child = spawn("docker", [
       "run", "--rm", "--interactive", "--platform", "linux/amd64", "--network", "none", "--read-only",
       "--tmpfs", "/tmp:rw,noexec,nosuid,size=64m", "--cap-drop", "ALL",
       "--security-opt", "no-new-privileges", "--pids-limit", "64", "--memory", "512m", "--cpus", "1",
       image,
-    ], { cwd: ROOT, stdio: ["pipe", "pipe", "pipe"] });
+    ], { cwd: ROOT, detached: true, stdio: ["pipe", "pipe", "pipe"] });
     const stdout = [];
     const stderr = [];
+    const cancel = () => { if (child.pid !== undefined) process.kill(-child.pid, "SIGTERM"); };
+    signal?.addEventListener("abort", cancel, { once: true });
     child.stdout.on("data", (chunk) => stdout.push(chunk));
     child.stderr.on("data", (chunk) => stderr.push(chunk));
     child.once("error", reject);
-    child.once("close", (code, signal) => {
-      const result = { code, signal, stdout: Buffer.concat(stdout), stderr: Buffer.concat(stderr) };
+    child.once("close", (code, exitSignal) => {
+      signal?.removeEventListener("abort", cancel);
+      const result = { code, signal: exitSignal, stdout: Buffer.concat(stdout), stderr: Buffer.concat(stderr) };
       if (code === 0) resolve(result);
-      else reject(new Error(`TeX renderer failed (${signal ?? `exit ${code}`}).`));
+      else reject(failRenderer(failureCategory(code, exitSignal, result.stderr.toString("utf8"))));
     });
     child.stdin.end(input);
   });
@@ -60,12 +71,12 @@ try {
 }
 const image = officialImage(manifest, suppliedImage);
 const rendererIdentity = `sha256:${createHash("sha256").update(manifestBytes).digest("hex")}`;
-const { createCompiler } = await import("../dist/index.js");
+const { createCompiler, TexRendererFailure } = await import("../dist/index.js");
 const compiler = createCompiler({
   texRenderer: {
     rendererIdentity,
-    async render({ profile, body }) {
-      const result = await run(image, documentFor(profile, body));
+    async render({ profile, body, signal }) {
+      const result = await run(image, documentFor(profile, body), signal, (category) => new TexRendererFailure(category));
       return result.stdout.toString("utf8").replace(/^\s*(?:<\?xml[^?]*\?>\s*)?(?:<!--[\s\S]*?-->\s*)?/, "");
     },
   },
