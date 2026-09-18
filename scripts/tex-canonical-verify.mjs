@@ -17,7 +17,7 @@
  *
  * Usage:
  *   node scripts/tex-canonical-verify.mjs \
- *     --renderer-manifest release/tex-renderer-v1/tex-renderer-v1.manifest.json \
+ *     --renderer-manifest release/tex-renderer-v2/tex-renderer-v1.manifest.json \
  *     [--image <official repository>@sha256:...] [--output report.json]
  *
  * `--local` accepts a locally built image (for example

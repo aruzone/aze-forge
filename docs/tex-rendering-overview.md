@@ -309,7 +309,7 @@ The Docker invocation has no network, a read-only root filesystem, a 64 MiB
 temporary workspace, dropped capabilities, `no-new-privileges`, one CPU,
 512 MiB memory, 64 processes, and a 15-second wall clock. Local output is
 always noncanonical. Use `scripts/tex-canonical-render.mjs` with
-`docker.io/kkumaresan/aze-forge-tex-renderer@sha256:befbadc886338638d5b2e6ac4e564a95c62bd47822f1118b226dee02deffad56`
+`docker.io/kkumaresan/aze-forge-tex-renderer@sha256:89386319c33f4e386289cfb4e79460a82946c255d0a344da1233e6d17a61e4e4`
 and the sealed release manifest for CI or server compilation.
 
 The container has temporary writable storage only.

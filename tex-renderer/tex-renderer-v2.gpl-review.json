@@ -1,0 +1,12 @@
+{
+  "schema": "azeforge.tex-renderer.gpl-publication-review/v1",
+  "imageDigest": "sha256:89386319c33f4e386289cfb4e79460a82946c255d0a344da1233e6d17a61e4e4",
+  "correspondingSource": "https://github.com/aruzone/aze-forge/releases/download/tex-renderer-v2-source-89386319c33f/azeforge-tex-renderer-source-89386319c33f.tar.gz",
+  "approvedBy": "kkumaresan",
+  "approvedOn": "2026-09-18",
+  "reviewedAssets": [
+    "tex-renderer-v1.NOTICES",
+    "tex-renderer-v1.provenance.json",
+    "tex-renderer-v1.sbom.spdx.json"
+  ]
+}

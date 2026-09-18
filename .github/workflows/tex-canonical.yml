@@ -5,10 +5,10 @@ name: tex-canonical
 # twice and requires byte-identical normalized SVG plus pixel-identical PNG and
 # PDF Artifacts. Run it from the release procedure (docs/tex-renderer.md).
 #
-# On-demand only: the sealed v1 image predates the batch entrypoint the current
-# compiler speaks, so a scheduled or pull-request trigger would fail until the
-# renderer is re-released. A candidate image is checked on the release machine
-# with `scripts/tex-canonical-verify.mjs --local --image <tag>`.
+# On-demand only: it needs a canonical Linux/amd64 runner and the sealed
+# renderer image, so it stays off the default matrix. A candidate image is
+# checked on the release machine first with
+# `scripts/tex-canonical-verify.mjs --local --image <tag>`.
 on:
   workflow_dispatch:
 
@@ -31,7 +31,7 @@ jobs:
       - name: Assert canonical architecture
         run: node -e "if (process.arch !== 'x64') throw new Error('Canonical evidence requires x64')"
       - name: Verify the canonical TeX projection
-        run: node scripts/tex-canonical-verify.mjs --renderer-manifest release/tex-renderer-v1/tex-renderer-v1.manifest.json --output tex-canonical-report.json
+        run: node scripts/tex-canonical-verify.mjs --renderer-manifest release/tex-renderer-v2/tex-renderer-v1.manifest.json --output tex-canonical-report.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:

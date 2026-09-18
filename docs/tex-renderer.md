@@ -79,7 +79,10 @@ generator comment, single-quoted attributes, and per-page identifiers such as
 it — and re-serializes exactly one canonical projection. The projection is
 frozen as `TEX_SVG_NORMALIZER_VERSION` (`azeforge.tex-svg-normalizer/v1`,
 `src/tex-svg.ts`), the same value sealed as `normalizer.version` in
-`release/tex-renderer-v1/tex-renderer-v1.manifest.json`.
+`release/tex-renderer-v2/tex-renderer-v1.manifest.json` (renderer identity
+`sha256:12d8fdb40b0b8632d5049476e8ff0c61b51731e2f4ff7ddc7afe1775a930ff25`,
+image digest
+`sha256:89386319c33f4e386289cfb4e79460a82946c255d0a344da1233e6d17a61e4e4`).
 
 Parsing refuses a document the compiler cannot read faithfully: malformed XML,
 a DOCTYPE, unsafe elements (`script`, `foreignObject`, animation elements, and
@@ -117,17 +120,17 @@ PNG pixels, and asserts every Artifact format carries the same projection:
 
 ```bash
 node scripts/tex-canonical-verify.mjs \
-  --renderer-manifest release/tex-renderer-v1/tex-renderer-v1.manifest.json
+  --renderer-manifest release/tex-renderer-v2/tex-renderer-v1.manifest.json
 ```
 
 It resolves the image from the manifest's sealed digest and refuses any other
 reference. For a locally built image, pass `--local --image <tag>`; the report
 is then marked `canonical:false`.
 
-The sealed v1 image predates the stdin batch entrypoint the compiler now
-speaks, so the pinned-digest run needs a renderer image built from the current
-`Dockerfile.tex-renderer` and re-sealed by the release procedure below. Until
-that release lands, verify a candidate image with `--local`.
+The sealed v2 image speaks the same stdin batch entrypoint as the compiler. The
+superseded v1 image predates it and cannot answer a batch request, so it is
+retained only as release history. Verify any candidate image with `--local`
+before it is published and re-sealed by the release procedure below.
 
 ## Local authoring
 
@@ -163,8 +166,8 @@ digest named by the sealed release manifest:
 node scripts/tex-canonical-render.mjs \
   --source report.aze.md \
   --output report.html \
-  --image docker.io/kkumaresan/aze-forge-tex-renderer@sha256:befbadc886338638d5b2e6ac4e564a95c62bd47822f1118b226dee02deffad56 \
-  --renderer-manifest release/tex-renderer-v1/tex-renderer-v1.manifest.json
+  --image docker.io/kkumaresan/aze-forge-tex-renderer@sha256:89386319c33f4e386289cfb4e79460a82946c255d0a344da1233e6d17a61e4e4 \
+  --renderer-manifest release/tex-renderer-v2/tex-renderer-v1.manifest.json
 ```
 
 It rejects every repository other than the official one, mutable tags, missing
@@ -245,7 +248,7 @@ printf '%s  %s\n' \
    ```bash
    node scripts/tex-release.mjs create \
      --input evidence \
-     --output release/tex-renderer-v1 \
+     --output release/tex-renderer-v2 \
      --image-digest "$IMAGE_DIGEST" \
      --gpl-review gpl-review.json
    ```
@@ -261,8 +264,8 @@ printf '%s  %s\n' \
    projection per profile that is byte-identical across two corpus renders and
    pixel-identical PNG and PDF Artifacts. Attach its report as release
    evidence. Comment with the image digest, release asset location, renderer
-   identity, corresponding-source URL, and verification result, then close
-   issue #97.
+   identity, corresponding-source URL, and verification result, then close the
+   tracking issue.
 
 The collector creates machine-derived evidence. Do not replace its files with
 test fixtures or guessed metadata. A human still supplies `NOTICES` and the

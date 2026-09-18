@@ -128,7 +128,7 @@ test("the implicitly bound xml prefix is not a foreign namespace", () => {
 test("the normalizer version is the sealed renderer manifest's version", async () => {
   const manifest = JSON.parse(
     await readFile(
-      `${ROOT}release/tex-renderer-v1/tex-renderer-v1.manifest.json`,
+      `${ROOT}release/tex-renderer-v2/tex-renderer-v1.manifest.json`,
       "utf8",
     ),
   );
