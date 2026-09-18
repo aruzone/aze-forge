@@ -1,0 +1,1 @@
+{"version":3,"file":"configuration-error.js","sourceRoot":"","sources":["../src/configuration-error.ts"],"names":[],"mappings":"AAAA,MAAM,OAAO,0BAA2B,SAAQ,KAAK;IAC1C,IAAI,CAAS;IAEtB,YAAY,IAAY,EAAE,OAAe;QACvC,KAAK,CAAC,OAAO,CAAC,CAAC;QACf,IAAI,CAAC,IAAI,GAAG,4BAA4B,CAAC;QACzC,IAAI,CAAC,IAAI,GAAG,IAAI,CAAC;IACnB,CAAC;CACF"}

@@ -1,0 +1,11 @@
+import type { CapabilitiesReport } from "./capabilities.js";
+import type { GrammarReport } from "./grammar.js";
+import type { VersionReport } from "./version.js";
+export declare const HELP_COMMANDS: readonly ["render", "validate", "watch", "serve", "format", "capabilities", "grammar", "version"];
+export type HelpCommand = (typeof HELP_COMMANDS)[number];
+export declare function globalHelp(): string;
+export declare function commandHelp(command: HelpCommand): string;
+export declare function versionLine(): string;
+export declare function humanGrammarReport(report: GrammarReport): string;
+export declare function humanVersionReport(report: VersionReport): string;
+export declare function humanCapabilitiesReport(report: CapabilitiesReport): string;

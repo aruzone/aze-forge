@@ -47,6 +47,9 @@ npm install -g @aruzone/aze-forge
 azeforge --help
 ```
 
+Both the registry tarball and a Git spec (`npm install -g aruzone/aze-forge`)
+ship a prebuilt `dist/`.
+
 Requires Node.js 22 or 24 on Ubuntu or macOS (Windows support is parked).
 The install fetches a pinned browser engine for diagrams and visual formats;
 on npm 11+ allow its install script once:

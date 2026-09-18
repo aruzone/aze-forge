@@ -1,0 +1,364 @@
+import { runtimeSupportJsonSchema } from "./runtime-support.js";
+export const CAPABILITIES_SCHEMA_ID = "azeforge.capabilities/v2";
+export const CAPABILITIES_SCHEMA_VERSION = 2;
+const versionPattern = "^(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)$";
+const availability = { enum: ["unknown", "available", "unavailable"] };
+const versionedSchema = {
+    type: "object",
+    required: ["id", "version"],
+    additionalProperties: false,
+    properties: {
+        id: { type: "string", minLength: 1 },
+        version: { type: ["string", "number"] },
+    },
+};
+export const capabilitiesJsonSchema = Object.freeze({
+    $schema: "https://json-schema.org/draft/2020-12/schema",
+    $id: CAPABILITIES_SCHEMA_ID,
+    type: "object",
+    required: [
+        "schema",
+        "schemaVersion",
+        "tool",
+        "runtime",
+        "commands",
+        "source",
+        "document",
+        "plugins",
+        "blockRenderers",
+        "renderers",
+        "themes",
+        "formats",
+        "profiles",
+        "limits",
+        "security",
+        "engines",
+        "policy",
+        "schemas",
+    ],
+    additionalProperties: false,
+    properties: {
+        schema: { const: CAPABILITIES_SCHEMA_ID },
+        schemaVersion: { const: 1 },
+        tool: {
+            type: "object",
+            required: ["name", "version"],
+            additionalProperties: false,
+            properties: {
+                name: { const: "azeforge" },
+                version: { type: "string", pattern: versionPattern },
+            },
+        },
+        runtime: runtimeSupportJsonSchema,
+        commands: {
+            type: "array",
+            minItems: 7,
+            maxItems: 7,
+            items: {
+                type: "object",
+                required: ["name", "summary", "usage"],
+                additionalProperties: false,
+                properties: {
+                    name: { type: "string", minLength: 1 },
+                    summary: { type: "string", minLength: 1 },
+                    usage: { type: "string", minLength: 1 },
+                },
+            },
+        },
+        source: {
+            type: "object",
+            required: ["azemarkVersions", "extension", "mimeType"],
+            additionalProperties: false,
+            properties: {
+                azemarkVersions: {
+                    type: "array",
+                    minItems: 1,
+                    items: { type: "integer", minimum: 1 },
+                },
+                extension: { type: "string", minLength: 1 },
+                mimeType: { type: "string", minLength: 1 },
+            },
+        },
+        document: {
+            type: "object",
+            required: ["schemaVersions", "mimeType"],
+            additionalProperties: false,
+            properties: {
+                schemaVersions: {
+                    type: "array",
+                    minItems: 1,
+                    items: { type: "integer", minimum: 1 },
+                },
+                mimeType: { type: "string", minLength: 1 },
+            },
+        },
+        plugins: {
+            type: "array",
+            minItems: 1,
+            items: {
+                type: "object",
+                required: ["type", "version", "title", "namespace", "bodySyntax"],
+                additionalProperties: false,
+                properties: {
+                    type: { type: "string", minLength: 1 },
+                    version: { type: "string", pattern: versionPattern },
+                    title: { type: "string", minLength: 1 },
+                    namespace: { type: "string", minLength: 1 },
+                    bodySyntax: {
+                        type: "object",
+                        required: ["id", "version"],
+                        additionalProperties: false,
+                        properties: {
+                            id: { type: "string", minLength: 1 },
+                            version: { type: "string", pattern: versionPattern },
+                        },
+                    },
+                },
+            },
+        },
+        blockRenderers: {
+            type: "array",
+            minItems: 1,
+            items: {
+                type: "object",
+                required: ["id", "version", "blockType", "renderer"],
+                additionalProperties: false,
+                properties: {
+                    id: { type: "string", minLength: 1 },
+                    version: { type: "string", pattern: versionPattern },
+                    blockType: { type: "string", minLength: 1 },
+                    renderer: { type: "string", minLength: 1 },
+                },
+            },
+        },
+        renderers: {
+            type: "array",
+            minItems: 1,
+            items: {
+                type: "object",
+                required: ["id", "version", "formats", "capabilities"],
+                additionalProperties: false,
+                properties: {
+                    id: { type: "string", minLength: 1 },
+                    version: { type: "string", pattern: versionPattern },
+                    formats: {
+                        type: "array",
+                        minItems: 1,
+                        items: { type: "string", minLength: 1 },
+                    },
+                    capabilities: {
+                        type: "array",
+                        items: { type: "string", minLength: 1 },
+                    },
+                },
+            },
+        },
+        themes: {
+            type: "array",
+            minItems: 1,
+            items: {
+                type: "object",
+                required: ["id", "version", "title", "colorScheme"],
+                additionalProperties: false,
+                properties: {
+                    id: { type: "string", minLength: 1 },
+                    version: { type: "string", pattern: versionPattern },
+                    title: { type: "string", minLength: 1 },
+                    colorScheme: { enum: ["light", "dark"] },
+                },
+            },
+        },
+        formats: {
+            type: "array",
+            minItems: 1,
+            items: { type: "string", minLength: 1 },
+        },
+        profiles: { type: "object" },
+        limits: { type: "object" },
+        security: { type: "object" },
+        engines: {
+            type: "object",
+            required: ["browser", "katex", "tex", "mermaid", "plot", "geometry", "chemistry", "timing", "diagram", "models", "control", "freeBody", "fonts"],
+            additionalProperties: false,
+            properties: {
+                browser: {
+                    type: "object",
+                    required: ["name", "pinnedVersion", "availability"],
+                    additionalProperties: false,
+                    properties: {
+                        name: { type: "string", minLength: 1 },
+                        pinnedVersion: { type: "string", minLength: 1 },
+                        availability,
+                        reason: { type: "string", minLength: 1 },
+                        remedy: { type: "string", minLength: 1 },
+                    },
+                },
+                katex: {
+                    type: "object",
+                    required: ["version", "language", "availability"],
+                    additionalProperties: false,
+                    properties: {
+                        version: { type: "string", minLength: 1 },
+                        language: { type: "string", minLength: 1 },
+                        availability,
+                    },
+                },
+                tex: {
+                    type: "object",
+                    required: ["profiles", "availability"],
+                    additionalProperties: false,
+                    properties: {
+                        profiles: { type: "array", minItems: 1, items: { type: "string", minLength: 1 } },
+                        availability,
+                    },
+                },
+                mermaid: {
+                    type: "object",
+                    required: ["version", "availability"],
+                    additionalProperties: false,
+                    properties: {
+                        version: { type: "string", minLength: 1 },
+                        availability,
+                    },
+                },
+                fonts: { type: "array", items: { type: "object" } },
+                plot: {
+                    type: "object",
+                    required: ["emitter", "eval", "d3array", "d3scale", "d3shape", "availability"],
+                    additionalProperties: false,
+                    properties: {
+                        emitter: { type: "string", minLength: 1 },
+                        eval: { type: "string", minLength: 1 },
+                        d3array: { type: "string", minLength: 1 },
+                        d3scale: { type: "string", minLength: 1 },
+                        d3shape: { type: "string", minLength: 1 },
+                        availability,
+                    },
+                },
+                geometry: {
+                    type: "object",
+                    required: ["emitter", "eval", "epsilon", "availability"],
+                    additionalProperties: false,
+                    properties: {
+                        emitter: { type: "string", minLength: 1 },
+                        eval: { type: "string", minLength: 1 },
+                        epsilon: { type: "number", minimum: 0 },
+                        availability,
+                    },
+                },
+                chemistry: {
+                    type: "object",
+                    required: ["emitter", "availability"],
+                    additionalProperties: false,
+                    properties: {
+                        emitter: { type: "string", minLength: 1 },
+                        availability,
+                    },
+                },
+                timing: {
+                    type: "object",
+                    required: ["emitter", "availability"],
+                    additionalProperties: false,
+                    properties: {
+                        emitter: { type: "string", minLength: 1 },
+                        availability,
+                    },
+                },
+                models: {
+                    type: "object",
+                    required: [
+                        "layout",
+                        "wrap",
+                        "emitter",
+                        "advanceMetric",
+                        "metricSource",
+                        "directiveTypes",
+                        "availability",
+                    ],
+                    additionalProperties: false,
+                    properties: {
+                        layout: { type: "string", minLength: 1 },
+                        wrap: { type: "string", minLength: 1 },
+                        emitter: { type: "string", minLength: 1 },
+                        advanceMetric: { type: "string", minLength: 1 },
+                        metricSource: { type: "array", minItems: 1, items: { type: "string", minLength: 1 } },
+                        directiveTypes: {
+                            type: "array",
+                            minItems: 1,
+                            items: { enum: ["sequence", "state", "entity", "class"] },
+                        },
+                        availability,
+                    },
+                },
+                diagram: {
+                    type: "object",
+                    required: [
+                        "layout",
+                        "elkjs",
+                        "emitter",
+                        "advanceMetric",
+                        "metricSource",
+                        "availability",
+                    ],
+                    additionalProperties: false,
+                    properties: {
+                        layout: { type: "string", minLength: 1 },
+                        elkjs: { type: "string", minLength: 1 },
+                        emitter: { type: "string", minLength: 1 },
+                        advanceMetric: { type: "string", minLength: 1 },
+                        metricSource: {
+                            type: "array",
+                            minItems: 1,
+                            items: { type: "string", minLength: 1 },
+                        },
+                        availability,
+                    },
+                },
+                control: {
+                    type: "object",
+                    required: [
+                        "layout",
+                        "elkjs",
+                        "emitter",
+                        "eval",
+                        "advanceMetric",
+                        "metricSource",
+                        "availability",
+                    ],
+                    additionalProperties: false,
+                    properties: {
+                        layout: { type: "string", minLength: 1 },
+                        elkjs: { type: "string", minLength: 1 },
+                        emitter: { type: "string", minLength: 1 },
+                        eval: { type: "string", minLength: 1 },
+                        advanceMetric: { type: "string", minLength: 1 },
+                        metricSource: {
+                            type: "array",
+                            minItems: 1,
+                            items: { type: "string", minLength: 1 },
+                        },
+                        availability,
+                    },
+                },
+                freeBody: {
+                    type: "object",
+                    required: ["emitter", "eval", "scale", "availability"],
+                    additionalProperties: false,
+                    properties: {
+                        emitter: { type: "string", minLength: 1 },
+                        eval: { type: "string", minLength: 1 },
+                        scale: { type: "string", minLength: 1 },
+                        availability,
+                    },
+                },
+            },
+        },
+        policy: { type: "object" },
+        schemas: {
+            type: "array",
+            minItems: 1,
+            items: versionedSchema,
+        },
+    },
+});
+//# sourceMappingURL=capabilities-json.js.map

@@ -1,0 +1,161 @@
+import { ACCEPTANCE_SCHEMA_ID, ACCEPTANCE_SCHEMA_VERSION, } from "./acceptance.js";
+import { CALLOUT_PLUGIN_VERSION, calloutDataSchema, calloutSourceSchema, } from "./callout-schemas.js";
+import { DIAGNOSTICS_SCHEMA_ID } from "./diagnostics-json.js";
+import { DERIVATION_PLUGIN_VERSION, derivationDataSchema, derivationSourceSchema, } from "./derivation-schemas.js";
+import { EQUATION_PLUGIN_VERSION, equationDataSchema, equationSourceSchema, } from "./equation-schemas.js";
+import { MERMAID_PLUGIN_VERSION, mermaidDataSchema, mermaidSourceSchema, } from "./mermaid-schemas.js";
+import { CIRCUIT_PLUGIN_VERSION, circuitDataSchema, circuitSourceSchema, } from "./circuit-schemas.js";
+import { TIMING_PLUGIN_VERSION, timingDataSchema, timingSourceSchema, } from "./timing-schemas.js";
+import { DIAGRAM_PLUGIN_VERSION, diagramDataSchema, diagramSourceSchema, } from "./diagram-schemas.js";
+import { CONTROL_PLUGIN_VERSION, FREE_BODY_PLUGIN_VERSION, controlDataSchema, controlSourceSchema, freeBodyDataSchema, freeBodySourceSchema, } from "./control-schemas.js";
+import { CLASS_PLUGIN_VERSION, ENTITY_PLUGIN_VERSION, SEQUENCE_PLUGIN_VERSION, STATE_PLUGIN_VERSION, classDataSchema, classSourceSchema, entityDataSchema, entitySourceSchema, sequenceDataSchema, sequenceSourceSchema, stateDataSchema, stateSourceSchema, } from "./models-schemas.js";
+import { FORMULA_PLUGIN_VERSION, formulaDataSchema, formulaSourceSchema, REACTION_PLUGIN_VERSION, reactionDataSchema, reactionSourceSchema, STRUCTURE_PLUGIN_VERSION, structureDataSchema, structureSourceSchema, } from "./chemistry-schemas.js";
+import { TABLE_PLUGIN_VERSION, tableDataSchema, tableSourceSchema, } from "./table-schemas.js";
+import { ALGORITHM_PLUGIN_VERSION, algorithmDataSchema, algorithmSourceSchema, } from "./algorithm-schemas.js";
+import { STATEMENT_PLUGIN_VERSION, statementDataSchema, statementSourceSchema, } from "./statement-schemas.js";
+import { EXAMPLE_PLUGIN_VERSION, exampleDataSchema, exampleSourceSchema, } from "./example-schemas.js";
+import { FIGURE_PLUGIN_VERSION, figureDataSchema, figureSourceSchema, } from "./figure-schemas.js";
+import { BIBLIOGRAPHY_PLUGIN_VERSION, bibliographyDataSchema, bibliographySourceSchema, } from "./bibliography-schemas.js";
+import { TOOL_VERSION } from "./tool-version.js";
+import { WATCH_EVENT_SCHEMA_ID } from "./watch-events.js";
+import { CAPABILITIES_SCHEMA_ID } from "./capabilities-json.js";
+import { GRAMMAR_SCHEMA_ID, GRAMMAR_SCHEMA_VERSION, } from "./grammar-json.js";
+import { RUNTIME_SUPPORT, runtimeSupportJsonSchema, } from "./runtime-support.js";
+export const VERSION_SCHEMA_ID = "azeforge.version/v1";
+export const VERSION_SCHEMA_VERSION = 1;
+function schemaId(schema) {
+    return schema.$id;
+}
+/**
+ * Every public machine document schema in canonical order. Source/data
+ * schema versions track their owning Plugin version; envelope schemas
+ * carry their own schemaVersion.
+ */
+export function publicSchemaVersions() {
+    return Object.freeze([
+        { id: DIAGNOSTICS_SCHEMA_ID, version: 1 },
+        { id: CAPABILITIES_SCHEMA_ID, version: 1 },
+        { id: VERSION_SCHEMA_ID, version: 1 },
+        { id: ACCEPTANCE_SCHEMA_ID, version: ACCEPTANCE_SCHEMA_VERSION },
+        { id: WATCH_EVENT_SCHEMA_ID, version: 1 },
+        { id: GRAMMAR_SCHEMA_ID, version: GRAMMAR_SCHEMA_VERSION },
+        { id: schemaId(equationSourceSchema), version: EQUATION_PLUGIN_VERSION },
+        { id: schemaId(equationDataSchema), version: EQUATION_PLUGIN_VERSION },
+        { id: schemaId(derivationSourceSchema), version: DERIVATION_PLUGIN_VERSION },
+        { id: schemaId(derivationDataSchema), version: DERIVATION_PLUGIN_VERSION },
+        { id: schemaId(mermaidSourceSchema), version: MERMAID_PLUGIN_VERSION },
+        { id: schemaId(mermaidDataSchema), version: MERMAID_PLUGIN_VERSION },
+        { id: schemaId(tableSourceSchema), version: TABLE_PLUGIN_VERSION },
+        { id: schemaId(tableDataSchema), version: TABLE_PLUGIN_VERSION },
+        { id: schemaId(calloutSourceSchema), version: CALLOUT_PLUGIN_VERSION },
+        { id: schemaId(calloutDataSchema), version: CALLOUT_PLUGIN_VERSION },
+        { id: schemaId(formulaSourceSchema), version: FORMULA_PLUGIN_VERSION },
+        { id: schemaId(formulaDataSchema), version: FORMULA_PLUGIN_VERSION },
+        { id: schemaId(reactionSourceSchema), version: REACTION_PLUGIN_VERSION },
+        { id: schemaId(reactionDataSchema), version: REACTION_PLUGIN_VERSION },
+        { id: schemaId(structureSourceSchema), version: STRUCTURE_PLUGIN_VERSION },
+        { id: schemaId(structureDataSchema), version: STRUCTURE_PLUGIN_VERSION },
+        { id: schemaId(circuitSourceSchema), version: CIRCUIT_PLUGIN_VERSION },
+        { id: schemaId(circuitDataSchema), version: CIRCUIT_PLUGIN_VERSION },
+        { id: schemaId(timingSourceSchema), version: TIMING_PLUGIN_VERSION },
+        { id: schemaId(timingDataSchema), version: TIMING_PLUGIN_VERSION },
+        { id: schemaId(diagramSourceSchema), version: DIAGRAM_PLUGIN_VERSION },
+        { id: schemaId(diagramDataSchema), version: DIAGRAM_PLUGIN_VERSION },
+        { id: schemaId(sequenceSourceSchema), version: SEQUENCE_PLUGIN_VERSION },
+        { id: schemaId(sequenceDataSchema), version: SEQUENCE_PLUGIN_VERSION },
+        { id: schemaId(stateSourceSchema), version: STATE_PLUGIN_VERSION },
+        { id: schemaId(stateDataSchema), version: STATE_PLUGIN_VERSION },
+        { id: schemaId(entitySourceSchema), version: ENTITY_PLUGIN_VERSION },
+        { id: schemaId(entityDataSchema), version: ENTITY_PLUGIN_VERSION },
+        { id: schemaId(classSourceSchema), version: CLASS_PLUGIN_VERSION },
+        { id: schemaId(classDataSchema), version: CLASS_PLUGIN_VERSION },
+        { id: schemaId(controlSourceSchema), version: CONTROL_PLUGIN_VERSION },
+        { id: schemaId(controlDataSchema), version: CONTROL_PLUGIN_VERSION },
+        { id: schemaId(freeBodySourceSchema), version: FREE_BODY_PLUGIN_VERSION },
+        { id: schemaId(freeBodyDataSchema), version: FREE_BODY_PLUGIN_VERSION },
+        { id: schemaId(algorithmSourceSchema), version: ALGORITHM_PLUGIN_VERSION },
+        { id: schemaId(algorithmDataSchema), version: ALGORITHM_PLUGIN_VERSION },
+        { id: schemaId(statementSourceSchema), version: STATEMENT_PLUGIN_VERSION },
+        { id: schemaId(statementDataSchema), version: STATEMENT_PLUGIN_VERSION },
+        { id: schemaId(exampleSourceSchema), version: EXAMPLE_PLUGIN_VERSION },
+        { id: schemaId(exampleDataSchema), version: EXAMPLE_PLUGIN_VERSION },
+        { id: schemaId(figureSourceSchema), version: FIGURE_PLUGIN_VERSION },
+        { id: schemaId(figureDataSchema), version: FIGURE_PLUGIN_VERSION },
+        { id: schemaId(bibliographySourceSchema), version: BIBLIOGRAPHY_PLUGIN_VERSION },
+        { id: schemaId(bibliographyDataSchema), version: BIBLIOGRAPHY_PLUGIN_VERSION },
+    ]);
+}
+/**
+ * Canonical version document. Contains only release versions — never
+ * workstation facts such as paths, platforms, or dependency state.
+ */
+export function createVersionReport() {
+    return {
+        schema: VERSION_SCHEMA_ID,
+        schemaVersion: VERSION_SCHEMA_VERSION,
+        tool: { name: "azeforge", version: TOOL_VERSION },
+        runtime: RUNTIME_SUPPORT,
+        source: { azemarkVersions: [2] },
+        document: { schemaVersions: [3] },
+        schemas: publicSchemaVersions(),
+    };
+}
+export const versionJsonSchema = Object.freeze({
+    $schema: "https://json-schema.org/draft/2020-12/schema",
+    $id: VERSION_SCHEMA_ID,
+    type: "object",
+    required: ["schema", "schemaVersion", "tool", "runtime", "source", "document", "schemas"],
+    additionalProperties: false,
+    properties: {
+        schema: { const: VERSION_SCHEMA_ID },
+        schemaVersion: { const: 1 },
+        tool: {
+            type: "object",
+            required: ["name", "version"],
+            additionalProperties: false,
+            properties: {
+                name: { const: "azeforge" },
+                version: { type: "string", pattern: "^(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)$" },
+            },
+        },
+        runtime: runtimeSupportJsonSchema,
+        source: {
+            type: "object",
+            required: ["azemarkVersions"],
+            additionalProperties: false,
+            properties: {
+                azemarkVersions: {
+                    type: "array",
+                    minItems: 1,
+                    items: { type: "integer", minimum: 1 },
+                },
+            },
+        },
+        document: {
+            type: "object",
+            required: ["schemaVersions"],
+            additionalProperties: false,
+            properties: {
+                schemaVersions: {
+                    type: "array",
+                    minItems: 1,
+                    items: { type: "integer", minimum: 1 },
+                },
+            },
+        },
+        schemas: {
+            type: "array",
+            minItems: 1,
+            items: {
+                type: "object",
+                required: ["id", "version"],
+                additionalProperties: false,
+                properties: {
+                    id: { type: "string", minLength: 1 },
+                    version: { type: ["string", "number"] },
+                },
+            },
+        },
+    },
+});
+//# sourceMappingURL=version.js.map

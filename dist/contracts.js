@@ -1,0 +1,26 @@
+/**
+ * Public contracts entry point: types, JSON schemas and schema identifiers.
+ *
+ * This module imports no Node-only code and initializes no engine: it is
+ * safe to import from any ESM environment. The runtime compiler itself
+ * remains Node-oriented; a browser-safe contracts entry does not promise
+ * browser compilation.
+ */
+export { TEX_RENDERER_PROTOCOL, TEX_RENDER_REQUEST_MAX_BYTES, TEX_RENDER_RESPONSE_MAX_BYTES, } from "./model.js";
+export { TEX_SVG_NORMALIZER_VERSION, TexSvgError, projectTexSvg, texFigureFragment, } from "./tex-svg.js";
+export { TOOL_VERSION } from "./tool-version.js";
+export { VERSION_SCHEMA_ID, VERSION_SCHEMA_VERSION, createVersionReport, publicSchemaVersions, versionJsonSchema, } from "./version.js";
+export { CAPABILITIES_SCHEMA_ID, CAPABILITIES_SCHEMA_VERSION, capabilitiesJsonSchema, } from "./capabilities-json.js";
+export { GRAMMAR_SCHEMA_ID, GRAMMAR_SCHEMA_VERSION, grammarJsonSchema, } from "./grammar-json.js";
+export { DIAGNOSTICS_SCHEMA_ID, diagnosticsJsonSchema, } from "./diagnostics-json.js";
+export { CANONICAL_ARCH, CANONICAL_NODE_VERSION, CANONICAL_OPERATING_SYSTEM, RUNTIME_SUPPORT, SUPPORTED_NODE_VERSIONS, SUPPORTED_OPERATING_SYSTEMS, runtimeSupportJsonSchema, } from "./runtime-support.js";
+export { ACCEPTANCE_CATALOG_ID, ACCEPTANCE_CATALOG_VERSION, ACCEPTANCE_ENTRIES, ACCEPTANCE_SCHEMA_ID, ACCEPTANCE_SCHEMA_VERSION, AUTOMATED_P0_IDS, REQUIRED_P0_IDS, acceptanceJsonSchema, } from "./acceptance.js";
+export { WATCH_EVENT_SCHEMA_ID } from "./watch-events.js";
+export { CALLOUT_BODY_SYNTAX_ID, CALLOUT_BODY_SYNTAX_VERSION, CALLOUT_PLUGIN_TYPE, CALLOUT_PLUGIN_VERSION, CALLOUT_VARIANTS, calloutDataSchema, calloutSourceSchema, } from "./callout-schemas.js";
+export { DERIVATION_BODY_SYNTAX_ID, DERIVATION_BODY_SYNTAX_VERSION, DERIVATION_PLUGIN_TYPE, DERIVATION_PLUGIN_VERSION, derivationDataSchema, derivationSourceSchema, } from "./derivation-schemas.js";
+export { EQUATION_BODY_SYNTAX_ID, EQUATION_BODY_SYNTAX_VERSION, EQUATION_LATEX_LANGUAGE_VERSION, EQUATION_PLUGIN_TYPE, EQUATION_PLUGIN_VERSION, KATEX_VERSION, equationDataSchema, equationSourceSchema, } from "./equation-schemas.js";
+export { MERMAID_BODY_SYNTAX_ID, MERMAID_BODY_SYNTAX_VERSION, MERMAID_PLUGIN_TYPE, MERMAID_PLUGIN_VERSION, MERMAID_VERSION, mermaidDataSchema, mermaidSourceSchema, } from "./mermaid-schemas.js";
+export { TEX_BODY_SYNTAX_ID, TEX_BODY_SYNTAX_VERSION, TEX_PLUGIN_TYPE, TEX_PLUGIN_VERSION, TEX_PROFILES, texDataSchema, texSourceSchema, } from "./tex-schemas.js";
+export { TABLE_BODY_SYNTAX_ID, TABLE_BODY_SYNTAX_VERSION, TABLE_PLUGIN_TYPE, TABLE_PLUGIN_VERSION, tableDataSchema, tableSourceSchema, } from "./table-schemas.js";
+export { CHART_BODY_SYNTAX_ID, CHART_BODY_SYNTAX_VERSION, CHART_PLUGIN_TYPE, CHART_PLUGIN_VERSION, D3_ARRAY_VERSION, D3_SCALE_VERSION, D3_SHAPE_VERSION, PLOT_BODY_SYNTAX_ID, PLOT_BODY_SYNTAX_VERSION, PLOT_EMITTER_VERSION, PLOT_EVAL_VERSION, PLOT_PLUGIN_TYPE, PLOT_PLUGIN_VERSION, chartDataSchema, chartSourceSchema, plotDataSchema, plotSourceSchema, } from "./plot-schemas.js";
+//# sourceMappingURL=contracts.js.map

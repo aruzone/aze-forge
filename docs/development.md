@@ -269,14 +269,19 @@ package paths and denies deep imports. To release:
 npm version patch --no-git-tag-version  # or minor
 # sync src/tool-version.ts to the same version
 npm run typecheck && npm test
-git commit -am "chore: release 0.3.2"
+git add -A && git commit -m "chore: release 0.3.2"  # dist/ is committed
 git tag v0.3.2
 npm publish --access public --otp=<code>  # 2FA or bypass-2FA token required
 git push origin main v0.3.2
 ```
 
-`prepublishOnly` rebuilds gitignored `dist/` so no publish can ship a stale
-build. Tag pushes also trigger `publish.yml` (tag↔version assert, suite,
-`npm publish --provenance`); it needs the `NPM_TOKEN` repo secret and
-runners that can actually boot. The registry rejects republishing a version,
-so every publish — docs-only included — takes a new number.
+`dist/` is committed so a Git-spec install (`npm install -g aruzone/aze-forge`)
+ships runnable code: npm's git-dependency preparation installs no
+devDependencies, so a `prepare` build cannot run there. Commit the rebuilt
+`dist/` with the release commit. `prepublishOnly` still rebuilds `dist/` at
+publish time, so a registry tarball can never ship a stale build even if the
+commit and the build ever disagree. Tag pushes also trigger `publish.yml`
+(tag↔version assert, suite, `npm publish --provenance`); it needs the
+`NPM_TOKEN` repo secret and runners that can actually boot. The registry
+rejects republishing a version, so every publish — docs-only included — takes
+a new number.

@@ -1,5 +1,7 @@
 node_modules/
-dist/
+# dist/ is committed: a Git-spec install (`npm install -g aruzone/aze-forge`)
+# cannot build, because npm's git-dependency preparation installs no
+# devDependencies. The registry tarball is rebuilt by prepublishOnly.
 *.tmp
 .DS_Store
 
