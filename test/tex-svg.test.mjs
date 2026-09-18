@@ -112,7 +112,17 @@ test("a unit-suffixed extent is a valid fallback for a missing viewBox", () => {
     title: "t",
     description: "d",
   });
-  assert.match(projected, /<(title|desc|g)/);
+  assert.match(projected, /height="12pt" role="img" width="28\.744946pt"/);
+});
+
+test("the implicitly bound xml prefix is not a foreign namespace", () => {
+  const projected = projectTexSvg({
+    svg: "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'><text x='1' xml:space='preserve'>1.2345678</text></svg>",
+    requestIndex: 0,
+    title: "t",
+    description: "d",
+  });
+  assert.match(projected, /<text x="1" xml:space="preserve">1\.2345678<\/text>/);
 });
 
 test("the normalizer version is the sealed renderer manifest's version", async () => {

@@ -4,7 +4,7 @@ import { access, chmod, copyFile, lstat, mkdir, mkdtemp, readFile, readdir, rena
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { TEX_PROFILES, documentFor } from "./tex-renderer-document.mjs";
-import { TEX_PROFILE_BODIES } from "./tex-fixtures.mjs";
+import { TEX_PROFILE_BODIES, texCorpusDescription } from "./tex-fixtures.mjs";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const PACKAGE_LOCK = join(ROOT, "tex-renderer", "package-closure.lock");
@@ -132,7 +132,7 @@ async function collect() {
         index,
         profile,
         title: profile,
-        description: `${profile} release corpus fixture`,
+        description: texCorpusDescription(profile),
         body: TEX_PROFILE_BODIES[profile],
         range: { start: { line: 1, column: 1, offset: 0 }, end: { line: 1, column: 1, offset: 0 } },
       })),

@@ -10,10 +10,7 @@ export const TEX_PROFILE_BODIES = Object.freeze({
   "tikz-cd": "\\begin{tikzcd} A \\arrow[r] & B \\end{tikzcd}",
 });
 
-export const TEX_PROFILE_TITLES = Object.freeze({
-  chemfig: "Chemical structure",
-  circuitikz: "Passive RC circuit",
-  pgfplots: "Coordinate plot",
-  tikz: "Vector figure",
-  "tikz-cd": "Commutative diagram",
-});
+/** The accessible description both scripts give one corpus figure. */
+export function texCorpusDescription(profile) {
+  return `${profile} release corpus fixture`;
+}

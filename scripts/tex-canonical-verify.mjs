@@ -33,11 +33,10 @@ import { fileURLToPath } from "node:url";
 
 import { dockerTexRendererArgs } from "./tex-renderer-command.mjs";
 import { TEX_PROFILES, documentFor } from "./tex-renderer-document.mjs";
-import { TEX_PROFILE_BODIES } from "./tex-fixtures.mjs";
+import { TEX_PROFILE_BODIES, texCorpusDescription } from "./tex-fixtures.mjs";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const OFFICIAL_IMAGE_REPOSITORY = "docker.io/kkumaresan/aze-forge-tex-renderer";
-const CORPUS_DESCRIPTION = (profile) => `${profile} release corpus fixture`;
 
 function fail(message) {
   throw new Error(message);
@@ -125,32 +124,27 @@ async function renderCorpus(image, identity, request) {
   });
 }
 
-const PROFILE_HEADER = /^title:\s*(.+)$/m;
-const PROFILE_DESCRIPTION = /^description:\s*(.+)$/m;
-
 /**
- * The checked-in fixture Source for one profile. Its body must equal the
- * sealed corpus body, so the release corpus and the compiler acceptance can
- * never drift apart.
+ * The checked-in fixture Source for one profile, read through the compiler so
+ * its parsed body must equal the sealed corpus body: the release corpus and
+ * the compiler acceptance can never drift apart.
  */
-async function readFixture(profile) {
+async function readFixture(compiler, profile) {
   const path = join(ROOT, "test-files", "tex", `${profile}.aze.md`);
   const source = await readFile(path, "utf8");
-  const title = PROFILE_HEADER.exec(source)?.[1];
-  const description = PROFILE_DESCRIPTION.exec(source)?.[1];
-  if (title === undefined || description === undefined) {
-    fail(`The ${profile} fixture is missing its title or description.`);
+  const parsed = compiler.parse(source, { sourceName: path });
+  const block = parsed.document?.blocks[0];
+  if (parsed.diagnostics.length > 0 || block === undefined || block.kind !== "tex") {
+    fail(`The ${profile} fixture does not parse as one TeX Block: ${JSON.stringify(parsed.diagnostics)}`);
   }
-  const body = /^----\r?\n([\s\S]*?)\r?\n::::\s*$/m.exec(source)?.[1];
-  if (body !== TEX_PROFILE_BODIES[profile]) {
+  if (block.body !== TEX_PROFILE_BODIES[profile]) {
     fail(`The ${profile} fixture body differs from the sealed corpus body.`);
   }
-  return { source, title, description };
+  return { source, title: block.title, description: block.description };
 }
 
 /** An adapter that answers with one already-validated projection. */
-async function stubAdapter(directory, profile, svg, record) {
-  const identity = `sha256:${"0".repeat(64)}`;
+async function stubAdapter(directory, profile, svg, record, identity) {
   const path = join(directory, `${profile}.mjs`);
   await writeFile(
     path,
@@ -193,10 +187,18 @@ async function verify() {
   const identity = sha256(manifestBytes);
   const image = local ? supplied : await officialImage(manifest, supplied);
 
-  const { projectTexSvg } = await import(join(ROOT, "dist", "tex-svg.js")).catch(() => {
+  const { projectTexSvg, TEX_SVG_NORMALIZER_VERSION } = await import(
+    join(ROOT, "dist", "tex-svg.js")
+  ).catch(() => {
     fail("Build the compiler first: npm run build.");
   });
   const { createCompiler } = await import(join(ROOT, "dist", "index.js"));
+  if (manifest.normalizer?.version !== TEX_SVG_NORMALIZER_VERSION) {
+    fail("The sealed renderer manifest declares a different SVG normalizer version.");
+  }
+  const sealedCorpus = new Map(
+    (manifest.corpus?.fixtures ?? []).map((fixture) => [fixture.profile, fixture.outputHash]),
+  );
 
   const request = {
     protocol: "azeforge.tex-renderer/v1",
@@ -204,7 +206,7 @@ async function verify() {
       index,
       profile,
       title: profile,
-      description: CORPUS_DESCRIPTION(profile),
+      description: texCorpusDescription(profile),
       body: TEX_PROFILE_BODIES[profile],
       range: { start: { line: 1, column: 1, offset: 0 }, end: { line: 1, column: 1, offset: 0 } },
     })),
@@ -221,7 +223,19 @@ async function verify() {
       const raw = firstRun[index];
       const again = secondRun[index];
       if (raw !== again) fail(`The canonical renderer is not byte-identical for ${profile}.`);
-      const fixture = await readFixture(profile);
+      // The sealed manifest's corpus hashes are the approved renderer bytes:
+      // a different renderer or toolchain must not pass as canonical.
+      const sealed = sealedCorpus.get(profile);
+      if (sealed === undefined) {
+        fail(`The sealed renderer manifest carries no corpus fixture for ${profile}.`);
+      }
+      if (sha256(raw) !== sealed) {
+        fail(`The ${profile} renderer SVG differs from the sealed corpus hash.`);
+      }
+      const record = join(directory, `${profile}.requests.jsonl`);
+      const renderer = await stubAdapter(directory, profile, raw, record, identity);
+      const compiler = createCompiler({ texRenderer: renderer });
+      const fixture = await readFixture(compiler, profile);
       // The fixture Source holds one TeX Block, so the compiler embeds it as
       // batch figure 0 with the fixture's own accessible metadata.
       const projection = projectTexSvg({
@@ -240,9 +254,6 @@ async function verify() {
         fail(`The canonical projection is not byte-identical for ${profile}.`);
       }
 
-      const record = join(directory, `${profile}.requests.jsonl`);
-      const renderer = await stubAdapter(directory, profile, raw, record);
-      const compiler = createCompiler({ texRenderer: renderer });
       const html = await compiler.compile(fixture.source, {
         format: "html",
         sourceName: join(ROOT, "test-files", "tex", `${profile}.aze.md`),

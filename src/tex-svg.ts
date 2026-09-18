@@ -113,8 +113,9 @@ const TEXT_CONTENT_ELEMENTS: Readonly<Record<string, true>> = {
 /**
  * Attributes whose values are generated numbers — a scalar, a unit-suffixed
  * length, a number list, or path/transform grammar. Only these are quantized:
- * every other attribute (an identifier, a paint, a class, an accessible name)
- * is carried through exactly as the renderer wrote it.
+ * every other attribute (an identifier, a paint, a class, an accessible name,
+ * a CSS `style`) is carried through exactly as the renderer wrote it, so
+ * text-bearing values keep their authored precision.
  */
 const NUMERIC_ATTRIBUTES: Readonly<Record<string, true>> = {
   amplitude: true,
@@ -452,7 +453,12 @@ export function projectTexSvg(options: TexSvgProjectionOptions): string {
   const root = parseDocument(options.svg);
   if (localName(root.name).toLowerCase() !== "svg") throw new TexSvgError("malformed");
   if (root.attributes.get("xmlns") !== SVG_NAMESPACE) throw new TexSvgError("malformed");
-  const scan: Scan = { prefixes: new Set(), identifiers: new Set(), references: [] };
+  const scan: Scan = {
+    // `xml` is bound implicitly by XML itself (`xml:space`, `xml:lang`).
+    prefixes: new Set(["xml"]),
+    identifiers: new Set(),
+    references: [],
+  };
   scanElement(root, scan);
   for (const reference of scan.references) {
     if (!scan.identifiers.has(reference)) throw new TexSvgError("reference");

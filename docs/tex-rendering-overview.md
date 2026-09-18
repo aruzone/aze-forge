@@ -168,16 +168,19 @@ The TeX compiler produces DVI output.
 
 `dvisvgm` converts the DVI output to SVG. The renderer uses settings that avoid external font dependencies. The SVG is returned to AzeForge.
 
-#### SVG validation and accessibility metadata
+#### Canonical projection and accessibility metadata
 
-AzeForge checks that the returned SVG is safe and well-formed. It then adds accessibility metadata:
+AzeForge parses the returned SVG and refuses anything outside the projection
+contract rather than rewriting the text, then re-serializes one canonical,
+namespaced projection and injects the authored `title` and `description` as its
+accessible metadata:
 
 ```html
 <title>Triangle figure</title>
 <desc>A triangle drawn with three connected line segments</desc>
 ```
 
-The SVG is wrapped in a figure element:
+The projection is wrapped in a figure element:
 
 ```html
 <figure class="aze-tex" data-tex-profile="tikz">
@@ -208,28 +211,17 @@ tex Block in aze.md
 ## Canonical projection
 
 The renderer's raw `dvisvgm` SVG is never embedded directly. The compiler
-parses the returned document and re-serializes exactly one canonical
-projection. It refuses malformed XML, a DOCTYPE, unsafe elements, an internal
-`<style>` element whose selectors the namespace rewrite cannot follow,
-event-handler attributes, external references and `@import`, a figure without
-the SVG namespace or finite bounded geometry, and any `#id`/`url(#id)`
-reference to an identifier the figure does not declare. A refusal is reported
-as `azeforge.tex#protocol-invalid` and suppresses the whole Artifact rather
-than publishing a partial figure.
+parses the returned document, refuses every construct outside the projection
+contract, and re-serializes exactly one canonical, namespaced, self-contained
+SVG — the TeX SVG projection — carrying the authored `title` and `description`
+as its accessible `<title>` and `<desc>`. A refusal is reported as
+`azeforge.tex#protocol-invalid` and suppresses the whole Artifact rather than
+publishing a partial figure.
 
-The projection prefixes every identifier and rewrites every reference with the
-figure's zero-based batch index (`tex-<index>-`), removes comments, metadata,
-and formatting whitespace, fixes attribute order and XML escaping, and
-quantizes generated numbers to six decimals without touching authored text. It
-then injects the authored `title` and `description` as the root's accessible
-`<title>` and `<desc>`, sets `role="img"`, and wraps the result in
-`<figure class="aze-tex" data-tex-profile="…">`.
-
-The projection is frozen as `TEX_SVG_NORMALIZER_VERSION`
-(`azeforge.tex-svg-normalizer/v1`), matching the sealed renderer manifest's
-`normalizer.version`. This one validated SVG is embedded unchanged in the HTML
-layout, and the whole-document SVG, PNG, and PDF Artifacts all derive from that
-same layout — TeX runs once per compilation and never once per format.
+That one projection is embedded unchanged in the HTML layout, and the
+whole-document SVG, PNG, and PDF Artifacts derive from that same layout, so TeX
+runs once per compilation and never once per format.
+[`docs/tex-renderer.md`](tex-renderer.md) states the normative rules.
 
 ## How the compiler connects the pieces
 
