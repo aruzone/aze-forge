@@ -14,7 +14,11 @@ title: RC low-pass filter
 description: A resistor and capacitor connected as a low-pass filter.
 profile: circuitikz
 ----
-\draw (0,0) to[R=$R$] (2,0) to[C=$C$] (2,-2) -- (0,-2) -- cycle;
+\draw
+  (0,0) to[short, o-] (1,0)
+  to[R=$R$] (3,0) coordinate (output)
+  to[short, -o] (4,0);
+\draw (output) to[C=$C$] (3,-2) node[ground] {};
 ::::
 
 ## TikZ
