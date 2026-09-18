@@ -124,6 +124,11 @@ It resolves the image from the manifest's sealed digest and refuses any other
 reference. For a locally built image, pass `--local --image <tag>`; the report
 is then marked `canonical:false`.
 
+The sealed v1 image predates the stdin batch entrypoint the compiler now
+speaks, so the pinned-digest run needs a renderer image built from the current
+`Dockerfile.tex-renderer` and re-sealed by the release procedure below. Until
+that release lands, verify a candidate image with `--local`.
+
 ## Local authoring
 
 The local wrapper is a reviewed opt-in path for authoring machines. It runs the
@@ -251,9 +256,13 @@ printf '%s  %s\n' \
 7. Run `scripts/tex-canonical-render.mjs` with the official image repository,
    published image digest, and sealed manifest. The result must report
    `canonical:true`, and its `rendererIdentity` must equal the SHA-256 of the
-   manifest bytes. Comment with the image digest, release asset location,
-   renderer identity, corresponding-source URL, and verification result, then
-   close issue #97.
+   manifest bytes. Then run `scripts/tex-canonical-verify.mjs` with the sealed
+   manifest against the published image: it must report one canonical
+   projection per profile that is byte-identical across two corpus renders and
+   pixel-identical PNG and PDF Artifacts. Attach its report as release
+   evidence. Comment with the image digest, release asset location, renderer
+   identity, corresponding-source URL, and verification result, then close
+   issue #97.
 
 The collector creates machine-derived evidence. Do not replace its files with
 test fixtures or guessed metadata. A human still supplies `NOTICES` and the

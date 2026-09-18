@@ -1,23 +1,16 @@
 name: tex-canonical
 
-# The canonical TeX renderer acceptance needs canonical Linux/amd64, the
-# sealed renderer image, and the pinned browser, so it runs on its own job
-# rather than in the per-OS matrix. It renders the five-profile corpus twice
-# and requires byte-identical normalized SVG plus pixel-identical PNG bytes.
+# The canonical TeX renderer acceptance needs canonical Linux/amd64, the sealed
+# renderer image, and the pinned browser. It renders the five-profile corpus
+# twice and requires byte-identical normalized SVG plus pixel-identical PNG and
+# PDF Artifacts. Run it from the release procedure (docs/tex-renderer.md).
+#
+# On-demand only: the sealed v1 image predates the batch entrypoint the current
+# compiler speaks, so a scheduled or pull-request trigger would fail until the
+# renderer is re-released. A candidate image is checked on the release machine
+# with `scripts/tex-canonical-verify.mjs --local --image <tag>`.
 on:
   workflow_dispatch:
-  schedule:
-    - cron: "0 6 * * 1"
-  pull_request:
-    paths:
-      - "src/tex-svg.ts"
-      - "src/tex-adapter.ts"
-      - "src/compiler.ts"
-      - "scripts/tex-*.mjs"
-      - "test/tex*.test.mjs"
-      - "test-files/tex/**"
-      - "release/tex-renderer-v1/**"
-      - ".github/workflows/tex-canonical.yml"
 
 jobs:
   canonical:
