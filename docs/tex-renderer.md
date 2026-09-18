@@ -72,6 +72,20 @@ extracting it. The build compares the installed TeX Live closure with
 `tex-renderer/package-closure.lock`, removes OS and TeX package-management
 commands, and makes `/opt/texlive` read-only.
 
+### Restoring the TeX Live ISO
+
+The ISO is intentionally not stored in Git. Before building the renderer,
+download the fixed release and verify it against the SHA-512 pinned in
+`Dockerfile.tex-renderer`:
+
+```bash
+curl --fail --location --output tex-renderer/texlive2026.iso \
+  https://tug.org/historic/systems/texlive/2026/texlive2026.iso
+printf '%s  %s\n' \
+  '4a9071bb567c3bdd6443378dedc8e485aea4a2f1203ec8ed7c17f6787093b9c37636a037032c0be63352e3d0bf98cf5616dab19fdcd7cb83f766b3e085b620ff' \
+  tex-renderer/texlive2026.iso | sha512sum --check --strict
+```
+
 ### Release procedure
 
 1. Choose an OCI registry location and obtain permission to publish the image.

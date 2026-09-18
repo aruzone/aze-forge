@@ -2,3 +2,6 @@ node_modules/
 dist/
 *.tmp
 .DS_Store
+
+# Downloaded separately; Dockerfile.tex-renderer verifies its pinned SHA-512.
+tex-renderer/texlive2026.iso
