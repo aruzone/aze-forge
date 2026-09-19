@@ -1,0 +1,158 @@
+# Producing canonical TeX renderer evidence
+
+The canonical TeX acceptance needs a Linux/amd64 environment: byte-identical
+normalized SVG across two corpus renders, PNG pixel identity, PDF byte
+identity, and identical projections for all five approved profiles. A GitHub
+runner is not required. This document is the procedure to follow on a Linux
+machine (or inside the container harness on any Docker host).
+
+Everything below is driven by the sealed release manifest for the current
+renderer:
+
+```text
+manifest   release/tex-renderer-v2/tex-renderer-v1.manifest.json
+digest     sha256:89386319c33f4e386289cfb4e79460a82946c255d0a344da1233e6d17a61e4e4
+image      docker.io/kkumaresan/aze-forge-tex-renderer@sha256:89386319c33f4e386289cfb4e79460a82946c255d0a344da1233e6d17a61e4e4
+identity   sha256:12d8fdb40b0b8632d5049476e8ff0c61b51731e2f4ff7ddc7afe1775a930ff25
+profiles   circuitikz, tikz, pgfplots, chemfig, tikz-cd
+```
+
+`identity` is the SHA-256 of the manifest bytes, so it changes whenever the
+manifest is re-sealed. Read it from the file rather than this page:
+
+```bash
+sha256sum release/tex-renderer-v2/tex-renderer-v1.manifest.json
+```
+
+## Option A — native Linux/amd64 host (preferred)
+
+Fast, uncontroversial, and identical to what `.github/workflows/ci.yml` runs in
+its `canonical` job. Ubuntu 24.04 x64 with Node 24 is the canonical host.
+
+```bash
+# 1. Toolchain
+sudo apt-get update
+sudo apt-get install -y docker.io git curl
+node --version                       # must be 24.x
+
+# 2. Source
+git clone git@github.com:aruzone/aze-forge.git
+cd aze-forge
+git checkout main                    # or the release commit being evidenced
+
+# 3. Dependencies, compiler, pinned browser
+npm ci                               # downloads chrome-headless-shell 152.0.7977.75
+npm run build --silent
+npx puppeteer browsers install chrome-headless-shell@152.0.7977.75   # only if npm ci skipped it
+
+# Ubuntu 24.04 restricts unprivileged user namespaces, which blocks Chrome's
+# sandbox. CI applies this per-run; it is ephemeral host configuration.
+sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+
+# 4. The sealed renderer image
+docker pull docker.io/kkumaresan/aze-forge-tex-renderer@sha256:89386319c33f4e386289cfb4e79460a82946c255d0a344da1233e6d17a61e4e4
+
+# 5. Environment gate: the committed golden baselines must reproduce
+npm run acceptance                   # exits 1 on any mismatch — stop if it fails
+```
+
+Then produce the evidence:
+
+```bash
+MANIFEST=release/tex-renderer-v2/tex-renderer-v1.manifest.json
+IMAGE=docker.io/kkumaresan/aze-forge-tex-renderer@sha256:89386319c33f4e386289cfb4e79460a82946c255d0a344da1233e6d17a61e4e4
+
+node scripts/tex-canonical-render.mjs \
+  --source docs/language/14-tex.aze.md \
+  --output /tmp/tex-canonical-render.html \
+  --image "$IMAGE" \
+  --renderer-manifest "$MANIFEST"      # must print "canonical":true
+
+node scripts/tex-canonical-verify.mjs \
+  --renderer-manifest "$MANIFEST" \
+  --output tex-canonical-report.json
+
+jq -r '.canonical' tex-canonical-report.json        # must be true
+```
+
+## Option B — container harness on any Docker host
+
+Use this on Apple silicon, where no x64 Linux machine is at hand. The whole
+check runs inside the canonical image, and the sealed renderer image is spawned
+through the host's Docker socket exactly as the canonical wrapper does.
+
+```bash
+git clone git@github.com:aruzone/aze-forge.git
+cd aze-forge
+node --version                       # any supported Node, host-side only
+
+npm run test:canonical-tex           # sealed v2 manifest, writes artifacts/
+# or, explicitly:
+bash scripts/tex-canonical-release.sh \
+  release/tex-renderer-v2/tex-renderer-v1.manifest.json artifacts
+```
+
+What the harness does:
+
+1. builds `Dockerfile.canonical` (Ubuntu 24.04 x64 + Node 24 + the pinned
+   browser) and `Dockerfile.canonical-release` (that image plus the Docker CLI);
+2. pulls the digest the manifest pins;
+3. runs `scripts/canonical-release-entrypoint.sh` inside the container, which
+   refuses to continue outside Linux/x64 with Node 24, runs `npm run acceptance`
+   as the environment gate, then runs the canonical render and the projection
+   report, and finally requires the report to be `canonical:true` with a
+   `rendererIdentity` equal to the SHA-256 of the sealed manifest.
+
+Expect minutes to tens of minutes: Chromium renders run under amd64 emulation.
+The run ends with `canonical evidence OK: sha256:…` and writes
+`artifacts/tex-canonical-report.json` plus `artifacts/tex-canonical-render.html`.
+
+The container is `--privileged` (CI's own Chrome-sandbox sysctl) and holds
+`/var/run/docker.sock` (to spawn the renderer image). Treat this harness as a
+release tool that runs repository-owned code only.
+
+## What a passing report means
+
+`tex-canonical-report.json` carries `canonical`, `image`, `rendererIdentity`
+and one entry per profile:
+
+| Field | Requirement |
+| --- | --- |
+| `canonical` | `true` — only a Linux/x64 run may report this |
+| `rendererIdentity` | equals the SHA-256 of the sealed manifest bytes |
+| `rendererSvgSha256` | byte-identical across two corpus renders, and equal to the manifest's `corpus.fixtures[].outputHash` for that profile |
+| `projectionSha256` | byte-identical across both renders |
+| `png.artifactHash` | pixel-identical across two compilations |
+| `pdfArtifactHash` | byte-identical across two compilations |
+
+`tex-canonical-verify.mjs` asserts all of this plus: HTML and SVG carry the same
+`<figure class="aze-tex" data-tex-profile="…">` projection, and each compilation
+invokes TeX exactly once. It exits non-zero on the first failure and writes no
+report.
+
+Attach the report to the release record (issue #95 and the release procedure)
+together with the image digest, the corresponding-source URL and the renderer
+identity.
+
+## Troubleshooting
+
+| Symptom | Cause and fix |
+| --- | --- |
+| `"canonical": false` from a run you expected to be canonical | The host is not Linux/x64. That is expected on macOS/arm64 and is not release evidence. |
+| `docker: command not found` inside the container | The Docker socket is not mounted; run through `scripts/tex-canonical-release.sh`. |
+| `the Docker socket is not mounted` | Same as above. |
+| `npm run acceptance` fails, or reports mismatched `png/*` cells | The environment does not reproduce the canonical baselines. Do not use any report from that run; check the Node major version, the pinned browser version and the OS/arch. |
+| `azeforge.renderer#browser-unavailable` or a Chrome launch failure on Ubuntu 24.04 | Apply `sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0`. |
+| Chrome or puppeteer cannot find the engine | `npx puppeteer browsers install chrome-headless-shell@152.0.7977.75`. |
+| `Cannot connect to the Docker daemon` / I/O errors during a build | Docker's disk image is full or corrupt. `docker system prune -a` (and restart Docker Desktop on macOS). |
+| A build takes forever and the host disk fills | The build context is shipping the 6.3 GB `tex-renderer/texlive2026.iso`. The canonical builds exclude it through `Dockerfile.canonical.dockerignore` and `Dockerfile.canonical-release.dockerignore`; do not delete `.dockerignore` for `Dockerfile.tex-renderer`, which does need the ISO. |
+| `tex-canonical-verify.mjs --refresh` refuses to run | `--refresh` rewrites the golden baselines and is refused outside the canonical host. Never use it to produce evidence. |
+
+## Do not use as evidence
+
+- A report from any non-Linux/x64 host, even when the profile hashes match
+  (the PNG and PDF hashes come from the host's browser).
+- `--local` runs: they validate a candidate image against the sealed corpus
+  hashes before publishing, and are always `canonical:false`.
+- A `canonical:true` report whose `rendererIdentity` does not equal the SHA-256
+  of the sealed manifest bytes.

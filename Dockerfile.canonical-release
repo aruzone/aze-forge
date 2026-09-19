@@ -1,0 +1,16 @@
+# Release-evidence runner: the canonical Linux/amd64 image
+# (`Dockerfile.canonical`) plus the Docker CLI, so the sealed TeX renderer image
+# can be spawned through the host's Docker socket exactly as the canonical
+# wrapper does. Built and driven by `scripts/tex-canonical-release.sh`; keeping
+# the environment in Dockerfile.canonical keeps CI parity.
+FROM docker:28-cli AS dockercli
+
+FROM aze-forge-canonical
+
+USER root
+COPY --from=dockercli /usr/local/bin/docker /usr/local/bin/docker
+COPY scripts/canonical-release-entrypoint.sh /usr/local/bin/canonical-release-entrypoint.sh
+RUN chmod 0755 /usr/local/bin/canonical-release-entrypoint.sh
+
+USER runner
+ENTRYPOINT ["/usr/local/bin/canonical-release-entrypoint.sh"]

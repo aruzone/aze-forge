@@ -1,0 +1,14 @@
+# Per-Dockerfile context for the release-evidence image; see
+# Dockerfile.canonical.dockerignore.
+node_modules/
+dist/
+.git/
+*.tmp
+.DS_Store
+acceptance/manual-evidence/
+tex-renderer/texlive2026.iso
+evidence/
+artifacts/
+*.tgz
+e/
+*.tgz

@@ -217,7 +217,12 @@ async function verify() {
   ];
 
   const directory = await mkdtemp(join(tmpdir(), "azeforge-tex-canonical-"));
-  const report = { canonical: !local, image, rendererIdentity: identity, profiles: [] };
+  // Only a native Linux/amd64 run is canonical evidence: the pixel comparison
+  // renders through the host's pinned browser, so a macOS or arm64 host can
+  // reproduce the same bytes locally while still not being the canonical
+  // environment the workflow asserts.
+  const canonicalHost = process.platform === "linux" && process.arch === "x64";
+  const report = { canonical: !local && canonicalHost, image, rendererIdentity: identity, profiles: [] };
   try {
     for (const [index, profile] of TEX_PROFILES.entries()) {
       const raw = firstRun[index];

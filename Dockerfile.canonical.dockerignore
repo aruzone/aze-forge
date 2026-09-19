@@ -1,0 +1,16 @@
+# Per-Dockerfile context for the canonical image. BuildKit uses
+# `Dockerfile.canonical.dockerignore` instead of `.dockerignore`, which keeps the
+# 6.3 GB TeX Live ISO out of every canonical build while
+# `Dockerfile.tex-renderer` still receives it.
+node_modules/
+dist/
+.git/
+*.tmp
+.DS_Store
+acceptance/manual-evidence/
+tex-renderer/texlive2026.iso
+evidence/
+artifacts/
+*.tgz
+e/
+*.tgz

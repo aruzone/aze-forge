@@ -186,6 +186,41 @@ contains a `tex` Block and the renderer is unavailable, compilation emits an
 actionable diagnostic and produces no Artifact. Documents without `tex` Blocks
 do not require the renderer.
 
+## Local canonical evidence
+
+Releases do not need a GitHub runner. The canonical check can run inside the
+canonical Linux/amd64 container on any Docker host, with the sealed renderer
+image spawned through the host's Docker socket exactly as the canonical wrapper
+does:
+
+```bash
+npm run test:canonical-tex          # sealed v2 manifest, artifacts/
+bash scripts/tex-canonical-release.sh release/tex-renderer-v2/tex-renderer-v1.manifest.json out/
+```
+
+`scripts/tex-canonical-release.sh` builds `Dockerfile.canonical` (Ubuntu 24.04
+x64, Node 24) and `Dockerfile.canonical-release` (that image plus the Docker
+CLI), pulls the digest the manifest pins, and runs
+`scripts/canonical-release-entrypoint.sh` inside it. The entrypoint refuses to
+continue outside Linux/x64 with Node 24, runs `npm run acceptance` as the
+environment gate — the committed `acceptance/expected.json` hashes and
+`acceptance/expected-png/` bytes must reproduce — then runs
+`tex-canonical-render.mjs` over `docs/language/14-tex.aze.md` and
+`tex-canonical-verify.mjs`, and finally requires the report to be
+`canonical:true` with a `rendererIdentity` equal to the SHA-256 of the sealed
+manifest.
+
+`tex-canonical-verify.mjs` marks a report canonical only on Linux/x64, so a run
+on the host itself is always `canonical:false`. Emulated x64 (Apple silicon) is
+accepted because the golden baselines are byte-compared inside the same
+container before the TeX steps; a mismatch fails the run instead of producing
+evidence. The container is privileged and holds the Docker socket, so treat the
+harness as a release tool that runs repository-owned code only.
+
+The full procedure — native Linux/amd64 host or the container harness,
+requirements, what a passing report means, and troubleshooting — is in
+[`docs/tex-canonical-evidence.md`](tex-canonical-evidence.md).
+
 ## Releasing the official renderer
 
 
@@ -266,6 +301,11 @@ printf '%s  %s\n' \
    evidence. Comment with the image digest, release asset location, renderer
    identity, corresponding-source URL, and verification result, then close the
    tracking issue.
+
+   Without GitHub runners, `npm run test:canonical-tex` (or
+   `scripts/tex-canonical-release.sh <manifest> <output>`) performs this step
+   and the verify run inside the canonical container — see
+   [Local canonical evidence](#local-canonical-evidence).
 
 The collector creates machine-derived evidence. Do not replace its files with
 test fixtures or guessed metadata. A human still supplies `NOTICES` and the
