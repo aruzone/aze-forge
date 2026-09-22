@@ -222,6 +222,126 @@ export function checkAcceptanceCoverage(declaredIds) {
         unknown: [...declared].filter((id) => !known.has(id)),
     };
 }
+export const ACCEPTANCE_SUITE_EVIDENCE = Object.freeze([
+    { id: "P0-DOC-001", suite: "test/compiler.test.mjs" },
+    { id: "P0-DOC-002", suite: "test/compiler.test.mjs" },
+    { id: "P0-DOC-003", suite: "test/cli.test.mjs" },
+    { id: "P0-DOC-004", suite: "test/acceptance.test.mjs" },
+    { id: "P0-DIAG-001", suite: "test/cli.test.mjs" },
+    { id: "P0-DIAG-002", suite: "test/cli.test.mjs" },
+    { id: "P0-DIAG-003", suite: "test/fail-closed.test.mjs" },
+    { id: "P0-PLUGIN-001", suite: "test/equation.test.mjs" },
+    { id: "P0-PLUGIN-002", suite: "test/fail-closed.test.mjs" },
+    { id: "P0-CLI-001", suite: "test/acceptance.test.mjs" },
+    { id: "P0-CLI-002", suite: "test/cli.test.mjs" },
+    { id: "P0-CLI-003", suite: "test/format.test.mjs" },
+    { id: "P0-CLI-004", suite: "test/watch-serve.test.mjs" },
+    { id: "P0-CLI-005", suite: "test/watch-serve.test.mjs" },
+    { id: "P0-CLI-006", suite: "test/cli.test.mjs" },
+    { id: "P0-CLI-007", suite: "test/acceptance.test.mjs" },
+    { id: "P0-EQN-001", suite: "test/equation.test.mjs" },
+    { id: "P0-EQN-002", suite: "test/equation.test.mjs" },
+    { id: "P0-EQN-003", suite: "test/native-math.test.mjs" },
+    { id: "P0-DRV-001", suite: "test/derivation.test.mjs" },
+    { id: "P0-PLT-001", suite: "test/plot.test.mjs" },
+    { id: "P0-PLT-002", suite: "test/plot.test.mjs" },
+    { id: "P0-CHT-001", suite: "test/plot.test.mjs" },
+    { id: "P0-GEO-001", suite: "test/geometry.test.mjs" },
+    { id: "P0-GEO-002", suite: "test/geometry.test.mjs" },
+    { id: "P0-CHE-001", suite: "test/chemistry.test.mjs" },
+    { id: "P0-CHE-002", suite: "test/chemistry.test.mjs" },
+    { id: "P0-TIM-001", suite: "test/timing.test.mjs" },
+    { id: "P0-TIM-002", suite: "test/timing.test.mjs" },
+    { id: "P0-DIA-001", suite: "test/diagram.test.mjs" },
+    { id: "P0-DIA-002", suite: "test/diagram-block.test.mjs" },
+    { id: "P0-MOD-001", suite: "test/models.test.mjs" },
+    { id: "P0-MOD-002", suite: "test/models-block.test.mjs" },
+    { id: "P0-ENG-001", suite: "test/engineering.test.mjs" },
+    { id: "P0-ENG-002", suite: "test/engineering-block.test.mjs" },
+    { id: "P0-STR-001", suite: "test/structured-content.test.mjs" },
+    { id: "P0-STR-002", suite: "test/structured-content.test.mjs" },
+    { id: "P0-CMP-001", suite: "test/composition.test.mjs" },
+    { id: "P0-CMP-002", suite: "test/composition.test.mjs" },
+    { id: "P0-MMD-001", suite: "test/mermaid.test.mjs" },
+    { id: "P0-OUT-001", suite: "test/acceptance.test.mjs" },
+    { id: "P0-OUT-002", suite: "test/acceptance.test.mjs" },
+    { id: "P0-OUT-003", suite: "test/acceptance.test.mjs" },
+    { id: "P0-OUT-004", suite: "test/acceptance.test.mjs" },
+    { id: "P0-OUT-005", suite: "test/pdf.test.mjs" },
+    { id: "P0-SEC-001", suite: "test/fail-closed.test.mjs" },
+    { id: "P0-SEC-002", suite: "test/mermaid.test.mjs" },
+    { id: "P0-SEC-003", suite: "test/equation.test.mjs" },
+    { id: "P0-SEC-004", suite: "test/fail-closed.test.mjs" },
+    { id: "P0-COMPAT-001", suite: "test/capabilities.test.mjs" },
+    { id: "P0-AUTHOR-001", suite: "test/acceptance.test.mjs" },
+]);
+/** Every declared suite file, deduplicated and sorted. */
+export const ACCEPTANCE_SUITE_FILES = Object.freeze([
+    ...new Set(ACCEPTANCE_SUITE_EVIDENCE.map((evidence) => evidence.suite)),
+].sort());
+const ENTRY_BY_ACCEPTANCE_ID = Object.fromEntries(ACCEPTANCE_ENTRIES.map((entry) => [entry.id, entry]));
+/**
+ * Coverage gate for the suite registry: every required automated P0 entry needs
+ * exactly one suite, and no declaration may name an unknown or repeated ID.
+ */
+export function checkAcceptanceSuiteEvidence(declared) {
+    const seen = new Set();
+    const duplicate = [];
+    for (const evidence of declared) {
+        if (seen.has(evidence.id))
+            duplicate.push(evidence.id);
+        seen.add(evidence.id);
+    }
+    return { ...checkAcceptanceCoverage([...seen]), duplicate };
+}
+/**
+ * The summary a TAP `node --test` run prints, so a crashed suite is never
+ * mistaken for a green one: `undefined` means the output carried no summary and
+ * the caller must fall back to the exit status.
+ */
+export function parseTestSummary(output) {
+    const lines = output.split(/\r?\n/).map((line) => line.trim());
+    const count = (label) => {
+        const pattern = new RegExp(`^#\\s*${label}\\s+(\\d+)$`);
+        for (const line of lines) {
+            const match = pattern.exec(line);
+            if (match !== null)
+                return Number(match[1]);
+        }
+        return undefined;
+    };
+    const pass = count("pass");
+    const fail = count("fail");
+    if (pass === undefined || fail === undefined)
+        return undefined;
+    const failure = lines.find((line) => line.startsWith("not ok "));
+    return failure === undefined ? { pass, fail } : { pass, fail, failure };
+}
+/**
+ * One acceptance-report result per required automated P0 entry, from the
+ * outcome of the suite that executes it. Entries the runner proved directly are
+ * left out: the runner's own check is authoritative for them, and a report must
+ * not carry two verdicts for one entry.
+ */
+export function catalogResultsFromSuites(outcomes, executedIds = []) {
+    const executed = new Set(executedIds);
+    const bySuite = new Map(outcomes.map((outcome) => [outcome.suite, outcome]));
+    const results = [];
+    for (const evidence of ACCEPTANCE_SUITE_EVIDENCE) {
+        if (executed.has(evidence.id))
+            continue;
+        const outcome = bySuite.get(evidence.suite);
+        results.push({
+            id: evidence.id,
+            name: ENTRY_BY_ACCEPTANCE_ID[evidence.id]?.when ?? evidence.id,
+            pass: outcome?.pass === true,
+            detail: outcome === undefined
+                ? `${evidence.suite}: did not run`
+                : `${evidence.suite}: ${outcome.detail}`,
+        });
+    }
+    return results;
+}
 export const acceptanceJsonSchema = Object.freeze({
     $schema: "https://json-schema.org/draft/2020-12/schema",
     $id: ACCEPTANCE_SCHEMA_ID,

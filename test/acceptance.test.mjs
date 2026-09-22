@@ -1,13 +1,14 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 
 import {
+  ACCEPTANCE_SUITE_EVIDENCE,
   AUTOMATED_P0_IDS,
   checkAcceptanceCoverage,
   createAcceptanceCatalog,
@@ -18,63 +19,9 @@ const ROOT = fileURLToPath(new URL("../", import.meta.url));
 const GOLDEN_PATH = new URL("../acceptance/golden-report.aze.md", import.meta.url);
 const PAGINATION_URL = new URL("../acceptance/pagination/", import.meta.url);
 
-// Every required automated P0 entry and the test file that evidences it.
-// acceptance.test.mjs proves the catalog, Golden, determinism, pagination,
-// author-loop, and visual-bound entries directly; the remaining entries name
-// the existing suite file that owns their observable contract.
-const SUITE_EVIDENCE = [
-  ["P0-DOC-001", "test/compiler.test.mjs"],
-  ["P0-DOC-002", "test/compiler.test.mjs"],
-  ["P0-DOC-003", "test/cli.test.mjs"],
-  ["P0-DOC-004", "test/acceptance.test.mjs"],
-  ["P0-DIAG-001", "test/cli.test.mjs"],
-  ["P0-DIAG-002", "test/cli.test.mjs"],
-  ["P0-DIAG-003", "test/fail-closed.test.mjs"],
-  ["P0-PLUGIN-001", "test/equation.test.mjs"],
-  ["P0-PLUGIN-002", "test/fail-closed.test.mjs"],
-  ["P0-CLI-001", "test/acceptance.test.mjs"],
-  ["P0-CLI-002", "test/cli.test.mjs"],
-  ["P0-CLI-003", "test/format.test.mjs"],
-  ["P0-CLI-004", "test/watch-serve.test.mjs"],
-  ["P0-CLI-005", "test/watch-serve.test.mjs"],
-  ["P0-CLI-006", "test/cli.test.mjs"],
-  ["P0-CLI-007", "test/acceptance.test.mjs"],
-  ["P0-EQN-001", "test/equation.test.mjs"],
-  ["P0-EQN-002", "test/equation.test.mjs"],
-  ["P0-EQN-003", "test/native-math.test.mjs"],
-  ["P0-DRV-001", "test/derivation.test.mjs"],
-  ["P0-PLT-001", "test/plot.test.mjs"],
-  ["P0-PLT-002", "test/plot.test.mjs"],
-  ["P0-CHT-001", "test/plot.test.mjs"],
-  ["P0-GEO-001", "test/geometry.test.mjs"],
-  ["P0-GEO-002", "test/geometry.test.mjs"],
-  ["P0-CHE-001", "test/chemistry.test.mjs"],
-  ["P0-CHE-002", "test/chemistry.test.mjs"],
-  ["P0-TIM-001", "test/timing.test.mjs"],
-  ["P0-TIM-002", "test/timing.test.mjs"],
-  ["P0-DIA-001", "test/diagram.test.mjs"],
-  ["P0-DIA-002", "test/diagram-block.test.mjs"],
-  ["P0-MOD-001", "test/models.test.mjs"],
-  ["P0-MOD-002", "test/models-block.test.mjs"],
-  ["P0-ENG-001", "test/engineering.test.mjs"],
-  ["P0-ENG-002", "test/engineering-block.test.mjs"],
-  ["P0-STR-001", "test/structured-content.test.mjs"],
-  ["P0-STR-002", "test/structured-content.test.mjs"],
-  ["P0-CMP-001", "test/composition.test.mjs"],
-  ["P0-CMP-002", "test/composition.test.mjs"],
-  ["P0-MMD-001", "test/mermaid.test.mjs"],
-  ["P0-OUT-001", "test/acceptance.test.mjs"],
-  ["P0-OUT-002", "test/acceptance.test.mjs"],
-  ["P0-OUT-003", "test/acceptance.test.mjs"],
-  ["P0-OUT-004", "test/acceptance.test.mjs"],
-  ["P0-OUT-005", "test/pdf.test.mjs"],
-  ["P0-SEC-001", "test/fail-closed.test.mjs"],
-  ["P0-SEC-002", "test/mermaid.test.mjs"],
-  ["P0-SEC-003", "test/equation.test.mjs"],
-  ["P0-SEC-004", "test/fail-closed.test.mjs"],
-  ["P0-COMPAT-001", "test/capabilities.test.mjs"],
-  ["P0-AUTHOR-001", "test/acceptance.test.mjs"],
-];
+// Every required automated P0 entry and the suite file that evidences it lives
+// in the package (`ACCEPTANCE_SUITE_EVIDENCE`), so the acceptance runner and
+// this test read one declaration instead of two that can drift.
 
 function runCli(arguments_, cwd, options = {}) {
   return spawnSync(process.execPath, [CLI_PATH, ...arguments_], {
@@ -244,12 +191,9 @@ test("acceptance catalog is canonical and coverage rejects missing or unknown ID
   assert.equal(canonical.catalog.id, "azeforge.acceptance/v1");
   assert.equal(canonical.entries.filter((item) => item.gate === "p0").length, 51);
 
-  const declared = SUITE_EVIDENCE.map(([id]) => id);
+  const declared = ACCEPTANCE_SUITE_EVIDENCE.map((evidence) => evidence.id);
   assert.deepEqual(checkAcceptanceCoverage(declared), { missing: [], unknown: [] });
   assert.deepEqual(checkAcceptanceCoverage([...AUTOMATED_P0_IDS, "P0-NOPE-000"]).unknown, ["P0-NOPE-000"]);
-  for (const [, file] of SUITE_EVIDENCE) {
-    await stat(new URL(`../${file}`, import.meta.url));
-  }
 });
 
 test("golden report validates and carries every object through HTML under all themes", async (context) => {

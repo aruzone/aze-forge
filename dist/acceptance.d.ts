@@ -32,6 +32,62 @@ export declare function checkAcceptanceCoverage(declaredIds: readonly string[]):
     readonly missing: readonly string[];
     readonly unknown: readonly string[];
 };
+/**
+ * The suite file that executes each required automated P0 entry's contract.
+ *
+ * The catalog says what must hold; this registry says where it is executed, so
+ * the acceptance runner can report a result for every automated entry instead
+ * of restating the contract in a second place. `test/acceptance.test.mjs`
+ * proves the catalog, Golden, determinism, pagination, author-loop, and
+ * visual-bound entries directly; the remaining entries name the suite file
+ * that owns their observable contract.
+ */
+export interface AcceptanceSuiteEvidence {
+    readonly id: string;
+    readonly suite: string;
+}
+export declare const ACCEPTANCE_SUITE_EVIDENCE: readonly AcceptanceSuiteEvidence[];
+/** Every declared suite file, deduplicated and sorted. */
+export declare const ACCEPTANCE_SUITE_FILES: readonly string[];
+/**
+ * Coverage gate for the suite registry: every required automated P0 entry needs
+ * exactly one suite, and no declaration may name an unknown or repeated ID.
+ */
+export declare function checkAcceptanceSuiteEvidence(declared: readonly AcceptanceSuiteEvidence[]): {
+    readonly missing: readonly string[];
+    readonly unknown: readonly string[];
+    readonly duplicate: readonly string[];
+};
+export interface TestSummary {
+    readonly pass: number;
+    readonly fail: number;
+    /** The first failing test line, for an actionable report detail. */
+    readonly failure?: string;
+}
+/**
+ * The summary a TAP `node --test` run prints, so a crashed suite is never
+ * mistaken for a green one: `undefined` means the output carried no summary and
+ * the caller must fall back to the exit status.
+ */
+export declare function parseTestSummary(output: string): TestSummary | undefined;
+export interface AcceptanceSuiteOutcome {
+    readonly suite: string;
+    readonly pass: boolean;
+    readonly detail: string;
+}
+export interface AcceptanceSuiteResult {
+    readonly id: string;
+    readonly name: string;
+    readonly pass: boolean;
+    readonly detail: string;
+}
+/**
+ * One acceptance-report result per required automated P0 entry, from the
+ * outcome of the suite that executes it. Entries the runner proved directly are
+ * left out: the runner's own check is authoritative for them, and a report must
+ * not carry two verdicts for one entry.
+ */
+export declare function catalogResultsFromSuites(outcomes: readonly AcceptanceSuiteOutcome[], executedIds?: readonly string[]): readonly AcceptanceSuiteResult[];
 export declare const acceptanceJsonSchema: JsonValue;
 export interface AcceptanceCatalogDocument {
     readonly schema: typeof ACCEPTANCE_SCHEMA_ID;

@@ -6,6 +6,10 @@
 // cache-identity mutation, pagination boundaries, the modify/diagnose/repair
 // loop, visual bounds, and the developer-only baseline refresh.
 //
+// It also executes the suite that evidences every automated P0 catalog entry
+// the runner does not check itself, so the report carries one verdict per
+// automated entry rather than the Golden matrix's entries alone.
+//
 // Usage:
 //   node scripts/acceptance.mjs [--json] [--refresh]
 //   AZEFORGE_CLI=azeforge node scripts/acceptance.mjs [--json]
@@ -293,8 +297,14 @@ function pdfHexField(bytes, name) {
 // --- Catalog ---
 
 async function stepCatalog() {
-  const { createAcceptanceCatalog, checkAcceptanceCoverage, AUTOMATED_P0_IDS } =
-    await import("../dist/acceptance.js");
+  const {
+    createAcceptanceCatalog,
+    checkAcceptanceCoverage,
+    checkAcceptanceSuiteEvidence,
+    ACCEPTANCE_SUITE_EVIDENCE,
+    ACCEPTANCE_SUITE_FILES,
+    AUTOMATED_P0_IDS,
+  } = await import("../dist/acceptance.js");
   const canonical = createAcceptanceCatalog();
   let onDisk;
   try {
@@ -315,8 +325,63 @@ async function stepCatalog() {
   check("P0-CLI-007", "catalog IDs are unique", ids.size === canonical.entries.length, `${ids.size} unique IDs`);
   const coverage = checkAcceptanceCoverage(AUTOMATED_P0_IDS);
   check("P0-CLI-007", "coverage rejects missing and unknown IDs", coverage.missing.length === 0 && coverage.unknown.length === 0, `${AUTOMATED_P0_IDS.length} automated P0 IDs`);
+  const suiteCoverage = checkAcceptanceSuiteEvidence(ACCEPTANCE_SUITE_EVIDENCE);
+  check(
+    "P0-CLI-007",
+    "every automated P0 entry declares exactly one executing suite",
+    suiteCoverage.missing.length === 0 &&
+      suiteCoverage.unknown.length === 0 &&
+      suiteCoverage.duplicate.length === 0,
+    `${ACCEPTANCE_SUITE_EVIDENCE.length} declared suites over ${ACCEPTANCE_SUITE_FILES.length} files`,
+  );
   const unknown = checkAcceptanceCoverage([...AUTOMATED_P0_IDS, "P0-NOPE-000"]);
   check("P0-CLI-007", "coverage rejects unknown IDs", unknown.unknown.length === 1, unknown.unknown.join(","));
+}
+
+// --- Catalog evidence ---
+
+/**
+ * Executes the suite that evidences each automated P0 catalog entry and adds
+ * its verdict to the report, so the report covers the whole catalog and not the
+ * Golden matrix alone. An entry the runner checked directly keeps the runner's
+ * verdict; it is never reported twice.
+ */
+async function stepCatalogEvidence() {
+  const {
+    ACCEPTANCE_SUITE_EVIDENCE,
+    ACCEPTANCE_SUITE_FILES,
+    catalogResultsFromSuites,
+    parseTestSummary,
+  } = await import("../dist/acceptance.js");
+  const executed = new Set(results.map((result) => result.id));
+  const pending = ACCEPTANCE_SUITE_FILES.filter((suite) =>
+    ACCEPTANCE_SUITE_EVIDENCE.some(
+      (evidence) => evidence.suite === suite && !executed.has(evidence.id),
+    ),
+  );
+  const outcomes = [];
+  for (const suite of pending) {
+    const run = spawnSync(process.execPath, ["--test", "--test-reporter=tap", suite], {
+      cwd: ROOT,
+      encoding: "utf8",
+      maxBuffer: 64 * 1024 * 1024,
+    });
+    const summary = parseTestSummary(`${run.stdout ?? ""}\n${run.stderr ?? ""}`);
+    outcomes.push({
+      suite,
+      pass: run.status === 0,
+      detail:
+        summary === undefined
+          ? `exit ${run.status ?? "unknown"}`
+          : `${summary.pass} pass, ${summary.fail} fail${summary.failure === undefined ? "" : `: ${summary.failure}`}`,
+    });
+    if (!JSON_MODE) {
+      process.stderr.write(
+        `${run.status === 0 ? "PASS" : "FAIL"} [suite] ${suite}${summary === undefined ? "" : ` — ${summary.pass} pass, ${summary.fail} fail`}\n`,
+      );
+    }
+  }
+  results.push(...catalogResultsFromSuites(outcomes, [...executed]));
 }
 
 // --- Golden matrix ---
@@ -976,6 +1041,7 @@ async function main() {
   await stepPagination(live);
   await stepAuthorLoop(live);
   await stepVisualBounds();
+  await stepCatalogEvidence();
 
   const fingerprints = {};
   for (const [cell, entry] of Object.entries(live.golden)) {

@@ -111,6 +111,27 @@ The container is `--privileged` (CI's own Chrome-sandbox sysctl) and holds
 `/var/run/docker.sock` (to spawn the renderer image). Treat this harness as a
 release tool that runs repository-owned code only.
 
+## Rewriting the Golden baselines
+
+`acceptance/expected.json` and `acceptance/expected-png/` may only be rewritten
+on the canonical host, and a rewrite is a reviewed commit. Either run
+`npm run acceptance:refresh` on a native Ubuntu 24.04 x64 / Node 24 host, or use
+the container:
+
+```bash
+npm run acceptance:refresh-canonical       # writes artifacts/baseline/
+diff -u acceptance/expected.json artifacts/baseline/expected.json
+cp artifacts/baseline/expected.json acceptance/expected.json
+cp -R artifacts/baseline/expected-png/. acceptance/expected-png/
+```
+
+The refresh is refused under CI and outside the canonical host (Linux/x64, Node
+24, Ubuntu 24.04), and it prints one `DIFF <cell>: artifact <old> -> <new>` line
+per changed cell. Until the reviewed baselines are committed, the acceptance
+report keeps failing its `P0-OUT-002` cells — that drift is exactly what the
+`aze-forge-web` cutover clause refuses, and it is the one thing a code change
+cannot fix.
+
 ## What a passing report means
 
 `tex-canonical-report.json` carries `canonical`, `image`, `rendererIdentity`
@@ -129,6 +150,12 @@ and one entry per profile:
 `<figure class="aze-tex" data-tex-profile="…">` projection, and each compilation
 invokes TeX exactly once. It exits non-zero on the first failure and writes no
 report.
+
+The acceptance report is separate: `node scripts/acceptance.mjs --json` writes
+one result per automated P0 catalog entry (51 today) — the runner's own Golden,
+pagination, author-loop and determinism checks for the IDs it executes directly,
+and the declared suite's outcome for the rest — so the cutover clause finds a
+green automated entry in every family area.
 
 Attach the report to the release record (issue #95 and the release procedure)
 together with the image digest, the corresponding-source URL and the renderer

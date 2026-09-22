@@ -54,6 +54,7 @@
     "test:canonical-suite": "node --test --test-reporter=tap test/acceptance.test.mjs test/mermaid.test.mjs test/pdf.test.mjs test/png.test.mjs test/svg.test.mjs test/tex-artifacts.test.mjs",
     "test:canonical-local": "docker build --platform linux/amd64 -f Dockerfile.canonical -t aze-forge-canonical . && docker run --rm --privileged --platform linux/amd64 aze-forge-canonical",
     "test:canonical-tex": "bash scripts/tex-canonical-release.sh",
+    "acceptance:refresh-canonical": "bash scripts/tex-canonical-release.sh --refresh",
     "test:compiler": "npm run build --silent && node --test test/compiler.test.mjs",
     "test:cli": "npm run build --silent && node --test test/cli.test.mjs",
     "test:acceptance": "npm run build --silent && node --test test/acceptance.test.mjs",
