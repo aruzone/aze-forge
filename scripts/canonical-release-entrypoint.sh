@@ -37,11 +37,13 @@ manifest="${2:?usage: canonical-release-entrypoint.sh evidence <sealed-manifest>
 output="${3:-/out}"
 report="$output/tex-canonical-report.json"
 
-docker version >/dev/null ||
-  {
-    echo "the Docker socket is not mounted; the sealed renderer cannot be spawned" >&2
-    exit 1
-  }
+# A missing socket, a socket the daemon refuses (Docker Desktop serves it to
+# root only), and a relayed socket all fail here. Keep the daemon's own reason
+# in the message: the three need different fixes.
+if ! docker_error="$(docker version 2>&1 >/dev/null)"; then
+  echo "the sealed renderer cannot be spawned: docker is unreachable from this container (${docker_error:-no output})" >&2
+  exit 1
+fi
 
 echo "--- golden acceptance environment gate"
 npm run acceptance --silent

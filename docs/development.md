@@ -57,10 +57,14 @@ node --test test/equation.test.mjs
 - `test:canonical-local` runs those two suites in a local Docker replica
   of the canonical CI job (`Dockerfile.canonical`, Ubuntu 24.04 x64 +
   Node 24). The acceptance `--refresh` host gate passes inside the
-  container. On ARM64 hosts Docker emulates x64: semantic evidence is
-  green, but byte-identical PNG/fingerprint evidence and the pinned
-  mermaid render timeouts do not reproduce under emulation — those
-  cells still need real x64 (CI) before they count as canonical.
+  container, so the container harness can produce baselines on any Docker
+  host. On ARM64 hosts Docker emulates x64 and the results are not
+  canonical evidence. A mismatch against the committed baselines is
+  usually drift, not emulation: `contentHash` is derived from parsed
+  semantics and `rendererFingerprint` from renderer configuration, so
+  both move on every host once the Golden corpus or a renderer changes.
+  Only a real x64 refresh is trustworthy; see
+  [`docs/tex-canonical-evidence.md`](tex-canonical-evidence.md).
 - `test/grammar.test.mjs` is the grammar seam: `azeforge grammar` and the
   `buildGrammarDocument` library call. It is the anti-drift gate between the
   published description and the compiler it describes — every described header

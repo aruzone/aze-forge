@@ -60,7 +60,10 @@ docker build --platform linux/amd64 -f Dockerfile.canonical-release -t aze-forge
 
 if [ "$mode" = "evidence" ]; then
   echo "--- sealed renderer image: ${image}"
-  docker pull "$image"
+  # The sealed image is linux/amd64 only; without --platform an Apple-silicon
+  # host resolves linux/arm64 and the pull fails with "no matching manifest".
+  # The harness is documented for exactly that host (docs/tex-canonical-evidence.md).
+  docker pull --platform linux/amd64 "$image"
 fi
 
 # The container runs as `runner`; its output directory is the only host-visible
@@ -71,8 +74,24 @@ chmod 0777 "$output_dir"
 # --privileged exists only for CI's own Chrome-sandbox sysctl; the socket mount
 # is what lets the container spawn the sealed renderer image. Both are confined
 # to this release tool, which runs repository-owned code only.
+#
+# The entrypoint runs as `runner` (uid 1001), a member of its own group only, so
+# it reaches the mounted socket through the socket's group. On a Linux host that
+# group is `docker`, whose gid varies per machine; pass the mounted socket's gid
+# explicitly instead of depending on it being 1000. Docker Desktop on macOS
+# denies every non-root connection regardless, which no gid can fix.
+socket_gid="$(
+  stat -L -c '%g' /var/run/docker.sock 2>/dev/null ||
+    stat -L -f '%g' /var/run/docker.sock 2>/dev/null ||
+    true
+)"
 run_container() {
+  local -a socket_group=()
+  if [ -n "$socket_gid" ]; then
+    socket_group=(--group-add "$socket_gid")
+  fi
   docker run --rm --privileged --platform linux/amd64 \
+    ${socket_group[@]+"${socket_group[@]}"} \
     -v /var/run/docker.sock:/var/run/docker.sock \
     -v "$PWD/$output_dir:/out" \
     aze-forge-canonical-release "$@"

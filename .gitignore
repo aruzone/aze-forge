@@ -4,6 +4,9 @@ node_modules/
 # devDependencies. The registry tarball is rebuilt by prepublishOnly.
 *.tmp
 .DS_Store
+# Release evidence and refreshed baselines written by scripts/*-release.sh
+# (`artifacts/`); review-only output, never committed.
+artifacts/
 
 # Downloaded separately; Dockerfile.tex-renderer verifies its pinned SHA-512.
 tex-renderer/texlive2026.iso

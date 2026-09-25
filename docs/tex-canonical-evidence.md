@@ -56,6 +56,15 @@ docker pull docker.io/kkumaresan/aze-forge-tex-renderer@sha256:89386319c33f4e386
 npm run acceptance                   # exits 1 on any mismatch — stop if it fails
 ```
 
+When step 5 fails only on `P0-OUT-002` cells, the committed baselines are stale
+relative to the renderers: refresh them on this host, review, and commit before
+going further — `npm run acceptance:refresh` prints one `DIFF` line per changed
+field and rewrites `acceptance/expected.json` and `acceptance/expected-png/`
+only. A refresh is a reviewed commit that belongs with the change that
+invalidated the baselines; see "Rewriting the Golden baselines". Every other
+`P0-OUT-002` symptom is a genuine environment mismatch and no report from that
+run may be used.
+
 Then produce the evidence:
 
 ```bash
@@ -106,6 +115,24 @@ What the harness does:
 Expect minutes to tens of minutes: Chromium renders run under amd64 emulation.
 The run ends with `canonical evidence OK: sha256:…` and writes
 `artifacts/tex-canonical-report.json` plus `artifacts/tex-canonical-render.html`.
+
+Two conditions must hold before that line can be reached, and neither is
+satisfied by Docker Desktop on Apple silicon:
+
+- The container's `runner` user must be able to reach the host Docker daemon.
+  The wrapper passes the mounted socket's gid as `--group-add`, so a stock Linux
+  `root:docker` socket works without changing permissions. Docker Desktop grants
+  the socket to root only, so there the entrypoint stops with
+  `the sealed renderer cannot be spawned: docker is unreachable …` and the
+  sealed renderer is never spawned. A TCP relay in front of the socket is not a
+  substitute: `docker version` succeeds, but the interactive attach loses the
+  batch stream and every TeX block fails with
+  `azeforge.tex#protocol-invalid`. Use a Linux host whose socket is writable by
+  the container user.
+- The committed `acceptance/expected.json` and `acceptance/expected-png/` must
+  be current, because the entrypoint runs `npm run acceptance` as its
+  environment gate; a stale baseline fails the gate on every host (see
+  "Rewriting the Golden baselines").
 
 The container is `--privileged` (CI's own Chrome-sandbox sysctl) and holds
 `/var/run/docker.sock` (to spawn the renderer image). Treat this harness as a
@@ -167,7 +194,9 @@ identity.
 | --- | --- |
 | `"canonical": false` from a run you expected to be canonical | The host is not Linux/x64. That is expected on macOS/arm64 and is not release evidence. |
 | `docker: command not found` inside the container | The Docker socket is not mounted; run through `scripts/tex-canonical-release.sh`. |
-| `the Docker socket is not mounted` | Same as above. |
+| `the sealed renderer cannot be spawned: docker is unreachable from this container` | The message quotes the daemon's own reason. On Docker Desktop for macOS that reason is `permission denied`: Docker Desktop serves the socket to root only, and `chmod`/`--group-add` do not change that. Run the harness on a Linux host. |
+| `no matching manifest for linux/arm64/v8` while pulling the sealed image | The sealed image is linux/amd64 only, and a bare `docker pull` resolves the host platform on Apple silicon. `scripts/tex-canonical-release.sh` pins `--platform linux/amd64`. |
+| every TeX block fails with `azeforge.tex#protocol-invalid` under a TCP socket relay | The relay passes `docker version` but truncates the interactive attach stream back to the container, so the renderer's response is empty. Do not relay the socket; give the container direct access to a writable socket. |
 | `npm run acceptance` fails, or reports mismatched `png/*` cells | The environment does not reproduce the canonical baselines. Do not use any report from that run; check the Node major version, the pinned browser version and the OS/arch. |
 | `azeforge.renderer#browser-unavailable` or a Chrome launch failure on Ubuntu 24.04 | Apply `sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0`. |
 | Chrome or puppeteer cannot find the engine | `npx puppeteer browsers install chrome-headless-shell@152.0.7977.75`. |
