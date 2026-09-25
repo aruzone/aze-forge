@@ -32,7 +32,7 @@ its `canonical` job. Ubuntu 24.04 x64 with Node 24 is the canonical host.
 ```bash
 # 1. Toolchain
 sudo apt-get update
-sudo apt-get install -y docker.io git curl
+sudo apt-get install -y docker.io git curl jq
 node --version                       # must be 24.x
 
 # 2. Source
@@ -116,11 +116,11 @@ Expect minutes to tens of minutes: Chromium renders run under amd64 emulation.
 The run ends with `canonical evidence OK: sha256:…` and writes
 `artifacts/tex-canonical-report.json` plus `artifacts/tex-canonical-render.html`.
 
-Two conditions must hold before that line can be reached, and neither is
-satisfied by Docker Desktop on Apple silicon:
+Two conditions must hold before that line can be reached:
 
 - The container's `runner` user must be able to reach the host Docker daemon.
-  The wrapper passes the mounted socket's gid as `--group-add`, so a stock Linux
+  On Linux that means the release user is in the `docker` group, so the wrapper
+  can read the socket's gid and pass it as `--group-add`; then a stock
   `root:docker` socket works without changing permissions. Docker Desktop grants
   the socket to root only, so there the entrypoint stops with
   `the sealed renderer cannot be spawned: docker is unreachable …` and the
@@ -141,20 +141,38 @@ release tool that runs repository-owned code only.
 ## Rewriting the Golden baselines
 
 `acceptance/expected.json` and `acceptance/expected-png/` may only be rewritten
-on the canonical host, and a rewrite is a reviewed commit. Either run
-`npm run acceptance:refresh` on a native Ubuntu 24.04 x64 / Node 24 host, or use
-the container:
+on the canonical host, and a rewrite is a reviewed commit that belongs with the
+change which invalidated the baselines.
+
+On a native Ubuntu 24.04 x64 / Node 24 host the refresh rewrites the baselines
+in place:
+
+```bash
+npm run acceptance:refresh                 # one "DIFF <cell>: <field> <old> -> <new>" line per changed field
+git diff acceptance                        # review every changed hash and PNG byte
+git add acceptance/expected.json acceptance/expected-png
+git commit -m "acceptance: refresh the canonical Golden baselines"
+npm run acceptance                         # regression: every check must be green again
+```
+
+The container harness writes them to `artifacts/baseline/` instead, because the
+container's checkout is disposable:
 
 ```bash
 npm run acceptance:refresh-canonical       # writes artifacts/baseline/
 diff -u acceptance/expected.json artifacts/baseline/expected.json
 cp artifacts/baseline/expected.json acceptance/expected.json
 cp -R artifacts/baseline/expected-png/. acceptance/expected-png/
+# review, then commit with the commands above
 ```
 
+Emulated x64 (Docker Desktop on Apple silicon) passes the refresh host gate, but
+its browser-derived bytes — PNG pixels, PDF/SVG/HTML bytes, pagination — are not
+established as canonical, so treat that output as a preview; confirm it with
+`npm run acceptance` on a native x64 host before committing.
+
 The refresh is refused under CI and outside the canonical host (Linux/x64, Node
-24, Ubuntu 24.04), and it prints one `DIFF <cell>: artifact <old> -> <new>` line
-per changed cell. Until the reviewed baselines are committed, the acceptance
+24, Ubuntu 24.04). Until the reviewed baselines are committed, the acceptance
 report keeps failing its `P0-OUT-002` cells — that drift is exactly what the
 `aze-forge-web` cutover clause refuses, and it is the one thing a code change
 cannot fix.
@@ -195,9 +213,12 @@ identity.
 | `"canonical": false` from a run you expected to be canonical | The host is not Linux/x64. That is expected on macOS/arm64 and is not release evidence. |
 | `docker: command not found` inside the container | The Docker socket is not mounted; run through `scripts/tex-canonical-release.sh`. |
 | `the sealed renderer cannot be spawned: docker is unreachable from this container` | The message quotes the daemon's own reason. On Docker Desktop for macOS that reason is `permission denied`: Docker Desktop serves the socket to root only, and `chmod`/`--group-add` do not change that. Run the harness on a Linux host. |
+| the harness can reach the socket but the container is still refused on Linux | The release user is not in the socket's group, so the wrapper could not derive its gid: `sudo usermod -aG docker "$USER"`, re-login, and check `stat -c '%g' /var/run/docker.sock`. |
 | `no matching manifest for linux/arm64/v8` while pulling the sealed image | The sealed image is linux/amd64 only, and a bare `docker pull` resolves the host platform on Apple silicon. `scripts/tex-canonical-release.sh` pins `--platform linux/amd64`. |
 | every TeX block fails with `azeforge.tex#protocol-invalid` under a TCP socket relay | The relay passes `docker version` but truncates the interactive attach stream back to the container, so the renderer's response is empty. Do not relay the socket; give the container direct access to a writable socket. |
-| `npm run acceptance` fails, or reports mismatched `png/*` cells | The environment does not reproduce the canonical baselines. Do not use any report from that run; check the Node major version, the pinned browser version and the OS/arch. |
+| `npm run acceptance` fails, or reports mismatched `png/*` cells | Either the baselines are stale (then refresh — see "Rewriting the Golden baselines") or the environment does not reproduce them (then check the Node major version, the pinned browser version and the OS/arch, and use no report from that run). |
+| `REFUSE --refresh under CI: baselines are developer-only` | Re-baselining is a reviewed developer act. Run it by hand on the canonical host with `CI` unset; no CI job may rewrite the baselines. |
+| `REFUSE --refresh outside Ubuntu 24.04 x64 with Node 24` | Run the refresh on a native canonical host, or through `npm run acceptance:refresh-canonical` on one. `--refresh` never rewrites anything anywhere else. |
 | `azeforge.renderer#browser-unavailable` or a Chrome launch failure on Ubuntu 24.04 | Apply `sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0`. |
 | Chrome or puppeteer cannot find the engine | `npx puppeteer browsers install chrome-headless-shell@152.0.7977.75`. |
 | `Cannot connect to the Docker daemon` / I/O errors during a build | Docker's disk image is full or corrupt. `docker system prune -a` (and restart Docker Desktop on macOS). |
