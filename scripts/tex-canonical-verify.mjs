@@ -5,7 +5,7 @@
  * twice on canonical Linux/amd64 and requires, per approved profile:
  *
  * - one raw renderer SVG per run, byte-identical across the two runs;
- * - one canonical projection per run (`azeforge.tex-svg-normalizer/v1`,
+ * - one canonical projection per run (`azeforge.tex-svg-normalizer/v2`,
  *   `dist/tex-svg.js`), byte-identical across the two runs;
  * - HTML and SVG Artifacts carrying exactly that projection;
  * - PNG and PDF Artifacts rendered twice with zero-tolerance byte equality

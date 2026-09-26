@@ -1,6 +1,6 @@
 /**
  * The compiler-owned canonical TeX SVG projection
- * (`azeforge.tex-svg-normalizer/v1`).
+ * (`azeforge.tex-svg-normalizer/v2`).
  *
  * The trusted TeX renderer returns dvisvgm-shaped XML: an XML declaration, a
  * generator comment, single-quoted attributes, per-page identifiers (`page1`,
@@ -35,7 +35,7 @@ import { MAX_IMAGE_DIMENSION_PX } from "./assets.js";
 import type { TexProfile } from "./tex-schemas.js";
 
 /** The frozen normalizer contract this module implements. */
-export const TEX_SVG_NORMALIZER_VERSION = "azeforge.tex-svg-normalizer/v1" as const;
+export const TEX_SVG_NORMALIZER_VERSION = "azeforge.tex-svg-normalizer/v2" as const;
 
 /** One stable reason a renderer SVG cannot become a canonical projection. */
 export type TexSvgRejection =
@@ -207,6 +207,8 @@ const URL_REFERENCE = /url\(\s*(?:'([^']*)'|"([^"]*)"|([^)"'\s]*))\s*\)/gi;
 const EXTERNAL_STYLE = /@import/i;
 const SVG_LENGTH = /^([+-]?(?:\d+\.?\d*|\.\d+))(px|pt|pc|mm|cm|in|em|ex)?$/;
 
+
+
 interface ElementNode {
   readonly name: string;
   readonly attributes: Map<string, string>;
@@ -365,6 +367,10 @@ function normalizeElement(element: ElementNode, prefix: string): ElementNode | u
           return target.startsWith("#") ? `url(#${prefix}${target.slice(1)})` : match;
         },
       );
+    }
+    // Replace dvisvgm's fixed default ink so the figure inherits its Artifact theme.
+    if ((local === "fill" || local === "stroke") && /^(?:#000|#000000|black)$/i.test(value)) {
+      value = "currentColor";
     }
     if (NUMERIC_ATTRIBUTES[local] === true) {
       value = value.replace(NUMBER_TOKEN, quantizeToken);

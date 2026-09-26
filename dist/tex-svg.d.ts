@@ -1,6 +1,6 @@
 /**
  * The compiler-owned canonical TeX SVG projection
- * (`azeforge.tex-svg-normalizer/v1`).
+ * (`azeforge.tex-svg-normalizer/v2`).
  *
  * The trusted TeX renderer returns dvisvgm-shaped XML: an XML declaration, a
  * generator comment, single-quoted attributes, per-page identifiers (`page1`,
@@ -30,7 +30,7 @@
  */
 import type { TexProfile } from "./tex-schemas.js";
 /** The frozen normalizer contract this module implements. */
-export declare const TEX_SVG_NORMALIZER_VERSION: "azeforge.tex-svg-normalizer/v1";
+export declare const TEX_SVG_NORMALIZER_VERSION: "azeforge.tex-svg-normalizer/v2";
 /** One stable reason a renderer SVG cannot become a canonical projection. */
 export type TexSvgRejection = "malformed" | "unsafe" | "external" | "reference" | "dimensions";
 /** The renderer returned an SVG outside the canonical projection contract. */

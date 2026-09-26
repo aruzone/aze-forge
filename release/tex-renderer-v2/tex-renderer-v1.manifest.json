@@ -7741,7 +7741,7 @@
     "digest": "sha256:89386319c33f4e386289cfb4e79460a82946c255d0a344da1233e6d17a61e4e4"
   },
   "normalizer": {
-    "version": "azeforge.tex-svg-normalizer/v1"
+    "version": "azeforge.tex-svg-normalizer/v2"
   },
   "profiles": {
     "chemfig": {

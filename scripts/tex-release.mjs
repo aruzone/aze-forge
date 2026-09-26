@@ -159,7 +159,7 @@ async function create() {
     protocol: { version: PROTOCOL_VERSION }, image: { digest: imageDigest },
     baseImage: { reference: BASE_IMAGE, digest: "sha256:496754492fb28b4d3049432f2ca787449331e23fb14f0dd3fffea86bf5a93eb4", platform: "linux/amd64" },
     texlive: { version: 2026, iso: { sha512: ISO_SHA512 }, tlpdbSha256: sha256(tlpdbBytes), packages },
-    profiles, tools, fonts: await fontHashes(join(input, "fonts")), normalizer: { version: "azeforge.tex-svg-normalizer/v1" }, resourcePolicy: { version: "azeforge.tex-resource-policy/v1" }, corpus,
+    profiles, tools, fonts: await fontHashes(join(input, "fonts")), normalizer: { version: "azeforge.tex-svg-normalizer/v2" }, resourcePolicy: { version: "azeforge.tex-resource-policy/v1" }, corpus,
     assets: Object.fromEntries(Object.entries(assets).map(([name, asset]) => [name, { path: asset.path, sha256: sha256(asset.bytes) }])),
   };
   const manifestBytes = Buffer.from(`${JSON.stringify(canonical(manifest), null, 2)}\n`);

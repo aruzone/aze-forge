@@ -1,6 +1,6 @@
 /**
  * The compiler-owned canonical TeX SVG projection
- * (`azeforge.tex-svg-normalizer/v1`).
+ * (`azeforge.tex-svg-normalizer/v2`).
  *
  * The trusted TeX renderer returns dvisvgm-shaped XML: an XML declaration, a
  * generator comment, single-quoted attributes, per-page identifiers (`page1`,
@@ -31,7 +31,7 @@
 import { SaxesParser } from "saxes";
 import { MAX_IMAGE_DIMENSION_PX } from "./assets.js";
 /** The frozen normalizer contract this module implements. */
-export const TEX_SVG_NORMALIZER_VERSION = "azeforge.tex-svg-normalizer/v1";
+export const TEX_SVG_NORMALIZER_VERSION = "azeforge.tex-svg-normalizer/v2";
 /** The renderer returned an SVG outside the canonical projection contract. */
 export class TexSvgError extends Error {
     rejection;
@@ -322,6 +322,10 @@ function normalizeElement(element, prefix) {
                 const target = single ?? double ?? bare ?? "";
                 return target.startsWith("#") ? `url(#${prefix}${target.slice(1)})` : match;
             });
+        }
+        // Replace dvisvgm's fixed default ink so the figure inherits its Artifact theme.
+        if ((local === "fill" || local === "stroke") && /^(?:#000|#000000|black)$/i.test(value)) {
+            value = "currentColor";
         }
         if (NUMERIC_ATTRIBUTES[local] === true) {
             value = value.replace(NUMBER_TOKEN, quantizeToken);

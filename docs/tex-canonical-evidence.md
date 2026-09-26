@@ -13,7 +13,7 @@ renderer:
 manifest   release/tex-renderer-v2/tex-renderer-v1.manifest.json
 digest     sha256:89386319c33f4e386289cfb4e79460a82946c255d0a344da1233e6d17a61e4e4
 image      docker.io/kkumaresan/aze-forge-tex-renderer@sha256:89386319c33f4e386289cfb4e79460a82946c255d0a344da1233e6d17a61e4e4
-identity   sha256:12d8fdb40b0b8632d5049476e8ff0c61b51731e2f4ff7ddc7afe1775a930ff25
+identity   sha256:9fb80b13201a489f9c4def348fe3a7d2366f40b59b567cf8176f569bd315a526
 profiles   circuitikz, tikz, pgfplots, chemfig, tikz-cd
 ```
 

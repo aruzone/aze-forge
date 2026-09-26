@@ -411,6 +411,21 @@ test("the compiler embeds one canonical, namespaced TeX projection", async (cont
   assert.doesNotMatch(html, /id="page1"|id="clip1"/);
 });
 
+test("TeX figures inherit the active theme color instead of renderer black", async (context) => {
+  const directory = await mkdtemp(join(tmpdir(), "azeforge-tex-theme-"));
+  context.after(() => rm(directory, { recursive: true, force: true }));
+  const rendererSvg = DVISVGM_SVG.replace("<g id='page1'", "<g fill='#000' stroke='#000' id='page1'");
+  const renderer = await fixedAdapter(directory, "dark-theme.mjs", IDENTITY, `(figure) => ({ index: figure.index, status: "ok", svg: ${JSON.stringify(rendererSvg)} })`);
+  const compiled = await createCompiler({
+    texRenderer: { rendererIdentity: IDENTITY, ...renderer },
+  }).compile(source(), { format: "html", theme: "dark-presentation" });
+  assert.deepEqual(compiled.diagnostics, []);
+
+  const html = Buffer.from(compiled.artifact?.bytes).toString("utf8");
+  assert.match(html, /fill="currentColor" id="tex-0-page1" stroke="currentColor"/);
+  assert.match(html, /color:#e2e8f0/);
+});
+
 test("an unsafe or non-self-contained renderer SVG suppresses the whole Artifact", async (context) => {
   const directory = await mkdtemp(join(tmpdir(), "azeforge-tex-unsafe-"));
   context.after(() => rm(directory, { recursive: true, force: true }));

@@ -18,7 +18,7 @@ const DVISVGM = `<?xml version='1.0' encoding='UTF-8'?>
 </defs>
 <g id='page1' clip-path='url(#clip1)'>
 <g transform='translate(76.911579,81.347687)scale(0.9962644,-0.0000001)' fill='#000'>
-<path d='M0 0L28.452740 28.45274' fill='none'/>
+<path d='M0 0L28.452740 28.45274' fill='none' stroke='#000'/>
 <use xlink:href='#clip1'/>
 <text x='0' y='0'>12.345678901</text>
 </g>
@@ -31,8 +31,8 @@ const CANONICAL =
   "<title>Accessible &amp; title</title>" +
   "<desc>desc &quot;quoted&quot;</desc>" +
   '<defs><clipPath id="tex-3-clip1"><path d="M0 0L1 1"/></clipPath></defs>' +
-  '<g clip-path="url(#tex-3-clip1)" id="tex-3-page1"><g fill="#000" transform="translate(76.911579,81.347687)scale(0.996264,0)">' +
-  '<path d="M0 0L28.45274 28.45274" fill="none"/><use xlink:href="#tex-3-clip1"/><text x="0" y="0">12.345678901</text>' +
+  '<g clip-path="url(#tex-3-clip1)" id="tex-3-page1"><g fill="currentColor" transform="translate(76.911579,81.347687)scale(0.996264,0)">' +
+  '<path d="M0 0L28.45274 28.45274" fill="none" stroke="currentColor"/><use xlink:href="#tex-3-clip1"/><text x="0" y="0">12.345678901</text>' +
   "</g></g></svg>";
 
 test("one renderer document becomes one canonical projection", () => {
