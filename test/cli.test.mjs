@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import test from "node:test";
 
 import { createCompiler } from "../dist/index.js";
+import { TOOL_VERSION } from "../dist/tool-version.js";
 
 const CLI_PATH = fileURLToPath(new URL("../dist/cli.js", import.meta.url));
 const VALID_SOURCE = `---
@@ -53,7 +54,7 @@ test("validate JSON mode emits one finite diagnostics report on success", async 
   assert.deepEqual(JSON.parse(result.stdout.toString("utf8")), {
     schema: "azeforge.diagnostics/v1",
     schemaVersion: 1,
-    tool: { name: "azeforge", version: "0.5.0" },
+    tool: { name: "azeforge", version: TOOL_VERSION },
     command: "validate",
     success: true,
     diagnostics: [],
