@@ -4,41 +4,77 @@
 
 <h1 align="center">AzeForge</h1>
 
-Write once in readable **AzeMark**, publish everywhere: deterministic,
-self-contained **HTML**, **SVG**, **PNG**, and **PDF** from a single Source —
-no build chain, no runtime dependencies in your output.
+<p align="center"><strong>AzeMark: one language for technical notation.</strong></p>
 
-- **Deterministic.** The same Source always produces byte-identical
-  Artifacts. Every Artifact carries the content hash of the Document it
-  represents, so you can prove what you published.
+AzeForge is a deterministic technical publishing compiler. It turns readable,
+Markdown-like **AzeMark** source into self-contained **HTML**, **SVG**, **PNG**,
+and **PDF** Artifacts. No build chain or runtime dependencies travel with the
+output.
+
+**Reproducible by design.** Same source. Same Artifact. Every time.
+
+**Readable by humans. Generatable by AI.** AzeMark is simple enough to edit,
+and its published machine-readable grammar gives generators a constrained
+target.
+
+- **Deterministic.** The same Source produces byte-identical Artifacts. Every
+  Artifact carries the content hash of the Document it represents.
 - **Self-contained.** Fonts are embedded, scripts are never emitted, and
-  Artifacts phone home to nothing. Send the file; it renders as-is.
-- **Fail-closed.** Invalid Sources produce precise, ranged diagnostics —
-  never a half-written Artifact, never a stack trace.
-- **Offline math.** Equations render through a pinned, sandboxed KaTeX
-  bundle. Readable aliases cover Greek, fractions, sums, integrals, limits,
-  matrices, and more; raw LaTeX stays denied unless you explicitly opt in.
-- **Diagrams included.** Mermaid flowcharts, GFM-style tables, and callouts
-  are first-class Blocks rendered through a pinned browser engine.
+  Artifacts make no network requests.
+- **Fail-closed.** Invalid Source produces precise, ranged diagnostics. It
+  never overwrites an Artifact with partial output or a stack trace.
+- **Native technical notation.** Typed AzeMark Blocks preserve domain meaning
+  and report domain-specific diagnostics.
+- **Diagrams included.** Native `diagram` Blocks cover flowcharts, graphs,
+  trees, and architecture diagrams. Bounded Mermaid Blocks render through a
+  pinned browser engine.
 
-## AzeForge currently covers these broad rendering categories:
+## Native AzeMark families
 
-| Category | Representative native plugins |
+| Family | Native Blocks |
 | --- | --- |
-| Mathematics | `equation`, `derivation` |
-| Visualization | `plot`, `chart` |
+| Math | `equation`, `derivation` |
+| Science | `formula`, `reaction`, `structure` |
+| Engineering | `circuit`, `timing`, `control`, `free-body` |
+| Data | `plot`, `chart` |
 | Geometry | `geometry` |
-| Chemistry | `formula`, `reaction`, `structure` |
-| Electrical engineering | `circuit` |
-| Digital timing | `timing` |
-| Diagrams | `diagram`, `mermaid` |
-| Engineering diagrams | `control`, `free-body` |
-| Software and data models | `sequence`, `state`, `entity`, `class` |
-| Structured technical content | `table`, `algorithm`, `statement`, `example` |
-| Document composition | `figure`, `bibliography`, `callout` |
+| Software | `sequence`, `state`, `entity`, `class` |
+| Documents | `table`, `algorithm`, `statement`, `example`, `bibliography` |
+| General diagrams | `diagram` |
 
-See the [native plugin family tree](docs/native-plugin-family-tree.md) for the
-full catalog and family relationships.
+`figure` and `callout` compose document content. Mermaid is a bounded escape
+hatch, rather than a native technical family. See the
+[native plugin family tree](docs/native-plugin-family-tree.md) for the detailed
+catalog and family relationships.
+
+## AzeMark and LaTeX
+
+Native equations start as readable AzeMark notation. The compiler parses and
+validates that notation, derives TeX deterministically, then renders it with a
+pinned KaTeX bundle that produces HTML and MathML. Raw LaTeX in equations is
+denied unless the command opts in with `--allow-raw-latex`.
+
+For specialist figures, explicit `tex` Blocks support controlled `circuitikz`,
+`tikz`, `pgfplots`, `chemfig`, and `tikz-cd` profiles. A deployment configures
+the trusted TeX renderer. The author supplies only the figure body, not an
+arbitrary TeX document or package list.
+
+## How AzeForge compares
+
+This is a capability comparison, not a benchmark. AzeForge check marks mean
+built-in, typed AzeMark support. Other columns name their usual authoring or
+extension path.
+
+| Capability | AzeForge | Typst | Quarto | LaTeX |
+| --- | :---: | :---: | :---: | :---: |
+| Markdown-like authoring | ✓ | — | ✓ | — |
+| Mathematics | ✓ | ✓ | ✓ | ✓ |
+| Mermaid diagrams | ✓ | extensions | ✓ | tooling |
+| Technical-domain diagrams | native typed Blocks | packages | external extensions | packages |
+| Published JSON directive grammar | ✓ | — | — | — |
+| Compiler npm API | ✓ | different ecosystem | — | — |
+| Local live preview | ✓ | web app | editor integrations | tooling or Overleaf |
+| Self-contained HTML, SVG, PNG, and PDF | ✓ | varies by output | varies by output | usually PDF |
 
 ## Install
 
