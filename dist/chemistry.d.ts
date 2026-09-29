@@ -106,7 +106,7 @@ export declare function assertChemistryFragmentSafe(svg: string): void;
 export declare function renderFormulaFragment(block: FormulaBlock, _context: BlockRendererContext): string;
 export declare function renderReactionFragment(block: ReactionBlock, _context: BlockRendererContext): string;
 export declare function renderStructureFragment(block: StructureBlock, _context: BlockRendererContext): string;
-/** Fingerprint closure joining the plot/geometry closures (contract §7). */
+/** Fingerprint closure joining the pinned KaTeX spelling and the label metric (contract §7). */
 export declare function chemistryDependencyClosure(): JsonValue;
 export declare const formulaPlugin: AzeBlockPlugin;
 export declare const reactionPlugin: AzeBlockPlugin;
@@ -114,7 +114,7 @@ export declare const structurePlugin: AzeBlockPlugin;
 export declare const FORMULA_HTML_BLOCK_RENDERER_ID: "azeforge.formula.html/v1";
 export declare const REACTION_HTML_BLOCK_RENDERER_ID: "azeforge.reaction.html/v1";
 export declare const STRUCTURE_HTML_BLOCK_RENDERER_ID: "azeforge.structure.html/v1";
-export declare const CHEMISTRY_HTML_BLOCK_RENDERER_VERSION: "1.0.3";
+export declare const CHEMISTRY_HTML_BLOCK_RENDERER_VERSION: "1.2.0";
 export declare const formulaHtmlBlockRenderer: AzeBlockRenderer<FormulaBlock>;
 export declare const reactionHtmlBlockRenderer: AzeBlockRenderer<ReactionBlock>;
 export declare const structureHtmlBlockRenderer: AzeBlockRenderer<StructureBlock>;

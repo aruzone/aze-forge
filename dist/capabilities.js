@@ -468,6 +468,8 @@ export async function buildCapabilities(options = {}) {
             },
             chemistry: {
                 emitter: CHEMISTRY_EMITTER_VERSION,
+                advanceMetric: ADVANCE_METRIC_VERSION,
+                metricSource: ADVANCE_METRIC_SOURCES,
                 availability: bundled,
             },
             timing: {

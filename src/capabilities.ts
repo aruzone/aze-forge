@@ -366,6 +366,8 @@ export interface CapabilitiesReport {
     }>;
     readonly chemistry: Readonly<{
       emitter: typeof CHEMISTRY_EMITTER_VERSION;
+      advanceMetric: typeof ADVANCE_METRIC_VERSION;
+      metricSource: readonly string[];
       availability: EngineAvailability;
     }>;
     readonly timing: Readonly<{
@@ -796,6 +798,8 @@ export async function buildCapabilities(
       },
       chemistry: {
         emitter: CHEMISTRY_EMITTER_VERSION,
+        advanceMetric: ADVANCE_METRIC_VERSION,
+        metricSource: ADVANCE_METRIC_SOURCES,
         availability: bundled,
       },
       timing: {

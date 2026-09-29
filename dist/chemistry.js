@@ -19,9 +19,13 @@
  * stereo, isotope, charge, element order, and Kekulé/aromatic forms stay
  * distinct in the hashed semantic tree.
  */
+import katex from "katex";
 import { createDiagnostic } from "./diagnostics.js";
+import { sanitizeKatexHtml } from "./equation.js";
+import { EQUATION_LATEX_LANGUAGE_VERSION, KATEX_VERSION, } from "./equation-schemas.js";
 import { CHEMISTRY_EMITTER_VERSION, FORMULA_BODY_SYNTAX_ID, FORMULA_BODY_SYNTAX_VERSION, FORMULA_HEADER_FIELDS, FORMULA_PLUGIN_TYPE, FORMULA_PLUGIN_VERSION, formulaDataSchema, formulaSourceSchema, REACTION_BODY_SYNTAX_ID, REACTION_BODY_SYNTAX_VERSION, REACTION_HEADER_FIELDS, REACTION_PLUGIN_TYPE, REACTION_PLUGIN_VERSION, reactionDataSchema, reactionSourceSchema, STRUCTURE_BODY_SYNTAX_ID, STRUCTURE_BODY_SYNTAX_VERSION, STRUCTURE_HEADER_FIELDS, STRUCTURE_PLUGIN_TYPE, STRUCTURE_PLUGIN_VERSION, structureDataSchema, structureSourceSchema, } from "./chemistry-schemas.js";
 import { escapeXml, quantize } from "./plot.js";
+import { advanceMetricDependencyClosure, advanceWidth, } from "./advance-metric.js";
 /* ------------------------------------------------------------------ *
  * Ceilings (contract §2–§4)
  * ------------------------------------------------------------------ */
@@ -69,11 +73,6 @@ const ELEMENTS = new Set([
 export const ELEMENT_SYMBOLS = Object.freeze([...ELEMENTS]);
 export const REACTION_STATES = Object.freeze(["s", "l", "g", "aq"]);
 const REACTION_ARROWS = Object.freeze(["->", "<-", "<->"]);
-const ARROW_GLYPH = Object.freeze({
-    "->": "→",
-    "<-": "←",
-    "<->": "⇌",
-});
 /* ------------------------------------------------------------------ *
  * Diagnostics
  * ------------------------------------------------------------------ */
@@ -506,7 +505,7 @@ function parseSpeciesToken(options) {
         }
     }
     else {
-        const count = /^([0-9]+)([\s]+|$)/.exec(rest);
+        const count = /^([0-9]+)(?:\s+|(?=[A-Z(]|e-)|$)/.exec(rest);
         if (count !== null) {
             const digits = count[1] ?? "";
             const value = Number.parseInt(digits, 10);
@@ -1184,62 +1183,79 @@ function stableFigureId(kind, seed) {
     }
     return `${kind}-${(hash >>> 0).toString(16).padStart(8, "0")}`;
 }
-/** Render one parsed unit as element symbols with subscript counts. */
-function renderUnitParts(parts) {
+/* ------------------------------------------------------------------ *
+ * Textbook rendering (§7): TeX is a renderer-derived spelling — a total
+ * deterministic function of the parsed semantic tree — projected through
+ * the pinned KaTeX path. Element symbols stay upright roman
+ * (`\mathrm`, IUPAC Green Book); only quantity-like prefixes (isotope
+ * mass, multipliers, coefficients) sit outside it. No author TeX passes
+ * through: every token below is a closed-registry symbol or a bounded
+ * integer the parser already validated.
+ * ------------------------------------------------------------------ */
+const CHEMISTRY_KATEX_OPTIONS = {
+    displayMode: false,
+    output: "htmlAndMathml",
+    trust: false,
+    strict: true,
+    throwOnError: true,
+    maxSize: 20,
+    maxExpand: 1000,
+};
+/** Render one parsed unit as upright element symbols with subscript counts. */
+function renderUnitPartsTex(parts) {
     return parts.map((part) => {
         if (part.kind === "element") {
-            const count = part.count === 1 ? "" : `<sub>${part.count}</sub>`;
-            return `${escapeXml(part.symbol)}${count}`;
+            const count = part.count === 1 ? "" : `_{${part.count}}`;
+            return `\\mathrm{${part.symbol}}${count}`;
         }
-        const count = part.count === 1 ? "" : `<sub>${part.count}</sub>`;
-        return `(${renderUnitParts(part.parts)})${count}`;
+        const count = part.count === 1 ? "" : `_{${part.count}}`;
+        return `(${renderUnitPartsTex(part.parts)})${count}`;
     }).join("");
 }
-function renderFormulaInline(units, isotopeFirst) {
+function renderFormulaUnitsTex(units, isotopeFirst) {
     return units.map((unit, index) => {
-        const multiplier = unit.multiplier === 1 ? "" : `${unit.multiplier}`;
-        const isotope = index === 0 && isotopeFirst !== undefined ? `<sup>${isotopeFirst}</sup>` : "";
-        const dot = index === 0 ? "" : " · ";
-        return `${dot}${multiplier}${isotope}${renderUnitParts(unit.parts)}`;
+        const multiplier = unit.multiplier === 1 ? "" : `${unit.multiplier}\\,`;
+        const isotope = index === 0 && isotopeFirst !== undefined ? `{}^{${isotopeFirst}}` : "";
+        const dot = index === 0 ? "" : "\\,{\\cdot}\\,";
+        return `${dot}${multiplier}${isotope}${renderUnitPartsTex(unit.parts)}`;
     }).join("");
+}
+function renderChargeTex(charge, specified) {
+    if (!specified || charge === 0)
+        return "";
+    if (charge === 1)
+        return "^{+}";
+    if (charge === -1)
+        return "^{-}";
+    return charge > 0 ? `^{${charge}+}` : `^{${Math.abs(charge)}-}`;
+}
+function renderSpeciesTex(species) {
+    const isotopeFirst = species.units[0]?.isotope;
+    const coefficient = species.unspecifiedCoefficient ? "?\\," : species.coefficient === undefined ? "" : `${species.coefficient}\\,`;
+    const body = species.electron ? "\\mathrm{e}^{-}" : renderFormulaUnitsTex(species.units, isotopeFirst);
+    const charge = species.electron ? "" : renderChargeTex(species.charge, species.chargeSpecified);
+    const state = species.state === undefined ? "" : `\\,\\mathrm{(${species.state})}`;
+    return `${coefficient}${body}${charge}${state}`;
+}
+function renderChemistryKatex(tex) {
+    return sanitizeKatexHtml(katex.renderToString(tex, { ...CHEMISTRY_KATEX_OPTIONS }));
+}
+/** Escape condition text for the single `\text{}` slot it may occupy. */
+function renderConditionText(value) {
+    return value.replace(/([\\{}$#%&_^~])/g, "\\$1");
 }
 function formulaContentSeed(block) {
     return JSON.stringify({ id: block.id ?? "", expression: block.expression, charge: block.charge, electron: block.electron });
 }
 export function renderFormulaFragment(block, _context) {
     const isotopeFirst = block.units[0]?.isotope;
-    const body = block.electron ? "e<sup>−</sup>" : renderFormulaInline(block.units, isotopeFirst);
-    const charge = !block.chargeSpecified || block.charge === 0
-        ? ""
-        : block.charge === 1
-            ? "<sup>+</sup>"
-            : block.charge === -1
-                ? "<sup>−</sup>"
-                : block.charge > 0
-                    ? `<sup>${block.charge}+</sup>`
-                    : `<sup>${Math.abs(block.charge)}−</sup>`;
+    const tex = block.electron ? "\\mathrm{e}^{-}" : `${renderFormulaUnitsTex(block.units, isotopeFirst)}${renderChargeTex(block.charge, block.chargeSpecified)}`;
     const figureId = stableFigureId("aze-formula", formulaContentSeed(block));
     const label = block.id === undefined ? "" : ` data-formula-id="${escapeXml(block.id)}"`;
     const number = block.number === true ? ' data-formula-number="true"' : "";
-    const html = `<figure class="aze-formula" id="${figureId}"${label}${number}><span class="aze-formula-expression">${body}${charge}</span></figure>`;
+    const html = `<figure class="aze-formula" id="${figureId}"${label}${number}><span class="aze-formula-expression">${renderChemistryKatex(tex)}</span></figure>`;
     assertChemistryFragmentSafe(html);
     return html;
-}
-function renderSpeciesInline(species) {
-    const isotopeFirst = species.units[0]?.isotope;
-    const coefficient = species.unspecifiedCoefficient ? "? " : species.coefficient === undefined ? "" : `${species.coefficient} `;
-    const body = species.electron ? "e<sup>−</sup>" : renderFormulaInline(species.units, isotopeFirst);
-    const charge = !species.chargeSpecified || species.charge === 0
-        ? ""
-        : species.charge === 1
-            ? "<sup>+</sup>"
-            : species.charge === -1
-                ? "<sup>−</sup>"
-                : species.charge > 0
-                    ? `<sup>${species.charge}+</sup>`
-                    : `<sup>${Math.abs(species.charge)}−</sup>`;
-    const state = species.state === undefined ? "" : `<sub>(${species.state})</sub>`;
-    return `${coefficient}${body}${charge}${state}`;
 }
 function reactionContentSeed(block) {
     return JSON.stringify({
@@ -1252,16 +1268,16 @@ function reactionContentSeed(block) {
     });
 }
 export function renderReactionFragment(block, _context) {
-    const left = block.reactants.map(renderSpeciesInline).join(" + ");
-    const right = block.products.map(renderSpeciesInline).join(" + ");
-    const glyph = ARROW_GLYPH[block.arrow] ?? block.arrow;
-    const conditions = block.above !== undefined || block.below !== undefined
-        ? `<span class="aze-reaction-conditions">${block.above === undefined ? "" : `<span class="aze-reaction-above">${escapeXml(block.above)}</span>`}${block.below === undefined ? "" : `<span class="aze-reaction-below">${escapeXml(block.below)}</span>`}</span>`
-        : "";
+    const left = block.reactants.map(renderSpeciesTex).join(" + ");
+    const right = block.products.map(renderSpeciesTex).join(" + ");
+    const base = block.arrow === "->" ? "\\rightarrow" : block.arrow === "<-" ? "\\leftarrow" : "\\rightleftharpoons";
+    const below = block.below === undefined ? base : `\\underset{\\text{${renderConditionText(block.below)}}}{${base}}`;
+    const arrow = block.above === undefined ? below : `\\overset{\\text{${renderConditionText(block.above)}}}{${below}}`;
+    const tex = `${left} ${arrow} ${right}`;
     const figureId = stableFigureId("aze-reaction", reactionContentSeed(block));
     const label = block.id === undefined ? "" : ` data-reaction-id="${escapeXml(block.id)}"`;
     const number = block.number === true ? ' data-reaction-number="true"' : "";
-    const html = `<figure class="aze-reaction" id="${figureId}"${label}${number}><span class="aze-reaction-side">${left}</span> <span class="aze-reaction-arrow">${glyph}</span>${conditions} <span class="aze-reaction-side">${right}</span></figure>`;
+    const html = `<figure class="aze-reaction" id="${figureId}"${label}${number}><span class="aze-reaction-expression">${renderChemistryKatex(tex)}</span></figure>`;
     assertChemistryFragmentSafe(html);
     return html;
 }
@@ -1306,41 +1322,74 @@ export function renderStructureFragment(block, _context) {
         const len = Math.hypot(dx, dy) || 1;
         return [ax - (dy / len) * distance, ay + (dx / len) * distance, bx - (dy / len) * distance, by + (dx / len) * distance];
     };
+    // Atom labels are Inter at fixed px sizes, so label boxes come from the
+    // pinned advance metric (diagram precedent): bonds trim at the box edge
+    // instead of running underneath the glyphs.
+    const ATOM_FONT_SIZE_PX = 16;
+    const labelHalfExtents = (atom) => {
+        const runs = [{ kind: "text", value: atom.element ?? atom.attach ?? "" }];
+        if (atom.isotope !== undefined)
+            runs.push({ kind: "superscript", value: String(atom.isotope) });
+        if (atom.charge !== undefined && atom.charge !== 0)
+            runs.push({ kind: "superscript", value: atom.charge === 1 ? "+" : atom.charge === -1 ? "−" : atom.charge > 0 ? `${atom.charge}+` : `${Math.abs(atom.charge)}−` });
+        const halfWidth = advanceWidth(runs, ATOM_FONT_SIZE_PX) / 2 + 2;
+        const halfHeight = ATOM_FONT_SIZE_PX * 0.62;
+        return { halfWidth, halfHeight };
+    };
+    const boxExit = (center, half, towardX, towardY) => {
+        const dx = towardX - center.x;
+        const dy = towardY - center.y;
+        if (dx === 0 && dy === 0)
+            return 0;
+        const tx = dx === 0 ? Number.POSITIVE_INFINITY : half.halfWidth / Math.abs(dx);
+        const ty = dy === 0 ? Number.POSITIVE_INFINITY : half.halfHeight / Math.abs(dy);
+        return Math.min(tx, ty);
+    };
     for (const bond of block.bonds) {
         const from = placed.get(bond.from);
         const to = placed.get(bond.to);
         if (from === undefined || to === undefined)
             continue;
-        const ax = quantize(from.x);
-        const ay = quantize(from.y);
-        const bx = quantize(to.x);
-        const by = quantize(to.y);
+        // Trim the centerline at both label boxes; bonds meet the glyph edge
+        // instead of running underneath it (the halo is only antialiasing cover).
+        const fromHalf = labelHalfExtents(from.atom);
+        const toHalf = labelHalfExtents(to.atom);
+        const exitFrom = Math.min(boxExit({ x: from.x, y: from.y }, fromHalf, to.x, to.y), 0.49);
+        const exitTo = Math.min(boxExit({ x: to.x, y: to.y }, toHalf, from.x, from.y), 0.49);
+        const dx = to.x - from.x;
+        const dy = to.y - from.y;
+        const sx = from.x + dx * exitFrom;
+        const sy = from.y + dy * exitFrom;
+        const ex = to.x - dx * exitTo;
+        const ey = to.y - dy * exitTo;
+        const ax = quantize(sx);
+        const ay = quantize(sy);
+        const bx = quantize(ex);
+        const by = quantize(ey);
         if (bond.stereo === "wedge") {
             // A short tapered wedge marks the stereocenter without obscuring its bonded atom.
-            const dx = to.x - from.x;
-            const dy = to.y - from.y;
-            const len = Math.hypot(dx, dy) || 1;
-            const wedgeEnd = WEDGE_LENGTH_RATIO;
-            const endX = from.x + dx * wedgeEnd;
-            const endY = from.y + dy * wedgeEnd;
-            const px = (-dy / len) * 5;
-            const py = (dx / len) * 5;
+            const len = Math.hypot(ex - sx, ey - sy) || 1;
+            const endX = sx + (ex - sx) * WEDGE_LENGTH_RATIO;
+            const endY = sy + (ey - sy) * WEDGE_LENGTH_RATIO;
+            const px = (-(ey - sy) / len) * 5;
+            const py = ((ex - sx) / len) * 5;
             parts.push(`<line x1="${quantize(endX)}" y1="${quantize(endY)}" x2="${bx}" y2="${by}" stroke="${stroke}" stroke-width="1.5"/><polygon points="${ax},${ay} ${quantize(endX + px)},${quantize(endY + py)} ${quantize(endX - px)},${quantize(endY - py)}" fill="${stroke}"/>`);
             continue;
         }
         if (bond.stereo === "hash") {
             // Perpendicular bars widen away from the stereocenter as a conventional hashed wedge.
-            const dx = to.x - from.x;
-            const dy = to.y - from.y;
-            const len = Math.hypot(dx, dy) || 1;
-            const px = -dy / len;
-            const py = dx / len;
-            for (let bar = 0; bar < 5; bar += 1) {
-                const t = 0.2 + bar * 0.15;
+            // Bar count grows with the trimmed length so gaps stay near-constant (~10px)
+            // instead of stretching on long bonds; short bonds keep the classic 5 bars.
+            const len = Math.hypot(ex - sx, ey - sy) || 1;
+            const px = -(ey - sy) / len;
+            const py = (ex - sx) / len;
+            const bars = Math.min(12, Math.max(5, Math.floor(len / 10)));
+            for (let bar = 0; bar < bars; bar += 1) {
+                const t = bars === 1 ? 0.5 : 0.15 + (bar / (bars - 1)) * 0.7;
                 const halfWidth = 1 + t * 5;
-                const centerX = from.x + dx * t;
-                const centerY = from.y + dy * t;
-                parts.push(`<line x1="${quantize(centerX + px * halfWidth)}" y1="${quantize(centerY + py * halfWidth)}" x2="${quantize(centerX - px * halfWidth)}" y2="${quantize(centerY - py * halfWidth)}" stroke="${stroke}" stroke-width="2"/>`);
+                const centerX = sx + (ex - sx) * t;
+                const centerY = sy + (ey - sy) * t;
+                parts.push(`<line x1="${quantize(centerX + px * halfWidth)}" y1="${quantize(centerY + py * halfWidth)}" x2="${quantize(centerX - px * halfWidth)}" y2="${quantize(centerY - py * halfWidth)}" stroke="${stroke}" stroke-width="1.5"/>`);
             }
             continue;
         }
@@ -1348,18 +1397,18 @@ export function renderStructureFragment(block, _context) {
             parts.push(`<line x1="${ax}" y1="${ay}" x2="${bx}" y2="${by}" stroke="${stroke}" stroke-width="1.5"/>`);
         }
         else if (bond.order === "2") {
-            const [cax, cay, cbx, cby] = offsetParallel(from.x, from.y, to.x, to.y, 3);
-            const [dax, day, dbx, dby] = offsetParallel(from.x, from.y, to.x, to.y, -3);
+            const [cax, cay, cbx, cby] = offsetParallel(sx, sy, ex, ey, 3);
+            const [dax, day, dbx, dby] = offsetParallel(sx, sy, ex, ey, -3);
             parts.push(`<line x1="${quantize(cax)}" y1="${quantize(cay)}" x2="${quantize(cbx)}" y2="${quantize(cby)}" stroke="${stroke}" stroke-width="1.5"/><line x1="${quantize(dax)}" y1="${quantize(day)}" x2="${quantize(dbx)}" y2="${quantize(dby)}" stroke="${stroke}" stroke-width="1.5"/>`);
         }
         else if (bond.order === "3") {
-            const [cax, cay, cbx, cby] = offsetParallel(from.x, from.y, to.x, to.y, 5);
-            const [dax, day, dbx, dby] = offsetParallel(from.x, from.y, to.x, to.y, -5);
-            parts.push(`<line x1="${quantize(cax)}" y1="${quantize(cay)}" x2="${quantize(cbx)}" y2="${quantize(cby)}" stroke="${stroke}" stroke-width="1.5"/><line x1="${ax}" y1="${ay}" x2="${bx}" y2="${by}" stroke="${stroke}" stroke-width="1.5"/><line x1="${quantize(dax)}" y1="${quantize(day)}" x2="${quantize(dbx)}" y2="${quantize(dby)}" stroke="${stroke}" stroke-width="1.5"/>`);
+            const [cax, cay, cbx, cby] = offsetParallel(sx, sy, ex, ey, 5);
+            const [dax, day, dbx, dby] = offsetParallel(sx, sy, ex, ey, -5);
+            parts.push(`<line x1="${ax}" y1="${ay}" x2="${bx}" y2="${by}" stroke="${stroke}" stroke-width="1.5"/><line x1="${quantize(cax)}" y1="${quantize(cay)}" x2="${quantize(cbx)}" y2="${quantize(cby)}" stroke="${stroke}" stroke-width="1.5"/><line x1="${quantize(dax)}" y1="${quantize(day)}" x2="${quantize(dbx)}" y2="${quantize(dby)}" stroke="${stroke}" stroke-width="1.5"/>`);
         }
         else {
             // Aromatic renders as authored: solid plus inner dashed parallel.
-            const [cax, cay, cbx, cby] = offsetParallel(from.x, from.y, to.x, to.y, 4);
+            const [cax, cay, cbx, cby] = offsetParallel(sx, sy, ex, ey, 4);
             parts.push(`<line x1="${ax}" y1="${ay}" x2="${bx}" y2="${by}" stroke="${stroke}" stroke-width="1.5"/><line x1="${quantize(cax)}" y1="${quantize(cay)}" x2="${quantize(cbx)}" y2="${quantize(cby)}" stroke="${stroke}" stroke-width="1.5" stroke-dasharray="4 3"/>`);
         }
     }
@@ -1379,7 +1428,7 @@ export function renderStructureFragment(block, _context) {
                         ? `<tspan baseline-shift="super" font-size="10">${atom.charge}+</tspan>`
                         : `<tspan baseline-shift="super" font-size="10">${Math.abs(atom.charge)}−</tspan>`;
         const stereoMark = atom.stereo === "unspecified" ? `<title>stereochemistry explicitly unspecified</title>` : "";
-        parts.push(`<text x="${x}" y="${y}" text-anchor="middle" dominant-baseline="central" font-size="16" fill="${stroke}" stroke="Canvas" stroke-width="4" paint-order="stroke" stroke-linejoin="round">${stereoMark}${isotope}${escapeXml(text)}${charge}</text>`);
+        parts.push(`<text x="${x}" y="${y}" text-anchor="middle" dominant-baseline="central" font-size="16" fill="${stroke}" stroke="Canvas" stroke-width="2" paint-order="stroke" stroke-linejoin="round">${stereoMark}${isotope}${escapeXml(text)}${charge}</text>`);
     }
     for (const label of block.labels ?? []) {
         const x = width / 2 + (Number(label.x) - centerX) * scale;
@@ -1394,9 +1443,14 @@ export function renderStructureFragment(block, _context) {
     const number = block.number === true ? ' data-structure-number="true"' : "";
     return `<figure class="aze-structure" id="${figureId}"${label}${number}>${svg}</figure>`;
 }
-/** Fingerprint closure joining the plot/geometry closures (contract §7). */
+/** Fingerprint closure joining the pinned KaTeX spelling and the label metric (contract §7). */
 export function chemistryDependencyClosure() {
-    return { emitter: CHEMISTRY_EMITTER_VERSION };
+    return {
+        emitter: CHEMISTRY_EMITTER_VERSION,
+        katex: KATEX_VERSION,
+        language: EQUATION_LATEX_LANGUAGE_VERSION,
+        advanceMetric: advanceMetricDependencyClosure(),
+    };
 }
 /* ------------------------------------------------------------------ *
  * Plugin descriptors (one family module, three plain-name directives)
@@ -1452,7 +1506,7 @@ export const structurePlugin = Object.freeze({
 export const FORMULA_HTML_BLOCK_RENDERER_ID = "azeforge.formula.html/v1";
 export const REACTION_HTML_BLOCK_RENDERER_ID = "azeforge.reaction.html/v1";
 export const STRUCTURE_HTML_BLOCK_RENDERER_ID = "azeforge.structure.html/v1";
-export const CHEMISTRY_HTML_BLOCK_RENDERER_VERSION = "1.0.3";
+export const CHEMISTRY_HTML_BLOCK_RENDERER_VERSION = "1.2.0";
 export const formulaHtmlBlockRenderer = Object.freeze({
     descriptor: Object.freeze({
         id: FORMULA_HTML_BLOCK_RENDERER_ID,

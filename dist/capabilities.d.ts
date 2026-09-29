@@ -114,6 +114,8 @@ export interface CapabilitiesReport {
         }>;
         readonly chemistry: Readonly<{
             emitter: typeof CHEMISTRY_EMITTER_VERSION;
+            advanceMetric: typeof ADVANCE_METRIC_VERSION;
+            metricSource: readonly string[];
             availability: EngineAvailability;
         }>;
         readonly timing: Readonly<{

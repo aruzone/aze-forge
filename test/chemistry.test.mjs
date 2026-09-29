@@ -125,6 +125,46 @@ test("reaction with no balance claims nothing and validates", async () => {
   assert.equal(compiled.document.blocks[0].balance, "none");
 });
 
+test("reaction unspaced coefficients match the spaced form", async () => {
+  const spaced = await compile(bodySource("2 Mg(s) + O2(g) -> 2 MgO(s)", "reaction"));
+  const unspaced = await compile(bodySource("2Mg(s) + O2(g) -> 2MgO(s)", "reaction"));
+  assert.deepEqual(unspaced.diagnostics, []);
+  assert.deepEqual(spaced.diagnostics, []);
+  const figure = (compiled) => {
+    const html = new TextDecoder().decode(compiled.artifact.bytes);
+    const match = /<figure class="aze-reaction"[^>]*>([\s\S]*?)<\/figure>/.exec(html);
+    assert.ok(match !== null);
+    return match[0].replace(/id="[^"]*"/, 'id="aze-reaction-id"');
+  };
+  assert.ok(figure(unspaced).includes("katex"));
+  assert.ok(figure(unspaced).includes("\\mathrm{Mg}"));
+  assert.ok(!figure(unspaced).includes("<sup>2</sup>Mg"));
+  assert.equal(unspaced.document.blocks[0].reactants[0].coefficient, 2);
+  assert.equal(unspaced.document.blocks[0].reactants[0].expression, "Mg");
+});
+
+test("reaction attached unspecified coefficients and left arrow still parse", async () => {
+  const compiled = await compile(bodySource("?Al2O3 <- ?Al + ?O2", "reaction"));
+  assert.deepEqual(compiled.diagnostics, []);
+  const block = compiled.document.blocks[0];
+  assert.equal(block.arrow, "<-");
+  assert.ok(block.reactants.every((entry) => entry.unspecifiedCoefficient));
+  assert.ok(block.products.every((entry) => entry.unspecifiedCoefficient));
+  const html = new TextDecoder().decode(compiled.artifact.bytes);
+  assert.ok(html.includes("\\leftarrow"));
+  assert.ok(html.includes("katex"));
+});
+
+test("reaction invalid coefficients keep their stable code", async () => {
+  for (const species of ["0Mg", "1000Mg", "2", "2 2Mg"]) {
+    const compiled = await compile(bodySource(`NaCl + H2O -> ${species}`, "reaction"));
+    assert.ok(
+      compiled.diagnostics.some((d) => d.code === "azeforge.chemistry.reaction#chem-reaction-coefficient-invalid"),
+      species,
+    );
+  }
+});
+
 test("reaction arrow registry is closed to three tokens", async () => {
   const compiled = await compile(bodySource("A + B => C", "reaction"));
   assert.ok(compiled.diagnostics.some((d) => d.code === "azeforge.chemistry.reaction#chem-reaction-syntax"));
@@ -276,8 +316,23 @@ test("chemistry blocks render into html fragments", async () => {
   assert.ok(html.includes('class="aze-formula"'));
   assert.ok(html.includes('class="aze-reaction"'));
   assert.ok(html.includes('class="aze-structure"'));
-  assert.ok(html.includes("→"));
+  assert.ok(html.includes("\\mathrm{Ag}"));
+  assert.ok(html.includes("\\rightarrow"));
   assert.ok(html.includes("<polygon") === false);
+});
+
+test("formula renders textbook serif: upright roman, TeX sub/superscripts", async () => {
+  const compiled = await compile(bodySource("SO42-", "formula", "id: sulfate\n"));
+  assert.deepEqual(compiled.diagnostics, []);
+  const html = new TextDecoder().decode(compiled.artifact.bytes);
+  const match = /<figure class="aze-formula"[^>]*>([\s\S]*?)<\/figure>/.exec(html);
+  assert.ok(match !== null);
+  const figure = match[0];
+  assert.ok(figure.includes("katex"));
+  assert.ok(figure.includes("<math "));
+  assert.ok(figure.includes("\\mathrm{S}\\mathrm{O}_{4}^{2-}"));
+  assert.ok(!figure.includes("<sub>"));
+  assert.ok(!figure.includes("<sup>"));
 });
 
 test("chemistry emitter renders wedge as a filled polygon", async () => {
@@ -316,12 +371,45 @@ test("hash stereo renders straight parallel crossbars", async () => {
   assert.ok(bars.length >= 3);
   assert.ok(bars.every((bar) => bar.y1 === bar.y2));
 });
+test("hash stereo keeps near-constant gaps on long bonds", async () => {
+  const src = "- atom: c2\n  element: C\n  at: [1.4, 0.0]\n- atom: o\n  element: O\n  at: [2.4, 1.0]\n  charge: -1\n- bond:\n  from: c2\n  to: o\n  order: 1\n  stereo: hash";
+  const compiled = await compile(bodySource(src, "structure"));
+  assert.ok(compiled.diagnostics.every((d) => d.severity !== "error"));
+  const html = new TextDecoder().decode(compiled.artifact.bytes);
+  const svg = /<svg[\s\S]*?<\/svg>/.exec(html)[0];
+  const bars = [...svg.matchAll(/<line x1="([^"]+)" y1="([^"]+)" x2="([^"]+)" y2="([^"]+)"/g)].map((match) => ({
+    x1: Number(match[1]),
+    y1: Number(match[2]),
+    x2: Number(match[3]),
+    y2: Number(match[4]),
+  }));
+  assert.ok(bars.length > 5);
+  const centers = bars.map((bar) => ({ x: (bar.x1 + bar.x2) / 2, y: (bar.y1 + bar.y2) / 2 }));
+  const gaps = centers.slice(1).map((center, i) => Math.hypot(center.x - centers[i].x, center.y - centers[i].y));
+  assert.ok(Math.max(...gaps) < 40);
+});
+test("structure bonds trim at label boxes instead of running underneath", async () => {
+  const compiled = await compile(bodySource("- atom: c1\n  element: C\n  at: [0.0, 0.0]\n- atom: c2\n  element: C\n  at: [1.0, 0.0]\n- bond:\n  from: c1\n  to: c2\n  order: 1", "structure"));
+  assert.deepEqual(compiled.diagnostics, []);
+  const html = new TextDecoder().decode(compiled.artifact.bytes);
+  const svg = /<svg[\s\S]*?<\/svg>/.exec(html)[0];
+  const line = /<line x1="([^"]+)" y1="([^"]+)" x2="([^"]+)" y2="([^"]+)"/.exec(svg);
+  assert.ok(line !== null);
+  const centers = [...svg.matchAll(/<text x="([^"]+)" y="([^"]+)"/g)].map((match) => ({ x: Number(match[1]), y: Number(match[2]) }));
+  assert.equal(centers.length, 2);
+  assert.ok(Number(line[1]) > Math.min(centers[0].x, centers[1].x));
+  assert.ok(Number(line[3]) < Math.max(centers[0].x, centers[1].x));
+  assert.ok(svg.includes('stroke-width="2"'));
+  assert.ok(!svg.includes('stroke-width="4"'));
+});
 
 
 test("capabilities advertise chemistry engines and ceilings", async () => {
   const report = await buildCapabilities();
   assert.ok(report.engines.chemistry);
-  assert.equal(report.engines.chemistry.emitter, "1.0.4");
+  assert.equal(report.engines.chemistry.emitter, "1.2.0");
+  assert.equal(report.engines.chemistry.advanceMetric, "1.0.0");
+  assert.ok(Array.isArray(report.engines.chemistry.metricSource));
   // Bundled probe engines report the same availability as geometry: both
   // follow the optional-dependency probe seam (browser availability today).
   assert.equal(report.engines.chemistry.availability, report.engines.geometry.availability);

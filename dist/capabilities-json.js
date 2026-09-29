@@ -248,10 +248,12 @@ export const capabilitiesJsonSchema = Object.freeze({
                 },
                 chemistry: {
                     type: "object",
-                    required: ["emitter", "availability"],
+                    required: ["emitter", "advanceMetric", "metricSource", "availability"],
                     additionalProperties: false,
                     properties: {
                         emitter: { type: "string", minLength: 1 },
+                        advanceMetric: { type: "string", minLength: 1 },
+                        metricSource: { type: "array", items: { type: "string" } },
                         availability,
                     },
                 },
