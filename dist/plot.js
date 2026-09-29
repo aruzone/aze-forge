@@ -345,6 +345,11 @@ export function evaluateNode(node, scope) {
                 return nonEvaluable("primes denote differentiation, which is symbolic-only");
             }
             if (node.sup === undefined) {
+                // Tensor indices never evaluate; fall through to the symbolic-only
+                // refusal below rather than matching a digit-prefix parameter.
+                if (node.subs !== undefined && node.subs.length > 0) {
+                    return nonEvaluable("tensor subscripts are symbolic-only");
+                }
                 // Digit-subscripted spellings (e.g. `V0`) parse as base+sub; a
                 // declared parameter shadows the symbolic reading.
                 if (node.base.kind === "ident" && node.sub !== undefined && /^[0-9]+$/.test(node.sub)) {

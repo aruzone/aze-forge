@@ -107,6 +107,18 @@ test("powers are non-associative and take one sub plus one sup", () => {
   assert.equal(tex("x_i^2"), "x_{i}^{2}");
   assert.deepEqual(projection("x^2_i"), projection("x_i^2"));
 });
+test("physics: multi-index subscripts project tensor indices", () => {
+  assert.equal(tex("G_(mu, nu)"), "G_{\\mu\\nu}");
+  assert.equal(tex("R_(mu, nu) - 1 / 2 R g_(mu, nu)"), "R_{\\mu\\nu} - 1 / 2 R g_{\\mu\\nu}");
+  assert.equal(spelling("T_(mu, nu)"), "T_(mu, nu)");
+  assert.notDeepEqual(projection("T_(mu, nu)"), projection("T_mu"));
+});
+
+test("physics: nabla and hbar read as registered symbols", () => {
+  assert.equal(tex("hbar"), "\\hbar");
+  assert.equal(tex("nabla psi"), "\\nabla \\psi");
+  assert.equal(tex("i hbar partial psi / partial t"), "i \\hbar \\partial \\psi / \\partial t");
+});
 
 test("identifiers carry digit suffixes, word subscripts, and primes", () => {
   assert.equal(tex("S_n"), "S_{n}");

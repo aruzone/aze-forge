@@ -75,6 +75,8 @@ const SYMBOLS: Readonly<Record<string, string>> = Object.freeze({
   infinity: "\\infty",
   partial: "\\partial",
   emptyset: "\\emptyset",
+  nabla: "\\nabla",
+  hbar: "\\hbar",
 });
 
 const FUNCTIONS: Readonly<Record<string, string>> = Object.freeze({
@@ -341,6 +343,8 @@ export interface ScriptNode {
   readonly kind: "script";
   readonly base: MathNode;
   readonly sub?: string;
+  /** Additional indices, e.g. `nu` in `G_(mu, nu)`; order-significant. */
+  readonly subs?: readonly string[];
   readonly sup?: MathNode;
   /** Authored primes, 1 or 2. */
   readonly primes?: 1 | 2;
@@ -830,6 +834,7 @@ class Parser {
   private parsePower(): MathNode {
     const base = this.parseAtom();
     let sub: string | undefined;
+    const extraSubs: string[] = [];
     let sup: MathNode | undefined;
     let primes: 1 | 2 | undefined;
     for (;;) {
@@ -858,6 +863,25 @@ class Parser {
           );
         }
         this.advance();
+        if (this.peek().kind === "punct" && this.peek().text === "(") {
+          this.advance();
+          const indices: string[] = [this.parseSubscript()];
+          for (;;) {
+            const next = this.peek();
+            if (next.kind === "punct" && next.text === ")") {
+              this.advance();
+              break;
+            }
+            this.expectPunct(",", "A comma separates tensor indices: G_(mu, nu).");
+            if (this.peek().kind === "punct" && this.peek().text === ")") {
+              this.error("missing-operand", "A tensor index is expected after the comma.", this.peek());
+            }
+            indices.push(this.parseSubscript());
+          }
+          sub = indices[0];
+          extraSubs.push(...indices.slice(1));
+          continue;
+        }
         sub = this.parseSubscript();
         continue;
       }
@@ -892,6 +916,7 @@ class Parser {
       kind: "script",
       base,
       ...(sub === undefined ? {} : { sub }),
+      ...(extraSubs.length === 0 ? {} : { subs: [...extraSubs] }),
       ...(sup === undefined ? {} : { sup }),
       ...(primes === undefined ? {} : { primes }),
     };
@@ -1688,7 +1713,8 @@ export function canonicalSpelling(node: MathNode): string {
         .join("");
     case "script": {
       const base = canonicalSpelling(node.base);
-      const sub = node.sub === undefined ? "" : `_${node.sub}`;
+      const indices = node.sub === undefined ? [] : [node.sub, ...(node.subs ?? [])];
+      const sub = indices.length === 0 ? "" : indices.length === 1 ? `_${indices[0]}` : `_(${indices.join(", ")})`;
       const sup = node.sup === undefined ? "" : `^${canonicalSpelling(node.sup)}`;
       const primes = node.primes === undefined ? "" : "'".repeat(node.primes);
       return `${base}${sub}${primes}${sup}`;
@@ -1793,6 +1819,7 @@ export function projectMathNode(node: MathNode): JsonValue {
         kind: "script",
         base: projectMathNode(node.base),
         ...(node.sub === undefined ? {} : { sub: node.sub }),
+        ...(node.subs === undefined ? {} : { subs: [...node.subs] }),
         ...(node.sup === undefined ? {} : { sup: projectMathNode(node.sup) }),
       };
     case "chain":
@@ -1896,7 +1923,8 @@ export function treeToTex(node: MathNode): string {
       return node.factors.map(treeToTex).join(" ");
     case "script": {
       const base = treeToTex(node.base);
-      const sub = node.sub === undefined ? "" : subscriptTex(node.sub);
+      const indices = node.sub === undefined ? [] : [node.sub, ...(node.subs ?? [])];
+      const sub = indices.length === 0 ? "" : `_{${indices.map(indexTex).join("")}}`;
       const sup = node.sup === undefined ? "" : `^{${treeToTex(node.sup)}}`;
       const primes = node.primes === undefined ? "" : "'".repeat(node.primes);
       return `${base}${primes}${sub}${sup}`;
@@ -1983,10 +2011,15 @@ export function treeToTex(node: MathNode): string {
   }
 }
 
+function indexTex(index: string): string {
+  if (/^[0-9]+$/.test(index) || index.length === 1) return index;
+  const greek = GREEK_LOWER[index] ?? GREEK_VARIANTS[index] ?? GREEK_UPPER[index];
+  if (greek !== undefined) return greek;
+  return `\\mathrm{${index}}`;
+}
+
 function subscriptTex(subscript: string): string {
-  return /^[0-9]+$/.test(subscript) || subscript.length === 1
-    ? `_{${subscript}}`
-    : `_{\\mathrm{${subscript}}}`;
+  return `_{${indexTex(subscript)}}`;
 }
 
 /**
@@ -2056,11 +2089,14 @@ export function projectionToNode(value: JsonValue): MathNode | undefined {
       const sup = obj.sup === undefined ? undefined : projectionToNode(obj.sup as JsonValue);
       if (obj.sup !== undefined && sup === undefined) return undefined;
       const sub = obj.sub === undefined ? undefined : String(obj.sub);
+      const subs = obj.subs === undefined ? undefined : Array.isArray(obj.subs) ? (obj.subs as readonly unknown[]).map(String) : undefined;
+      if (obj.subs !== undefined && subs === undefined) return undefined;
       const primes = obj.primes === undefined ? undefined : (obj.primes as 1 | 2);
       return {
         kind: "script",
         base,
         ...(sub === undefined ? {} : { sub }),
+        ...(subs === undefined ? {} : { subs }),
         ...(sup === undefined ? {} : { sup }),
         ...(primes === undefined ? {} : { primes }),
       };

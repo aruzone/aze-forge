@@ -73,6 +73,8 @@ export interface ScriptNode {
     readonly kind: "script";
     readonly base: MathNode;
     readonly sub?: string;
+    /** Additional indices, e.g. `nu` in `G_(mu, nu)`; order-significant. */
+    readonly subs?: readonly string[];
     readonly sup?: MathNode;
     /** Authored primes, 1 or 2. */
     readonly primes?: 1 | 2;

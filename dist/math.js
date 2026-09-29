@@ -66,6 +66,8 @@ const SYMBOLS = Object.freeze({
     infinity: "\\infty",
     partial: "\\partial",
     emptyset: "\\emptyset",
+    nabla: "\\nabla",
+    hbar: "\\hbar",
 });
 const FUNCTIONS = Object.freeze({
     sin: "\\sin",
@@ -542,6 +544,7 @@ class Parser {
     parsePower() {
         const base = this.parseAtom();
         let sub;
+        const extraSubs = [];
         let sup;
         let primes;
         for (;;) {
@@ -561,6 +564,25 @@ class Parser {
                     this.error("chained-power", "Only one subscript per base is allowed; parenthesize nested subscripts.", token, { suggestion: "Parenthesize the subscript, for example x_(y)." });
                 }
                 this.advance();
+                if (this.peek().kind === "punct" && this.peek().text === "(") {
+                    this.advance();
+                    const indices = [this.parseSubscript()];
+                    for (;;) {
+                        const next = this.peek();
+                        if (next.kind === "punct" && next.text === ")") {
+                            this.advance();
+                            break;
+                        }
+                        this.expectPunct(",", "A comma separates tensor indices: G_(mu, nu).");
+                        if (this.peek().kind === "punct" && this.peek().text === ")") {
+                            this.error("missing-operand", "A tensor index is expected after the comma.", this.peek());
+                        }
+                        indices.push(this.parseSubscript());
+                    }
+                    sub = indices[0];
+                    extraSubs.push(...indices.slice(1));
+                    continue;
+                }
                 sub = this.parseSubscript();
                 continue;
             }
@@ -588,6 +610,7 @@ class Parser {
             kind: "script",
             base,
             ...(sub === undefined ? {} : { sub }),
+            ...(extraSubs.length === 0 ? {} : { subs: [...extraSubs] }),
             ...(sup === undefined ? {} : { sup }),
             ...(primes === undefined ? {} : { primes }),
         };
@@ -1225,7 +1248,8 @@ export function canonicalSpelling(node) {
                 .join("");
         case "script": {
             const base = canonicalSpelling(node.base);
-            const sub = node.sub === undefined ? "" : `_${node.sub}`;
+            const indices = node.sub === undefined ? [] : [node.sub, ...(node.subs ?? [])];
+            const sub = indices.length === 0 ? "" : indices.length === 1 ? `_${indices[0]}` : `_(${indices.join(", ")})`;
             const sup = node.sup === undefined ? "" : `^${canonicalSpelling(node.sup)}`;
             const primes = node.primes === undefined ? "" : "'".repeat(node.primes);
             return `${base}${sub}${primes}${sup}`;
@@ -1324,6 +1348,7 @@ export function projectMathNode(node) {
                 kind: "script",
                 base: projectMathNode(node.base),
                 ...(node.sub === undefined ? {} : { sub: node.sub }),
+                ...(node.subs === undefined ? {} : { subs: [...node.subs] }),
                 ...(node.sup === undefined ? {} : { sup: projectMathNode(node.sup) }),
             };
         case "chain":
@@ -1425,7 +1450,8 @@ export function treeToTex(node) {
             return node.factors.map(treeToTex).join(" ");
         case "script": {
             const base = treeToTex(node.base);
-            const sub = node.sub === undefined ? "" : subscriptTex(node.sub);
+            const indices = node.sub === undefined ? [] : [node.sub, ...(node.subs ?? [])];
+            const sub = indices.length === 0 ? "" : `_{${indices.map(indexTex).join("")}}`;
             const sup = node.sup === undefined ? "" : `^{${treeToTex(node.sup)}}`;
             const primes = node.primes === undefined ? "" : "'".repeat(node.primes);
             return `${base}${primes}${sub}${sup}`;
@@ -1508,10 +1534,16 @@ export function treeToTex(node) {
         }
     }
 }
+function indexTex(index) {
+    if (/^[0-9]+$/.test(index) || index.length === 1)
+        return index;
+    const greek = GREEK_LOWER[index] ?? GREEK_VARIANTS[index] ?? GREEK_UPPER[index];
+    if (greek !== undefined)
+        return greek;
+    return `\\mathrm{${index}}`;
+}
 function subscriptTex(subscript) {
-    return /^[0-9]+$/.test(subscript) || subscript.length === 1
-        ? `_{${subscript}}`
-        : `_{\\mathrm{${subscript}}}`;
+    return `_{${indexTex(subscript)}}`;
 }
 /**
  * Rebuild a MathNode from its identity projection so renderers derive TeX
@@ -1590,11 +1622,15 @@ export function projectionToNode(value) {
             if (obj.sup !== undefined && sup === undefined)
                 return undefined;
             const sub = obj.sub === undefined ? undefined : String(obj.sub);
+            const subs = obj.subs === undefined ? undefined : Array.isArray(obj.subs) ? obj.subs.map(String) : undefined;
+            if (obj.subs !== undefined && subs === undefined)
+                return undefined;
             const primes = obj.primes === undefined ? undefined : obj.primes;
             return {
                 kind: "script",
                 base,
                 ...(sub === undefined ? {} : { sub }),
+                ...(subs === undefined ? {} : { subs }),
                 ...(sup === undefined ? {} : { sup }),
                 ...(primes === undefined ? {} : { primes }),
             };

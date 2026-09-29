@@ -36,6 +36,15 @@ syntax: readable
 sigma^2 = frac(1, n) sum i=1..n of (x_i - mu)^2
 ::::
 
+Multi-index subscripts carry tensor indices in one subscript group, and the
+physics symbols read as registered names.
+
+:::: equation
+id: field-equation-form
+----
+G_(mu, nu) = R_(mu, nu) - 1 / 2 R g_(mu, nu)
+::::
+
 The deepest supported form binds a continuous and a discrete variable at once
 and mixes a root, a fraction, and a piecewise branch.
 
