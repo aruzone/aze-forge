@@ -4,6 +4,7 @@ import test from "node:test";
 import { createCompiler } from "../dist/index.js";
 import { buildCapabilities } from "../dist/capabilities.js";
 import { advanceWidth } from "../dist/advance-metric.js";
+import { darkPresentationTheme, defaultTheme } from "../dist/theme.js";
 
 const ALTITUDE = `---
 azemark: 2
@@ -239,7 +240,7 @@ test("right-angle mark opens into the angle its arms name", async () => {
   const points = [...html.matchAll(/<circle cx="([\d.-]+)" cy="([\d.-]+)" r="[\d.]+" fill=/g)]
     .map((match) => [Number(match[1]), Number(match[2])]);
   assert.equal(points.length, 3);
-  const mark = html.match(/<path d="M ([\d.-]+) ([\d.-]+) L ([\d.-]+) ([\d.-]+) L ([\d.-]+) ([\d.-]+)"[^>]*stroke="#b45309"/);
+  const mark = html.match(/<path d="M ([\d.-]+) ([\d.-]+) L ([\d.-]+) ([\d.-]+) L ([\d.-]+) ([\d.-]+)"[^>]*stroke="var\(--aze-geometry-mark/);
   assert.ok(mark, "right-angle mark renders a three-point square");
   const [v, a, b] = points;
   // Without an oriented square the mark lands up-left of the vertex, outside
@@ -365,6 +366,32 @@ test("a crowded marker is an obstacle for a neighbouring label", async () => {
       assert.ok(!covered, `label ${label.text} clears marker at ${marker.cx},${marker.cy}`);
     }
   }
+});
+
+test("geometry ink follows the Theme instead of a baked-in colour", async () => {
+  const compiler = createCompiler();
+  const source = bodySource([
+    point("a", 0, 0),
+    point("b", 4, 0),
+    point("c", 0, 4),
+    "- kind: segment\n  name: ab\n  from: a\n  to: b",
+    "- kind: segment\n  name: ac\n  from: a\n  to: c",
+    "- kind: right-angle-mark\n  first: b\n  second: a\n  third: c",
+  ].join("\n"));
+  const render = async (theme) =>
+    Buffer.from((await compiler.compile(source, { format: "html", theme })).artifact.bytes).toString("utf8");
+  const light = await render("default");
+  const dark = await render("dark-presentation");
+  // A figure that carries no baked-in ink cannot go invisible on one scheme.
+  assert.ok(light.includes('stroke="var(--aze-geometry-ink, #1f2937)"'), "geometry ink reads from the stylesheet");
+  assert.ok(!light.includes('stroke="#1f2937"'), "no baked-in ink reaches the figure");
+  assert.ok(light.includes(`--aze-geometry-ink:${defaultTheme.colors.foreground}`), "the light Theme inks the figure with its foreground");
+  assert.ok(dark.includes(`--aze-geometry-ink:${darkPresentationTheme.colors.foreground}`), "the dark Theme inks the figure with its light foreground");
+  assert.notEqual(
+    light.match(/--aze-geometry-mark:(#[0-9a-f]{6})/)?.[1],
+    dark.match(/--aze-geometry-mark:(#[0-9a-f]{6})/)?.[1],
+    "the mark accent is chosen per scheme so marks stay visible on both",
+  );
 });
 
 test("content hash is stable across renders and sensitive to declaration order", async () => {

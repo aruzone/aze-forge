@@ -1381,9 +1381,14 @@ function geometryContentSeed(block) {
         declarations: block.declarations,
     });
 }
-const GEOMETRY_STROKE = "#1f2937";
-const GUIDE_STROKE = "#9ca3af";
-const MARK_STROKE = "#b45309";
+/**
+ * Ink follows the Theme through the stylesheet, so the figure reads on a light
+ * or a dark page. The literal after the comma keeps a figure legible when the
+ * SVG is lifted out of its Artifact and the custom properties are absent.
+ */
+const GEOMETRY_STROKE = "var(--aze-geometry-ink, #1f2937)";
+const GUIDE_STROKE = "var(--aze-geometry-guide, #9ca3af)";
+const MARK_STROKE = "var(--aze-geometry-mark, #b45309)";
 function renderMeasuredLength(block, resolved, declaration) {
     const at = (name) => resolved.points.get(name);
     if (declaration.segment !== undefined) {

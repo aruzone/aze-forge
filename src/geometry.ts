@@ -1530,9 +1530,14 @@ function geometryContentSeed(block: GeometryBlock): string {
   });
 }
 
-const GEOMETRY_STROKE = "#1f2937";
-const GUIDE_STROKE = "#9ca3af";
-const MARK_STROKE = "#b45309";
+/**
+ * Ink follows the Theme through the stylesheet, so the figure reads on a light
+ * or a dark page. The literal after the comma keeps a figure legible when the
+ * SVG is lifted out of its Artifact and the custom properties are absent.
+ */
+const GEOMETRY_STROKE = "var(--aze-geometry-ink, #1f2937)";
+const GUIDE_STROKE = "var(--aze-geometry-guide, #9ca3af)";
+const MARK_STROKE = "var(--aze-geometry-mark, #b45309)";
 
 function renderMeasuredLength(block: GeometryBlock, resolved: ResolvedGeometry, declaration: GeometryDeclaration): string | undefined {
   const at = (name: string): Point | undefined => resolved.points.get(name);
