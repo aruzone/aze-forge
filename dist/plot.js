@@ -1883,7 +1883,14 @@ function resolveAxisDomain(axis, fitted, logFallback) {
 /* ------------------------------------------------------------------ *
  * Owned SVG emitter
  * ------------------------------------------------------------------ */
-const PALETTE = Object.freeze(["#2563eb", "#dc2626", "#16a34a", "#d97706", "#7c3aed", "#0891b2"]);
+/**
+ * Series colours for the light scheme. The Theme stylesheet redefines the
+ * `--aze-plot-series-*` custom properties these feed, so a dark page gets
+ * lighter hues that hold every series above 4:1 against its background.
+ */
+export const PLOT_SERIES_PALETTE = Object.freeze([
+    "#2563eb", "#dc2626", "#16a34a", "#d97706", "#7c3aed", "#0891b2",
+]);
 /**
  * Axis ink follows the page ink through `currentColor`, so plots and charts
  * read on a light or a dark Theme. The grid is that same ink at reduced
@@ -1917,7 +1924,8 @@ function geometryOf(width, height) {
     };
 }
 function seriesColor(index) {
-    return PALETTE[index % PALETTE.length] ?? "#2563eb";
+    const slot = index % PLOT_SERIES_PALETTE.length;
+    return `var(--aze-plot-series-${slot + 1}, ${PLOT_SERIES_PALETTE[slot] ?? "#2563eb"})`;
 }
 function tickLabels(scale, count) {
     const ticks = scale.ticks(count);
@@ -1935,7 +1943,7 @@ function tickLabels(scale, count) {
 function renderAxesFrame(options) {
     const { geo, xScale, yScale, xLabel, yLabel, grid } = options;
     const parts = [];
-    const xTicks = tickLabels(xScale, 6);
+    const xTicks = options.xNumericTicks === false ? [] : tickLabels(xScale, 6);
     const yTicks = tickLabels(yScale, 6);
     for (const tick of xTicks) {
         const px = quantize(xScale(tick.value));
@@ -2248,7 +2256,7 @@ export function renderChartFragment(block, _context) {
         const band = scaleBand().domain(categories).range([geo.x0, geo.x1]).paddingInner(block.chartType === "bar" && barSeries.length <= 1 ? 0.3 : 0.15).paddingOuter(0.1);
         const yScale = scaleLinear().domain([y0, y1]).range([geo.y0, geo.y1]);
         const xScale = scaleLinear().domain([0, Math.max(1, categories.length)]).range([geo.x0, geo.x1]);
-        parts.push(renderAxesFrame({ geo, xScale, yScale, xLabel: block.xLabel, yLabel: block.yLabel, grid: block.grid }));
+        parts.push(renderAxesFrame({ geo, xScale, yScale, xLabel: block.xLabel, yLabel: block.yLabel, grid: block.grid, xNumericTicks: false }));
         const stacked = block.chartType === "stacked-bar";
         const cumulative = new Map();
         // Category labels on the band axis.

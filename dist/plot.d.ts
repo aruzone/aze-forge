@@ -134,6 +134,12 @@ export declare function validateChartBlock(options: {
     readonly sourceName: string | undefined;
     readonly defaults?: PlotBlockDefaults;
 }): ValidatedChart;
+/**
+ * Series colours for the light scheme. The Theme stylesheet redefines the
+ * `--aze-plot-series-*` custom properties these feed, so a dark page gets
+ * lighter hues that hold every series above 4:1 against its background.
+ */
+export declare const PLOT_SERIES_PALETTE: readonly string[];
 export declare class PlotSanitizerError extends Error {
     readonly code: "azeforge.plot#sanitizer-compromise";
     constructor(message: string);

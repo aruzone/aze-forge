@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { createCompiler } from "../dist/index.js";
+import { darkPresentationTheme } from "../dist/theme.js";
 
 const RC_SOURCE = `---
 azemark: 2
@@ -717,4 +718,89 @@ test("a plot figure carries no scheme-specific markup", async () => {
   // Ink is inherited rather than baked, so only the stylesheet moves between
   // schemes and no axis or series can be lost on one of them.
   assert.equal(await figureOf("default"), await figureOf("dark-presentation"));
+});
+
+const CATEGORICAL_SOURCE = `---
+azemark: 2
+---
+
+:::: chart
+id: categorical-bar
+type: bar
+x-label: launch stage
+y-label: payload mass (kg)
+grid: true
+----
+- label: payload mass
+  bars:
+    - category: Stage 1
+      value: 2400
+    - category: Stage 2
+      value: 1150
+    - category: Upper stage
+      value: 480
+::::
+`;
+
+function relativeLuminance(hex) {
+  const parts = [1, 3, 5].map((offset) => Number.parseInt(hex.slice(offset, offset + 2), 16) / 255);
+  const linear = parts.map((value) => (value <= 0.03928 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4));
+  return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2];
+}
+
+function contrastOn(background, hex) {
+  const first = relativeLuminance(background);
+  const second = relativeLuminance(hex);
+  return (Math.max(first, second) + 0.05) / (Math.min(first, second) + 0.05);
+}
+
+test("the series palette is chosen per scheme so no series is dim on a dark page", async () => {
+  const compiler = createCompiler();
+  const paletteOf = async (theme) => {
+    const compiled = await compiler.compile(CATEGORICAL_SOURCE, { format: "html", theme });
+    const html = Buffer.from(compiled.artifact.bytes).toString("utf8");
+    return new Map(
+      [...html.matchAll(/--aze-plot-series-(\d):(#[0-9a-f]{6})/g)].map((match) => [Number(match[1]), match[2]]),
+    );
+  };
+  const light = await paletteOf("default");
+  const dark = await paletteOf("dark-presentation");
+  assert.deepEqual(
+    [...light.values()],
+    ["#2563eb", "#dc2626", "#16a34a", "#d97706", "#7c3aed", "#0891b2"],
+    "the light scheme keeps the authored palette",
+  );
+  assert.equal(dark.size, light.size, "every series slot is restated for the dark scheme");
+  for (const [slot, color] of dark) {
+    assert.notEqual(color, light.get(slot), `slot ${slot} differs between schemes`);
+    assert.ok(
+      contrastOn(darkPresentationTheme.colors.background, color) >= 4,
+      `dark slot ${slot} (${color}) holds at least 4:1 against the dark page`,
+    );
+  }
+  // The figure reads the palette through the stylesheet rather than a literal.
+  const compiled = await compiler.compile(CATEGORICAL_SOURCE, { format: "html" });
+  const html = Buffer.from(compiled.artifact.bytes).toString("utf8");
+  assert.ok(html.includes("var(--aze-plot-series-1, #2563eb)"), "series colours resolve from the stylesheet");
+});
+
+test("a categorical bar chart labels its bands without numeric x ticks", async () => {
+  const compiler = createCompiler();
+  const compiled = await compiler.compile(CATEGORICAL_SOURCE, { format: "html" });
+  assert.deepEqual(compiled.diagnostics, []);
+  const html = Buffer.from(compiled.artifact.bytes).toString("utf8");
+  const start = html.indexOf('<figure class="aze-chart"');
+  const figure = html.slice(start, html.indexOf("</figure>", start));
+  const labels = [...figure.matchAll(/<text[^>]*>([^<]*)<\/text>/g)].map((match) => match[1]);
+  for (const category of ["Stage 1", "Stage 2", "Upper stage"]) {
+    assert.ok(labels.includes(category), `category "${category}" renders on its band`);
+  }
+  // The band axis used to print numeric ticks at the band centres, so 0.5, 1.5
+  // and 2.5 landed on top of the category labels.
+  assert.deepEqual(
+    labels.filter((label) => ["0.5", "1.5", "2.5"].includes(label)),
+    [],
+    "no numeric tick label collides with a category label",
+  );
+  assert.ok(labels.includes("launch stage"), "the axis title still renders");
 });
