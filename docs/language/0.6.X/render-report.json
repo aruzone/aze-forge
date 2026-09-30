@@ -1,0 +1,242 @@
+[
+  {
+    "source": "00-authoring-azemark.aze.md",
+    "theme": "academic",
+    "output": "00-authoring-azemark.aze.academic.html",
+    "exit": 0,
+    "bytes": 713296,
+    "stderr": ""
+  },
+  {
+    "source": "00-authoring-azemark.aze.md",
+    "theme": "dark-presentation",
+    "output": "00-authoring-azemark.aze.dark-presentation.html",
+    "exit": 0,
+    "bytes": 713295,
+    "stderr": ""
+  },
+  {
+    "source": "01-document-basics.aze.md",
+    "theme": "academic",
+    "output": "01-document-basics.aze.academic.html",
+    "exit": 0,
+    "bytes": 716665,
+    "stderr": ""
+  },
+  {
+    "source": "01-document-basics.aze.md",
+    "theme": "dark-presentation",
+    "output": "01-document-basics.aze.dark-presentation.html",
+    "exit": 0,
+    "bytes": 716664,
+    "stderr": ""
+  },
+  {
+    "source": "02-mathematics.aze.md",
+    "theme": "academic",
+    "output": "02-mathematics.aze.academic.html",
+    "exit": 0,
+    "bytes": 810435,
+    "stderr": ""
+  },
+  {
+    "source": "02-mathematics.aze.md",
+    "theme": "dark-presentation",
+    "output": "02-mathematics.aze.dark-presentation.html",
+    "exit": 0,
+    "bytes": 810434,
+    "stderr": ""
+  },
+  {
+    "source": "03-visualization.aze.md",
+    "theme": "academic",
+    "output": "03-visualization.aze.academic.html",
+    "exit": 0,
+    "bytes": 755607,
+    "stderr": ""
+  },
+  {
+    "source": "03-visualization.aze.md",
+    "theme": "dark-presentation",
+    "output": "03-visualization.aze.dark-presentation.html",
+    "exit": 0,
+    "bytes": 755606,
+    "stderr": ""
+  },
+  {
+    "source": "04-geometry.aze.md",
+    "theme": "academic",
+    "output": "04-geometry.aze.academic.html",
+    "exit": 0,
+    "bytes": 711686,
+    "stderr": ""
+  },
+  {
+    "source": "04-geometry.aze.md",
+    "theme": "dark-presentation",
+    "output": "04-geometry.aze.dark-presentation.html",
+    "exit": 0,
+    "bytes": 711685,
+    "stderr": ""
+  },
+  {
+    "source": "05-chemistry.aze.md",
+    "theme": "academic",
+    "output": "05-chemistry.aze.academic.html",
+    "exit": 0,
+    "bytes": 730901,
+    "stderr": ""
+  },
+  {
+    "source": "05-chemistry.aze.md",
+    "theme": "dark-presentation",
+    "output": "05-chemistry.aze.dark-presentation.html",
+    "exit": 0,
+    "bytes": 730900,
+    "stderr": ""
+  },
+  {
+    "source": "06-circuit.aze.md",
+    "theme": "academic",
+    "output": "06-circuit.aze.academic.html",
+    "exit": 0,
+    "bytes": 766267,
+    "stderr": "docs/language/06-circuit.aze.md:520:1: warning [azeforge.circuit#unused-node]\nCircuit node \"spare\" is unused.\n  - kind: node\n  ^^^^^^^^^^^^\ndocs/language/06-circuit.aze.md:648:1: warning [azeforge.circuit#unused-node]\nCircuit node \"n6\" is unused.\n  - kind: node\n  ^^^^^^^^^^^^\ndocs/language/06-circuit.aze.md:652:1: warning [azeforge.circuit#disconnected-subgraph]\nCircuit disconnected component subgraph contains V1, R1, C1 on nodes n1, n2, n3.\n  - kind: voltage-source\n  ^^^^^^^^^^^^^^^^^^^^^^\ndocs/language/06-circuit.aze.md:662:1: warning [azeforge.circuit#disconnected-subgraph]\nCircuit disconnected component subgraph contains V2, R2, LED1 on nodes n4, n5.\n  - kind: voltage-source\n  ^^^^^^^^^^^^^^^^^^^^^^\n"
+  },
+  {
+    "source": "06-circuit.aze.md",
+    "theme": "dark-presentation",
+    "output": "06-circuit.aze.dark-presentation.html",
+    "exit": 0,
+    "bytes": 766266,
+    "stderr": "docs/language/06-circuit.aze.md:520:1: warning [azeforge.circuit#unused-node]\nCircuit node \"spare\" is unused.\n  - kind: node\n  ^^^^^^^^^^^^\ndocs/language/06-circuit.aze.md:648:1: warning [azeforge.circuit#unused-node]\nCircuit node \"n6\" is unused.\n  - kind: node\n  ^^^^^^^^^^^^\ndocs/language/06-circuit.aze.md:652:1: warning [azeforge.circuit#disconnected-subgraph]\nCircuit disconnected component subgraph contains V1, R1, C1 on nodes n1, n2, n3.\n  - kind: voltage-source\n  ^^^^^^^^^^^^^^^^^^^^^^\ndocs/language/06-circuit.aze.md:662:1: warning [azeforge.circuit#disconnected-subgraph]\nCircuit disconnected component subgraph contains V2, R2, LED1 on nodes n4, n5.\n  - kind: voltage-source\n  ^^^^^^^^^^^^^^^^^^^^^^\n"
+  },
+  {
+    "source": "07-timing.aze.md",
+    "theme": "academic",
+    "output": "07-timing.aze.academic.html",
+    "exit": 0,
+    "bytes": 727965,
+    "stderr": ""
+  },
+  {
+    "source": "07-timing.aze.md",
+    "theme": "dark-presentation",
+    "output": "07-timing.aze.dark-presentation.html",
+    "exit": 0,
+    "bytes": 727964,
+    "stderr": ""
+  },
+  {
+    "source": "08-diagrams.aze.md",
+    "theme": "academic",
+    "output": "08-diagrams.aze.academic.html",
+    "exit": 0,
+    "bytes": 914578,
+    "stderr": ""
+  },
+  {
+    "source": "08-diagrams.aze.md",
+    "theme": "dark-presentation",
+    "output": "08-diagrams.aze.dark-presentation.html",
+    "exit": 0,
+    "bytes": 914914,
+    "stderr": ""
+  },
+  {
+    "source": "09-engineering.aze.md",
+    "theme": "academic",
+    "output": "09-engineering.aze.academic.html",
+    "exit": 0,
+    "bytes": 723770,
+    "stderr": "docs/language/09-engineering.aze.md:112:1: warning [azeforge.control#unconnected-port]\nControl output \"y\" has no edge on its `in` port.\n  - kind: output\n  ^^^^^^^^^^^^^^\n"
+  },
+  {
+    "source": "09-engineering.aze.md",
+    "theme": "dark-presentation",
+    "output": "09-engineering.aze.dark-presentation.html",
+    "exit": 0,
+    "bytes": 723655,
+    "stderr": "docs/language/09-engineering.aze.md:112:1: warning [azeforge.control#unconnected-port]\nControl output \"y\" has no edge on its `in` port.\n  - kind: output\n  ^^^^^^^^^^^^^^\n"
+  },
+  {
+    "source": "10-models.aze.md",
+    "theme": "academic",
+    "output": "10-models.aze.academic.html",
+    "exit": 0,
+    "bytes": 768268,
+    "stderr": ""
+  },
+  {
+    "source": "10-models.aze.md",
+    "theme": "dark-presentation",
+    "output": "10-models.aze.dark-presentation.html",
+    "exit": 0,
+    "bytes": 768560,
+    "stderr": ""
+  },
+  {
+    "source": "11-structured-content.aze.md",
+    "theme": "academic",
+    "output": "11-structured-content.aze.academic.html",
+    "exit": 0,
+    "bytes": 739902,
+    "stderr": ""
+  },
+  {
+    "source": "11-structured-content.aze.md",
+    "theme": "dark-presentation",
+    "output": "11-structured-content.aze.dark-presentation.html",
+    "exit": 0,
+    "bytes": 739901,
+    "stderr": ""
+  },
+  {
+    "source": "12-composition.aze.md",
+    "theme": "academic",
+    "output": "12-composition.aze.academic.html",
+    "exit": 0,
+    "bytes": 740832,
+    "stderr": ""
+  },
+  {
+    "source": "12-composition.aze.md",
+    "theme": "dark-presentation",
+    "output": "12-composition.aze.dark-presentation.html",
+    "exit": 0,
+    "bytes": 740999,
+    "stderr": ""
+  },
+  {
+    "source": "14-tex.aze.md",
+    "theme": "academic",
+    "output": "14-tex.aze.academic.html",
+    "exit": 1,
+    "bytes": 0,
+    "stderr": "docs/language/14-tex.aze.md:11:1: error [azeforge.renderer#adapter-missing]\nNo trusted TeX renderer is configured for tex Blocks.\n  :::: tex\n  ^\nHelp: Configure a trusted local TeX renderer or the pinned Aze Forge TeX-renderer container.\nRelated: docs/language/14-tex.aze.md:26:1: Another affected tex Block is here.\nRelated: docs/language/14-tex.aze.md:41:1: Another affected tex Block is here.\nRelated: docs/language/14-tex.aze.md:54:1: Another affected tex Block is here.\nRelated: docs/language/14-tex.aze.md:65:1: Another affected tex Block is here.\n"
+  },
+  {
+    "source": "14-tex.aze.md",
+    "theme": "dark-presentation",
+    "output": "14-tex.aze.dark-presentation.html",
+    "exit": 1,
+    "bytes": 0,
+    "stderr": "docs/language/14-tex.aze.md:11:1: error [azeforge.renderer#adapter-missing]\nNo trusted TeX renderer is configured for tex Blocks.\n  :::: tex\n  ^\nHelp: Configure a trusted local TeX renderer or the pinned Aze Forge TeX-renderer container.\nRelated: docs/language/14-tex.aze.md:26:1: Another affected tex Block is here.\nRelated: docs/language/14-tex.aze.md:41:1: Another affected tex Block is here.\nRelated: docs/language/14-tex.aze.md:54:1: Another affected tex Block is here.\nRelated: docs/language/14-tex.aze.md:65:1: Another affected tex Block is here.\n"
+  },
+  {
+    "source": "15-showcase.aze.md",
+    "theme": "academic",
+    "output": "15-showcase.aze.academic.html",
+    "exit": 0,
+    "bytes": 706956,
+    "stderr": ""
+  },
+  {
+    "source": "15-showcase.aze.md",
+    "theme": "dark-presentation",
+    "output": "15-showcase.aze.dark-presentation.html",
+    "exit": 0,
+    "bytes": 706955,
+    "stderr": ""
+  }
+]
