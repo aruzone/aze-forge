@@ -1787,11 +1787,29 @@ export function renderGeometryFragment(block: GeometryBlock, _context: BlockRend
         break;
       }
       case "right-angle-mark": {
+        const first = declaration.first === undefined ? undefined : resolved.points.get(declaration.first as string);
         const vertex = declaration.second === undefined ? undefined : resolved.points.get(declaration.second as string);
-        if (vertex === undefined) break;
+        const third = declaration.third === undefined ? undefined : resolved.points.get(declaration.third as string);
+        if (first === undefined || vertex === undefined || third === undefined) break;
         const projected = project(vertex);
+        // Arm unit vectors in screen space, so the square opens into the angle
+        // the declaration names rather than a fixed corner.
+        const armUnit = (target: { x: string; y: string }): { x: number; y: number } | undefined => {
+          const dx = Number(target.x) - Number(projected.x);
+          const dy = Number(target.y) - Number(projected.y);
+          const length = Math.hypot(dx, dy);
+          return length === 0 ? undefined : { x: dx / length, y: dy / length };
+        };
+        const firstArm = armUnit(project(first));
+        const thirdArm = armUnit(project(third));
+        if (firstArm === undefined || thirdArm === undefined) break;
         const size = 8;
-        parts.push(`<path d="M ${quantize(Number(projected.x) - size)} ${projected.y} L ${quantize(Number(projected.x) - size)} ${quantize(Number(projected.y) - size)} L ${projected.x} ${quantize(Number(projected.y) - size)}" fill="none" stroke="${MARK_STROKE}" stroke-width="1.5"/>`);
+        const vx = Number(projected.x);
+        const vy = Number(projected.y);
+        const onFirst = { x: vx + firstArm.x * size, y: vy + firstArm.y * size };
+        const opposite = { x: onFirst.x + thirdArm.x * size, y: onFirst.y + thirdArm.y * size };
+        const onThird = { x: vx + thirdArm.x * size, y: vy + thirdArm.y * size };
+        parts.push(`<path d="M ${quantize(onFirst.x)} ${quantize(onFirst.y)} L ${quantize(opposite.x)} ${quantize(opposite.y)} L ${quantize(onThird.x)} ${quantize(onThird.y)}" fill="none" stroke="${MARK_STROKE}" stroke-width="1.5"/>`);
         break;
       }
       default:

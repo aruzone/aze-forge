@@ -164,6 +164,46 @@ test("circle tangent resolves both forms with mandatory characteristic-point pic
   );
 });
 
+test("right-angle mark opens into the angle its arms name", async () => {
+  const compiler = createCompiler();
+  const source = bodySource([
+    point("v", 0, 0),
+    point("a", -3, -3),
+    point("b", 3, -3),
+    "- kind: segment\n  name: va\n  from: v\n  to: a",
+    "- kind: segment\n  name: vb\n  from: v\n  to: b",
+    "- kind: right-angle-mark\n  first: a\n  second: v\n  third: b",
+  ].join("\n"));
+  const compiled = await compiler.compile(source, { format: "html" });
+  assert.deepEqual(compiled.diagnostics, []);
+  const html = Buffer.from(compiled.artifact.bytes).toString("utf8");
+  const points = [...html.matchAll(/<circle cx="([\d.-]+)" cy="([\d.-]+)" r="3"/g)]
+    .map((match) => [Number(match[1]), Number(match[2])]);
+  assert.deepEqual(points.length, 3);
+  const mark = html.match(/<path d="M ([\d.-]+) ([\d.-]+) L ([\d.-]+) ([\d.-]+) L ([\d.-]+) ([\d.-]+)"[^>]*stroke="#b45309"/);
+  assert.ok(mark, "right-angle mark renders a three-point square");
+  const [v, a, b] = points;
+  // Without an oriented square the mark lands up-left of the vertex, outside
+  // the angle these arms open downward.
+  const size = 8;
+  const onArm = (arm) => {
+    const dx = arm[0] - v[0];
+    const dy = arm[1] - v[1];
+    const len = Math.hypot(dx, dy);
+    return [v[0] + (dx / len) * size, v[1] + (dy / len) * size];
+  };
+  const near = (actual, expected) =>
+    Math.abs(actual[0] - expected[0]) < 0.01 && Math.abs(actual[1] - expected[1]) < 0.01;
+  const first = onArm(a);
+  const last = onArm(b);
+  assert.ok(near([Number(mark[1]), Number(mark[2])], first), "first leg lies on the first arm");
+  assert.ok(near([Number(mark[5]), Number(mark[6])], last), "last leg lies on the third arm");
+  assert.ok(
+    near([Number(mark[3]), Number(mark[4])], [first[0] + last[0] - v[0], first[1] + last[1] - v[1]]),
+    "corner closes the square inside the angle",
+  );
+});
+
 test("content hash is stable across renders and sensitive to declaration order", async () => {
   const compiler = createCompiler();
   const first = await compiler.compile(ALTITUDE, { format: "html" });
