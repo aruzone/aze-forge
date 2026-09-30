@@ -6,10 +6,14 @@
  * over a y-up unitless exact-decimal frame. Construction intent lives in the
  * graph forever; resolved coordinates are renderer-derived and never hashed.
  * Rendering reuses the plots' owned SVG emission layer (fixed attribute
- * order, deterministic ids, quantized 3-decimal ASCII formatter, no text
- * measurement). Construction math is arithmetic plus `Math.sqrt`;
- * trigonometry appears only in arc parametrization and angle measures.
+ * order, deterministic ids, quantized 3-decimal ASCII formatter). Label boxes
+ * combine the pinned Inter advance table with the nominal ISO 3098-1 lettering
+ * height, so placement is a deterministic table lookup and no glyph is
+ * rasterized or measured at render time. Construction math is arithmetic plus
+ * `Math.sqrt`; trigonometry appears only in arc parametrization and angle
+ * measures.
  */
+import { advanceMetricDependencyClosure, advanceWidth } from "./advance-metric.js";
 import { createDiagnostic } from "./diagnostics.js";
 import { GEOMETRY_BODY_SYNTAX_ID, GEOMETRY_BODY_SYNTAX_VERSION, GEOMETRY_EMITTER_VERSION, GEOMETRY_EPSILON, GEOMETRY_EVAL_VERSION, GEOMETRY_PLUGIN_TYPE, GEOMETRY_PLUGIN_VERSION, geometryDataSchema, geometrySourceSchema, } from "./geometry-schemas.js";
 import { escapeXml, quantize } from "./plot.js";
@@ -1416,6 +1420,176 @@ function renderMeasuredAngle(resolved, declaration) {
     const angle = (Math.atan2(Math.abs(cross), dot) * 180) / Math.PI;
     return quantize(angle);
 }
+/* ------------------------------------------------------------------ *
+ * Annotation metrics and label placement
+ * ------------------------------------------------------------------ */
+/**
+ * Nominal label height as a fraction of the figure's characteristic length.
+ * The remaining metrics derive from it at the ISO 3098-1 nominal height to
+ * line width ratio (10:1), so lettering and strokes stay in one visual system.
+ */
+const LABEL_HEIGHT_RATIO = 0.045;
+/** Matches the resolved minimum readable label size every Theme applies. */
+const MIN_LABEL_SIZE = 10;
+const MAX_LABEL_SIZE = 34;
+const MIN_LINE_WIDTH = 1;
+const MAX_LINE_WIDTH = 2;
+const DOT_RADIUS_RATIO = 0.22;
+const MIN_DOT_RADIUS = 1.6;
+const MAX_DOT_RADIUS = 6;
+function clampNumber(value, lower, upper) {
+    return value < lower ? lower : value > upper ? upper : value;
+}
+/** Declaration kinds drawn as an unbounded or one-sided line. */
+const LINE_LIKE_KINDS = Object.freeze({
+    line: true,
+    "perpendicular-line": true,
+    "parallel-line": true,
+    "tangent-line": true,
+    ray: true,
+});
+/**
+ * Liang–Barsky clip of a line or ray against the viewBox. A construction line
+ * is drawn edge to edge instead of to an arbitrary reach, so no figure can emit
+ * geometry outside its own frame.
+ */
+function lineChordWithinFrame(originX, originY, ux, uy, bidirectional, frame) {
+    const p = [-ux, ux, -uy, uy];
+    const q = [originX, frame.width - originX, originY, frame.height - originY];
+    let enter = bidirectional ? Number.NEGATIVE_INFINITY : 0;
+    let exit = Number.POSITIVE_INFINITY;
+    for (let index = 0; index < 4; index += 1) {
+        const pi = p[index];
+        const qi = q[index];
+        if (pi === 0) {
+            if (qi < 0)
+                return undefined;
+            continue;
+        }
+        const ratio = qi / pi;
+        if (pi < 0) {
+            if (ratio > enter)
+                enter = ratio;
+        }
+        else if (ratio < exit) {
+            exit = ratio;
+        }
+    }
+    if (enter > exit)
+        return undefined;
+    return { x1: originX + ux * enter, y1: originY + uy * enter, x2: originX + ux * exit, y2: originY + uy * exit };
+}
+/** Liang–Barsky clip: does the segment touch the box? */
+function segmentHitsBox(obstacle, box) {
+    const dx = obstacle.x2 - obstacle.x1;
+    const dy = obstacle.y2 - obstacle.y1;
+    if (dx === 0 && dy === 0) {
+        return obstacle.x1 >= box.minX && obstacle.x1 <= box.maxX && obstacle.y1 >= box.minY && obstacle.y1 <= box.maxY;
+    }
+    const p = [-dx, dx, -dy, dy];
+    const q = [obstacle.x1 - box.minX, box.maxX - obstacle.x1, obstacle.y1 - box.minY, box.maxY - obstacle.y1];
+    let enter = 0;
+    let exit = 1;
+    for (let index = 0; index < 4; index += 1) {
+        const pi = p[index];
+        const qi = q[index];
+        if (pi === 0) {
+            if (qi < 0)
+                return false;
+            continue;
+        }
+        const ratio = qi / pi;
+        if (pi < 0) {
+            if (ratio > exit)
+                return false;
+            if (ratio > enter)
+                enter = ratio;
+        }
+        else {
+            if (ratio < enter)
+                return false;
+            if (ratio < exit)
+                exit = ratio;
+        }
+    }
+    return true;
+}
+/** Does the circle's circumference cross the box? A box wholly inside a large
+ *  circle clears the stroke; only the arc itself is an obstacle. */
+function circleHitsBox(obstacle, box) {
+    const nearestX = Math.max(box.minX - obstacle.cx, 0, obstacle.cx - box.maxX);
+    const nearestY = Math.max(box.minY - obstacle.cy, 0, obstacle.cy - box.maxY);
+    if (Math.hypot(nearestX, nearestY) > obstacle.r)
+        return false;
+    const farthestX = Math.max(Math.abs(obstacle.cx - box.minX), Math.abs(obstacle.cx - box.maxX));
+    const farthestY = Math.max(Math.abs(obstacle.cy - box.minY), Math.abs(obstacle.cy - box.maxY));
+    return Math.hypot(farthestX, farthestY) >= obstacle.r;
+}
+/**
+ * Candidate directions in preference order. The upper-right diagonal is the
+ * conventional first choice for a point label, matching drafting practice of
+ * keeping lettering off the construction it annotates.
+ */
+const LABEL_DIRECTIONS = Object.freeze([
+    [Math.SQRT1_2, -Math.SQRT1_2],
+    [1, 0],
+    [-Math.SQRT1_2, -Math.SQRT1_2],
+    [Math.SQRT1_2, Math.SQRT1_2],
+    [-1, 0],
+    [0, -1],
+    [0, 1],
+    [-Math.SQRT1_2, Math.SQRT1_2],
+]);
+/** Box height as a fraction of the nominal letter height: cap height plus descent. */
+const LABEL_BOX_RATIO = 1.15;
+const OUTSIDE_FRAME_COST = 1000;
+const LABEL_OVERLAP_COST = 100;
+const STROKE_OVERLAP_COST = 10;
+/**
+ * Place one label on the first collision-free candidate direction, scoring the
+ * rest. Leaving the viewBox costs more than covering another label, which costs
+ * more than covering a stroke, so a crowded figure still places every label.
+ */
+function placeLabel(request, labelSize, obstacles, placed, frame) {
+    const halfWidth = advanceWidth([{ kind: "text", value: request.text }], labelSize) / 2;
+    const halfHeight = (labelSize * LABEL_BOX_RATIO) / 2;
+    const candidates = LABEL_DIRECTIONS.map(([dx, dy]) => {
+        const distance = request.clearance + Math.abs(dx) * halfWidth + Math.abs(dy) * halfHeight;
+        const centerX = request.anchorX + dx * distance;
+        const centerY = request.anchorY + dy * distance;
+        const box = {
+            minX: centerX - halfWidth,
+            minY: centerY - halfHeight,
+            maxX: centerX + halfWidth,
+            maxY: centerY + halfHeight,
+        };
+        let cost = 0;
+        if (box.minX < 0 || box.minY < 0 || box.maxX > frame.width || box.maxY > frame.height)
+            cost += OUTSIDE_FRAME_COST;
+        for (const obstacle of obstacles) {
+            const hits = obstacle.kind === "segment" ? segmentHitsBox(obstacle, box) : circleHitsBox(obstacle, box);
+            if (hits)
+                cost += STROKE_OVERLAP_COST;
+        }
+        for (const other of placed) {
+            if (box.minX < other.maxX && other.minX < box.maxX && box.minY < other.maxY && other.minY < box.maxY) {
+                cost += LABEL_OVERLAP_COST;
+            }
+        }
+        return { box, cost };
+    });
+    return candidates.reduce((best, candidate) => (candidate.cost < best.cost ? candidate : best)).box;
+}
+/**
+ * Emit the label text. The box carries the ISO 3098-1 nominal height: the box
+ * top is the cap line and the box bottom sits one nominal height lower, which
+ * is the text baseline.
+ */
+function labelMarkup(box, labelSize, fill, text) {
+    const centerX = (box.minX + box.maxX) / 2;
+    const baseline = box.minY + labelSize;
+    return `<text x="${quantize(centerX)}" y="${quantize(baseline)}" text-anchor="middle" font-size="${labelSize}" fill="${fill}">${escapeXml(text)}</text>`;
+}
 /**
  * Render one geometry Block to a static figure: browser-free deterministic
  * SVG — no scripts, no event attributes, no interactivity. Y-up authored
@@ -1484,8 +1658,50 @@ export function renderGeometryFragment(block, _context) {
         x: quantize(width / 2 + (point.x - centerX) * scale),
         y: quantize(height / 2 - (point.y - centerY) * scale),
     });
-    const projectRaw = (x, y) => project({ x, y });
+    // Annotation metrics follow the drawn figure, not the fixed canvas or the
+    // fitted window. The characteristic length is the geometric mean of the drawn
+    // extents in screen space, clipped to the viewBox and including every line
+    // drawn to the frame edge, so a small object inside a wide `bounds:` window is
+    // annotated as the small figure it is and a full-frame figure is not.
+    const resolvedMinX = Number.isFinite(minX) ? minX : fit.minX;
+    const resolvedMaxX = Number.isFinite(maxX) ? maxX : fit.maxX;
+    const resolvedMinY = Number.isFinite(minY) ? minY : fit.minY;
+    const resolvedMaxY = Number.isFinite(maxY) ? maxY : fit.maxY;
+    const screenX = (x) => width / 2 + (x - centerX) * scale;
+    const screenY = (y) => height / 2 - (y - centerY) * scale;
+    let drawnMinX = clampNumber(screenX(resolvedMinX), 0, width);
+    let drawnMaxX = clampNumber(screenX(resolvedMaxX), 0, width);
+    let drawnMinY = clampNumber(screenY(resolvedMaxY), 0, height);
+    let drawnMaxY = clampNumber(screenY(resolvedMinY), 0, height);
+    // Every line-like declaration is clipped once, and the same chord drives both
+    // the drawn extent and the emitted element.
+    const lineChords = new Map();
+    block.declarations.forEach((declaration, index) => {
+        if (declaration.visible === false || LINE_LIKE_KINDS[declaration.kind] !== true)
+            return;
+        const line = declaration.name === undefined ? undefined : resolved.lines.get(declaration.name);
+        if (line === undefined)
+            return;
+        const length = Math.hypot(line.dx, line.dy) || 1;
+        const chord = lineChordWithinFrame(screenX(line.px), screenY(line.py), line.dx / length, -line.dy / length, declaration.kind !== "ray", { width, height });
+        if (chord === undefined)
+            return;
+        lineChords.set(index, chord);
+        drawnMinX = Math.min(drawnMinX, chord.x1, chord.x2);
+        drawnMaxX = Math.max(drawnMaxX, chord.x1, chord.x2);
+        drawnMinY = Math.min(drawnMinY, chord.y1, chord.y2);
+        drawnMaxY = Math.max(drawnMaxY, chord.y1, chord.y2);
+    });
+    const labelSize = clampNumber(Math.round(Math.sqrt(Math.max(drawnMaxX - drawnMinX, 0) * Math.max(drawnMaxY - drawnMinY, 0)) * LABEL_HEIGHT_RATIO), MIN_LABEL_SIZE, MAX_LABEL_SIZE);
+    const lineWidth = clampNumber(labelSize / 10, MIN_LINE_WIDTH, MAX_LINE_WIDTH);
+    const dotRadius = clampNumber(labelSize * DOT_RADIUS_RATIO, MIN_DOT_RADIUS, MAX_DOT_RADIUS);
+    const markSize = labelSize;
+    const tickSize = labelSize * 0.3;
+    const labelGap = labelSize * 0.5;
+    const dashPattern = `${quantize(labelSize * 0.5)} ${quantize(labelSize * 0.33)}`;
     const parts = [];
+    const obstacles = [];
+    const requests = [];
     const linePath = (line, span) => {
         const len = Math.hypot(line.dx, line.dy) || 1;
         const ux = line.dx / len;
@@ -1494,12 +1710,12 @@ export function renderGeometryFragment(block, _context) {
     };
     void linePath;
     const strokeFor = (declaration) => declaration.visible === false ? GUIDE_STROKE : GEOMETRY_STROKE;
-    const dashFor = (declaration) => declaration.style === "dashed" ? ' stroke-dasharray="6 4"' : "";
-    for (const declaration of block.declarations) {
+    const dashFor = (declaration) => declaration.style === "dashed" ? ` stroke-dasharray="${dashPattern}"` : "";
+    for (const [index, declaration] of block.declarations.entries()) {
         if (declaration.visible === false && declaration.kind !== "point") {
             // Invisible guides still emit nothing unless referenced; referenced
             // guides (e.g. base-line) stay out of the drawing.
-            if (declaration.kind === "line" || declaration.kind === "perpendicular-line" || declaration.kind === "parallel-line" || declaration.kind === "ray" || declaration.kind === "tangent-line") {
+            if (LINE_LIKE_KINDS[declaration.kind] === true) {
                 continue;
             }
         }
@@ -1509,10 +1725,17 @@ export function renderGeometryFragment(block, _context) {
                 if (point === undefined)
                     break;
                 const projected = project(point);
-                parts.push(`<circle cx="${projected.x}" cy="${projected.y}" r="3" fill="${strokeFor(declaration)}"/>`);
+                parts.push(`<circle cx="${projected.x}" cy="${projected.y}" r="${quantize(dotRadius)}" fill="${strokeFor(declaration)}"/>`);
+                obstacles.push({ kind: "circle", cx: Number(projected.x), cy: Number(projected.y), r: dotRadius });
                 const text = declaration.label ?? declaration.name ?? "";
                 if (text !== "") {
-                    parts.push(`<text x="${quantize(Number(projected.x) + 7)}" y="${quantize(Number(projected.y) - 7)}" text-anchor="start" font-size="12" fill="${strokeFor(declaration)}">${escapeXml(text)}</text>`);
+                    requests.push({
+                        text,
+                        anchorX: Number(projected.x),
+                        anchorY: Number(projected.y),
+                        clearance: dotRadius + labelGap,
+                        fill: strokeFor(declaration),
+                    });
                 }
                 break;
             }
@@ -1523,7 +1746,8 @@ export function renderGeometryFragment(block, _context) {
                     break;
                 const a = project(from);
                 const b = project(to);
-                parts.push(`<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="${strokeFor(declaration)}" stroke-width="1.5"${dashFor(declaration)}/>`);
+                parts.push(`<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="${strokeFor(declaration)}" stroke-width="${quantize(lineWidth)}"${dashFor(declaration)}/>`);
+                obstacles.push({ kind: "segment", x1: Number(a.x), y1: Number(a.y), x2: Number(b.x), y2: Number(b.y) });
                 break;
             }
             case "line":
@@ -1531,18 +1755,11 @@ export function renderGeometryFragment(block, _context) {
             case "parallel-line":
             case "tangent-line":
             case "ray": {
-                const line = declaration.name === undefined ? undefined : resolved.lines.get(declaration.name);
-                if (line === undefined)
+                const chord = lineChords.get(index);
+                if (chord === undefined)
                     break;
-                const len = Math.hypot(line.dx, line.dy) || 1;
-                const ux = line.dx / len;
-                const uy = line.dy / len;
-                const reach = Math.max(spanX, spanY);
-                const backward = declaration.kind === "ray" ? 0 : reach;
-                const forward = reach;
-                const start = projectRaw(line.px - ux * backward, line.py - uy * backward);
-                const end = projectRaw(line.px + ux * forward, line.py + uy * forward);
-                parts.push(`<line x1="${start.x}" y1="${start.y}" x2="${end.x}" y2="${end.y}" stroke="${strokeFor(declaration)}" stroke-width="1.5"${dashFor(declaration)}/>`);
+                parts.push(`<line x1="${quantize(chord.x1)}" y1="${quantize(chord.y1)}" x2="${quantize(chord.x2)}" y2="${quantize(chord.y2)}" stroke="${strokeFor(declaration)}" stroke-width="${quantize(lineWidth)}"${dashFor(declaration)}/>`);
+                obstacles.push({ kind: "segment", x1: chord.x1, y1: chord.y1, x2: chord.x2, y2: chord.y2 });
                 break;
             }
             case "circle": {
@@ -1550,7 +1767,8 @@ export function renderGeometryFragment(block, _context) {
                 if (circle === undefined)
                     break;
                 const center = project({ x: circle.cx, y: circle.cy });
-                parts.push(`<circle cx="${center.x}" cy="${center.y}" r="${quantize(circle.r * scale)}" fill="none" stroke="${strokeFor(declaration)}" stroke-width="1.5"${dashFor(declaration)}/>`);
+                parts.push(`<circle cx="${center.x}" cy="${center.y}" r="${quantize(circle.r * scale)}" fill="none" stroke="${strokeFor(declaration)}" stroke-width="${quantize(lineWidth)}"${dashFor(declaration)}/>`);
+                obstacles.push({ kind: "circle", cx: Number(center.x), cy: Number(center.y), r: circle.r * scale });
                 break;
             }
             case "arc": {
@@ -1567,21 +1785,33 @@ export function renderGeometryFragment(block, _context) {
                 const largeArc = span > 180 ? 1 : 0;
                 // SVG y-down flips sweep: ccw authored draws as sweep 0 after the flip.
                 const sweep = direction === "ccw" ? 0 : 1;
-                parts.push(`<path d="M ${startPt.x} ${startPt.y} A ${quantize(circle.r * scale)} ${quantize(circle.r * scale)} 0 ${largeArc} ${sweep} ${endPt.x} ${endPt.y}" fill="none" stroke="${strokeFor(declaration)}" stroke-width="1.5"${dashFor(declaration)}/>`);
+                parts.push(`<path d="M ${startPt.x} ${startPt.y} A ${quantize(circle.r * scale)} ${quantize(circle.r * scale)} 0 ${largeArc} ${sweep} ${endPt.x} ${endPt.y}" fill="none" stroke="${strokeFor(declaration)}" stroke-width="${quantize(lineWidth)}"${dashFor(declaration)}/>`);
+                // Sample the arc into short chords so labels clear the drawn curve.
+                const screenRadius = circle.r * scale;
+                const stepDeg = clampNumber(((8 / screenRadius) * 180) / Math.PI, 1, 30);
+                const steps = Math.max(1, Math.ceil(span / stepDeg));
+                let previous = startPt;
+                for (let index = 1; index <= steps; index += 1) {
+                    const degrees = direction === "ccw" ? startDeg + (span * index) / steps : startDeg - (span * index) / steps;
+                    const current = project({ x: circle.cx + circle.r * Math.cos(toRad(degrees)), y: circle.cy + circle.r * Math.sin(toRad(degrees)) });
+                    obstacles.push({ kind: "segment", x1: Number(previous.x), y1: Number(previous.y), x2: Number(current.x), y2: Number(current.y) });
+                    previous = current;
+                }
                 break;
             }
             case "polygon": {
                 const vertices = declaration.vertices ?? [];
-                const projected = vertices
+                const corners = vertices
                     .map((vertex) => resolved.points.get(vertex))
                     .filter((point) => point !== undefined)
-                    .map((point) => {
-                    const p = project(point);
-                    return `${p.x},${p.y}`;
-                });
-                if (projected.length < 3)
+                    .map((point) => project(point));
+                if (corners.length < 3)
                     break;
-                parts.push(`<polygon points="${projected.join(" ")}" fill="none" stroke="${strokeFor(declaration)}" stroke-width="1.5"${dashFor(declaration)}/>`);
+                parts.push(`<polygon points="${corners.map((corner) => `${corner.x},${corner.y}`).join(" ")}" fill="none" stroke="${strokeFor(declaration)}" stroke-width="${quantize(lineWidth)}"${dashFor(declaration)}/>`);
+                for (const [index, corner] of corners.entries()) {
+                    const next = corners[(index + 1) % corners.length];
+                    obstacles.push({ kind: "segment", x1: Number(corner.x), y1: Number(corner.y), x2: Number(next.x), y2: Number(next.y) });
+                }
                 break;
             }
             case "midpoint":
@@ -1591,9 +1821,16 @@ export function renderGeometryFragment(block, _context) {
                 if (point === undefined)
                     break;
                 const projected = project(point);
-                parts.push(`<circle cx="${projected.x}" cy="${projected.y}" r="3" fill="${strokeFor(declaration)}"/>`);
+                parts.push(`<circle cx="${projected.x}" cy="${projected.y}" r="${quantize(dotRadius)}" fill="${strokeFor(declaration)}"/>`);
+                obstacles.push({ kind: "circle", cx: Number(projected.x), cy: Number(projected.y), r: dotRadius });
                 if (declaration.label !== undefined && declaration.label !== "") {
-                    parts.push(`<text x="${quantize(Number(projected.x) + 7)}" y="${quantize(Number(projected.y) - 7)}" text-anchor="start" font-size="12" fill="${strokeFor(declaration)}">${escapeXml(declaration.label)}</text>`);
+                    requests.push({
+                        text: declaration.label,
+                        anchorX: Number(projected.x),
+                        anchorY: Number(projected.y),
+                        clearance: dotRadius + labelGap,
+                        fill: strokeFor(declaration),
+                    });
                 }
                 break;
             }
@@ -1608,7 +1845,13 @@ export function renderGeometryFragment(block, _context) {
                         ? (renderMeasuredAngle(resolved, declaration) ?? "")
                         : "";
                 if (text !== "") {
-                    parts.push(`<text x="${projected.x}" y="${quantize(Number(projected.y) - 10)}" text-anchor="middle" font-size="12" fill="${MARK_STROKE}">${escapeXml(String(text))}</text>`);
+                    requests.push({
+                        text: String(text),
+                        anchorX: Number(projected.x),
+                        anchorY: Number(projected.y),
+                        clearance: labelGap,
+                        fill: MARK_STROKE,
+                    });
                 }
                 break;
             }
@@ -1638,7 +1881,13 @@ export function renderGeometryFragment(block, _context) {
                 if (anchor === undefined)
                     break;
                 const projected = project(anchor);
-                parts.push(`<text x="${projected.x}" y="${quantize(Number(projected.y) - 6)}" text-anchor="middle" font-size="12" fill="${MARK_STROKE}">${escapeXml(String(text))}</text>`);
+                requests.push({
+                    text: String(text),
+                    anchorX: Number(projected.x),
+                    anchorY: Number(projected.y),
+                    clearance: labelGap,
+                    fill: MARK_STROKE,
+                });
                 break;
             }
             case "equal-marks": {
@@ -1651,7 +1900,10 @@ export function renderGeometryFragment(block, _context) {
                         return;
                     const mid = { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 };
                     const projected = project(mid);
-                    parts.push(`<line x1="${quantize(Number(projected.x) - 4)}" y1="${quantize(Number(projected.y) - 5)}" x2="${quantize(Number(projected.x) + 4)}" y2="${quantize(Number(projected.y) + 5)}" stroke="${MARK_STROKE}" stroke-width="1.5"/>`);
+                    const x = Number(projected.x);
+                    const y = Number(projected.y);
+                    parts.push(`<line x1="${quantize(x - tickSize)}" y1="${quantize(y - tickSize * 1.25)}" x2="${quantize(x + tickSize)}" y2="${quantize(y + tickSize * 1.25)}" stroke="${MARK_STROKE}" stroke-width="${quantize(lineWidth)}"/>`);
+                    obstacles.push({ kind: "segment", x1: x - tickSize, y1: y - tickSize * 1.25, x2: x + tickSize, y2: y + tickSize * 1.25 });
                 });
                 break;
             }
@@ -1674,18 +1926,27 @@ export function renderGeometryFragment(block, _context) {
                 const thirdArm = armUnit(project(third));
                 if (firstArm === undefined || thirdArm === undefined)
                     break;
-                const size = 8;
+                const size = markSize;
                 const vx = Number(projected.x);
                 const vy = Number(projected.y);
                 const onFirst = { x: vx + firstArm.x * size, y: vy + firstArm.y * size };
                 const opposite = { x: onFirst.x + thirdArm.x * size, y: onFirst.y + thirdArm.y * size };
                 const onThird = { x: vx + thirdArm.x * size, y: vy + thirdArm.y * size };
-                parts.push(`<path d="M ${quantize(onFirst.x)} ${quantize(onFirst.y)} L ${quantize(opposite.x)} ${quantize(opposite.y)} L ${quantize(onThird.x)} ${quantize(onThird.y)}" fill="none" stroke="${MARK_STROKE}" stroke-width="1.5"/>`);
+                parts.push(`<path d="M ${quantize(onFirst.x)} ${quantize(onFirst.y)} L ${quantize(opposite.x)} ${quantize(opposite.y)} L ${quantize(onThird.x)} ${quantize(onThird.y)}" fill="none" stroke="${MARK_STROKE}" stroke-width="${quantize(lineWidth)}"/>`);
+                obstacles.push({ kind: "segment", x1: onFirst.x, y1: onFirst.y, x2: opposite.x, y2: opposite.y }, { kind: "segment", x1: opposite.x, y1: opposite.y, x2: onThird.x, y2: onThird.y });
                 break;
             }
             default:
                 break;
         }
+    }
+    // Labels are placed last so every stroke is a known obstacle and the text
+    // sits above the geometry it annotates.
+    const placed = [];
+    for (const request of requests) {
+        const box = placeLabel(request, labelSize, obstacles, placed, { width, height });
+        placed.push(box);
+        parts.push(labelMarkup(box, labelSize, request.fill, request.text));
     }
     const figureId = stableFigureId("aze-geometry", geometryContentSeed(block));
     const counts = new Map();
@@ -1714,6 +1975,7 @@ export function geometryDependencyClosure() {
         eval: GEOMETRY_EVAL_VERSION,
         epsilon: GEOMETRY_EPSILON,
         emitter: GEOMETRY_EMITTER_VERSION,
+        advanceMetric: advanceMetricDependencyClosure(),
     };
 }
 const pluginDescriptor = Object.freeze({

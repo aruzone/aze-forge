@@ -223,6 +223,17 @@ number: true
 Construction references resolve backward in authored order, which makes
 ambiguous or forward references diagnosable.
 
+Rendering derives every annotation from the drawn figure. The label height is
+4.5% of the figure's characteristic length — the geometric mean of its drawn
+extents, clipped to the Block's viewBox — inside a readable band that never
+falls below the 10px minimum readable label size every Theme applies. Line
+weight follows the ISO 3098-1 nominal height to line width ratio of 10:1 within
+a bounded weight band, and point labels are measured with the same character
+advance table the other native figure families use. A label takes the first
+collision-free side of its marker, so lettering never covers the strokes or
+markers it annotates, and a line or ray is drawn edge to edge inside the
+viewBox rather than past it.
+
 ## Chemistry
 
 ### `formula`

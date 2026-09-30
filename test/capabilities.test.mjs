@@ -115,7 +115,7 @@ test("capabilities --json enumerates the P0 contract in canonical order", async 
   assert.equal(payload.engines.plot.emitter, "1.0.1");
   assert.equal(payload.engines.plot.eval, "plot-eval/v1");
   assert.equal(payload.engines.geometry.availability, "unknown");
-  assert.equal(payload.engines.geometry.emitter, "1.0.0");
+  assert.equal(payload.engines.geometry.emitter, "1.1.0");
   assert.equal(payload.engines.geometry.eval, "geometry-eval/v1");
   assert.equal(payload.engines.geometry.epsilon, 1e-9);
   assert.equal(payload.engines.diagram.availability, "unknown");

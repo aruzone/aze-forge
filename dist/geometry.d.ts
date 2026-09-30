@@ -6,9 +6,12 @@
  * over a y-up unitless exact-decimal frame. Construction intent lives in the
  * graph forever; resolved coordinates are renderer-derived and never hashed.
  * Rendering reuses the plots' owned SVG emission layer (fixed attribute
- * order, deterministic ids, quantized 3-decimal ASCII formatter, no text
- * measurement). Construction math is arithmetic plus `Math.sqrt`;
- * trigonometry appears only in arc parametrization and angle measures.
+ * order, deterministic ids, quantized 3-decimal ASCII formatter). Label boxes
+ * combine the pinned Inter advance table with the nominal ISO 3098-1 lettering
+ * height, so placement is a deterministic table lookup and no glyph is
+ * rasterized or measured at render time. Construction math is arithmetic plus
+ * `Math.sqrt`; trigonometry appears only in arc parametrization and angle
+ * measures.
  */
 import type { AzeBlockPlugin, AzeBlockRenderer, BlockRendererContext, Diagnostic, GeometryBlock, JsonValue, SourceRange } from "./model.js";
 export declare const MAX_GEOMETRY_DECLARATIONS = 256;
