@@ -660,3 +660,61 @@ test("quantize emits fixed-notation ASCII at any magnitude", async () => {
   assert.equal(quantize(Number.NaN), "0");
   assert.ok(!/[eE]/.test(quantize(1e21)) && !/[eE]/.test(quantize(0.00001)));
 });
+
+const GRIDDED_SOURCE = `---
+azemark: 2
+---
+
+:::: plot
+id: gridded-ramp
+grid: true
+x-axis:
+  label: time (s)
+  min: 0
+  max: 1
+y-axis:
+  label: value
+  min: 0
+----
+- kind: function
+  label: ramp
+  variable: t
+  expression: t
+  domain:
+    min: 0
+    max: 1
+  samples: 32
+::::
+`;
+
+test("plot ink and grid follow the page ink instead of a baked-in slate", async () => {
+  const compiler = createCompiler();
+  const compiled = await compiler.compile(GRIDDED_SOURCE, { format: "html" });
+  assert.deepEqual(compiled.diagnostics, []);
+  const html = Buffer.from(compiled.artifact.bytes).toString("utf8");
+  const start = html.indexOf('<figure class="aze-plot"');
+  const figure = html.slice(start, html.indexOf("</figure>", start));
+  // Axes, ticks and axis labels draw in the page ink, so the figure reads on a
+  // light or a dark Theme without a colour token.
+  assert.ok(figure.includes('stroke="currentColor" stroke-width="1.5"'), "axes draw in the page ink");
+  assert.ok(figure.includes('fill="currentColor"'), "labels draw in the page ink");
+  assert.ok(!html.includes("#374151"), "no dark-slate axis ink is emitted");
+  assert.ok(!html.includes("#d1d5db"), "no pale grid ink is emitted");
+  // The grid is the same ink, held behind the data by opacity rather than by a
+  // pale colour that outshines the series on a dark page.
+  const grid = [...figure.matchAll(/<line [^>]*stroke="currentColor" stroke-opacity="0\.25"/g)];
+  assert.ok(grid.length > 0, "grid lines are drawn at reduced opacity");
+});
+
+test("a plot figure carries no scheme-specific markup", async () => {
+  const compiler = createCompiler();
+  const figureOf = async (theme) => {
+    const compiled = await compiler.compile(GRIDDED_SOURCE, { format: "html", theme });
+    const html = Buffer.from(compiled.artifact.bytes).toString("utf8");
+    const start = html.indexOf('<figure class="aze-plot"');
+    return html.slice(start, html.indexOf("</figure>", start));
+  };
+  // Ink is inherited rather than baked, so only the stylesheet moves between
+  // schemes and no axis or series can be lost on one of them.
+  assert.equal(await figureOf("default"), await figureOf("dark-presentation"));
+});

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { createCompiler } from "../dist/index.js";
+import { darkPresentationTheme, defaultTheme } from "../dist/theme.js";
 
 const SOURCE = `---
 azemark: 2
@@ -124,4 +125,14 @@ test("table rejects a quantity column with an unknown unit", () => {
       ({ code }) => code === "azeforge.table#invalid-quantity",
     ),
   );
+});
+test("derivation annotations ink themselves from the Theme", async () => {
+  const compiler = createCompiler();
+  const compiled = await compiler.compile(SOURCE, { format: "html" });
+  const html = Buffer.from(compiled.artifact.bytes).toString("utf8");
+  assert.ok(
+    html.includes(`.aze-derivation .aze-derivation-annotation{display:block;font-style:italic;color:${defaultTheme.colors.muted}`),
+    "annotation italic uses the Theme muted ink",
+  );
+  assert.ok(!html.includes("color:#666"), "no baked grey survives in the stylesheet");
 });

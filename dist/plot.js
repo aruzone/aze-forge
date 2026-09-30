@@ -1884,8 +1884,14 @@ function resolveAxisDomain(axis, fitted, logFallback) {
  * Owned SVG emitter
  * ------------------------------------------------------------------ */
 const PALETTE = Object.freeze(["#2563eb", "#dc2626", "#16a34a", "#d97706", "#7c3aed", "#0891b2"]);
-const AXIS_COLOR = "#374151";
-const GRID_COLOR = "#d1d5db";
+/**
+ * Axis ink follows the page ink through `currentColor`, so plots and charts
+ * read on a light or a dark Theme. The grid is that same ink at reduced
+ * opacity, which keeps it behind the data on both.
+ */
+const AXIS_COLOR = "currentColor";
+const GRID_COLOR = "currentColor";
+const GRID_OPACITY = "0.25";
 const MARGIN = Object.freeze({ left: 64, right: 16, top: 16, bottom: 48 });
 export class PlotSanitizerError extends Error {
     code = "azeforge.plot#sanitizer-compromise";
@@ -1934,7 +1940,7 @@ function renderAxesFrame(options) {
     for (const tick of xTicks) {
         const px = quantize(xScale(tick.value));
         if (grid) {
-            parts.push(`<line x1="${px}" y1="${quantize(geo.y1)}" x2="${px}" y2="${quantize(geo.y0)}" stroke="${GRID_COLOR}" stroke-width="1"/>`);
+            parts.push(`<line x1="${px}" y1="${quantize(geo.y1)}" x2="${px}" y2="${quantize(geo.y0)}" stroke="${GRID_COLOR}" stroke-opacity="${GRID_OPACITY}" stroke-width="1"/>`);
         }
         parts.push(`<line x1="${px}" y1="${quantize(geo.y0)}" x2="${px}" y2="${quantize(geo.y0 + 5)}" stroke="${AXIS_COLOR}" stroke-width="1"/>`);
         parts.push(`<text x="${px}" y="${quantize(geo.y0 + 18)}" text-anchor="middle" font-size="11" fill="${AXIS_COLOR}">${escapeXml(tick.label)}</text>`);
@@ -1942,7 +1948,7 @@ function renderAxesFrame(options) {
     for (const tick of yTicks) {
         const py = quantize(yScale(tick.value));
         if (grid) {
-            parts.push(`<line x1="${quantize(geo.x0)}" y1="${py}" x2="${quantize(geo.x1)}" y2="${py}" stroke="${GRID_COLOR}" stroke-width="1"/>`);
+            parts.push(`<line x1="${quantize(geo.x0)}" y1="${py}" x2="${quantize(geo.x1)}" y2="${py}" stroke="${GRID_COLOR}" stroke-opacity="${GRID_OPACITY}" stroke-width="1"/>`);
         }
         parts.push(`<line x1="${quantize(geo.x0 - 5)}" y1="${py}" x2="${quantize(geo.x0)}" y2="${py}" stroke="${AXIS_COLOR}" stroke-width="1"/>`);
         parts.push(`<text x="${quantize(geo.x0 - 8)}" y="${quantize(Number(py) + 4)}" text-anchor="end" font-size="11" fill="${AXIS_COLOR}">${escapeXml(tick.label)}</text>`);

@@ -3,6 +3,7 @@ import test from "node:test";
 
 import { readFile } from "node:fs/promises";
 import { createCompiler } from "../dist/index.js";
+import { darkPresentationTheme, defaultTheme } from "../dist/theme.js";
 
 function circuitSource(body, { convention = "iec", header = "title: Test circuit\n", fence = "::::" } = {}) {
   return `---\nazemark: 2\nx-circuit-symbol-convention: ${convention}\n---\n\n${fence} circuit\n${header}----\n${body}\n${fence}\n`;
@@ -293,4 +294,29 @@ test("Circuit identity is stable, includes its convention, and renders terminal 
   assert.match(digitalSvgText, />4:1 MUX<\/text>/);
   assert.match(digitalSvgText, />D<\/text>/);
   assert.match(digitalSvgText, />Q<\/text>/);
+});
+
+test("inverted-gate bubbles mask against the Theme background", async () => {
+  const compiler = createCompiler();
+  const source = circuitSource(
+    [
+      "- kind: node\n  ref: a",
+      "- kind: node\n  ref: y",
+      "- kind: digital-input\n  ref: A\n  name: A",
+      "- kind: not\n  ref: U1",
+      "- kind: connect\n  terminal: A.out\n  node: a",
+      "- kind: connect\n  terminal: U1.in\n  node: a",
+      "- kind: connect\n  terminal: U1.out\n  node: y",
+    ].join("\n"),
+  );
+  const htmlOf = async (theme) => {
+    const compiled = await compiler.compile(source, { format: "html", theme });
+    assert.deepEqual(compiled.diagnostics, []);
+    return Buffer.from(compiled.artifact.bytes).toString("utf8");
+  };
+  const light = await htmlOf("default");
+  assert.ok(light.includes('fill="var(--aze-circuit-bg,white)"'), "the bubble masks against the page background");
+  assert.ok(light.includes(`--aze-circuit-bg:${defaultTheme.colors.background}`), "the light Theme supplies its own background");
+  const dark = await htmlOf("dark-presentation");
+  assert.ok(dark.includes(`--aze-circuit-bg:${darkPresentationTheme.colors.background}`), "the dark Theme supplies a dark background so the bubble reads as hollow");
 });
