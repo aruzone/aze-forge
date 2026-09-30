@@ -231,6 +231,9 @@ done
 azeforge render hello.aze.md --output hello-academic.html --theme academic
 ```
 
+See [Themes and native figure colour](docs/themes.md) for built-in tokens,
+custom Theme registration, and native figure rendering policy.
+
 Artifacts embed their fonts and contain no scripts:
 
 ```bash

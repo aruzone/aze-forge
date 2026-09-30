@@ -22,6 +22,9 @@ tables the validators use — by `azeforge grammar [--json] [--directive <type>]
 (`.directives[]` in the machine document). When the two disagree, the command is
 right.
 
+Theme-owned figure colours, custom Theme registration, and the shared native
+figure colour policy are documented in [`docs/themes.md`](../themes.md).
+
 ## Capability tree
 
 ```text
@@ -171,6 +174,10 @@ y-label: mass (kg)
       value: 7850
 ::::
 ```
+
+Categorical bar charts use a band axis. Category labels occupy the x-axis
+baseline, so the renderer omits numeric x ticks that would otherwise print over
+those labels. Numeric plots and histograms keep their numeric ticks.
 
 ## Geometry
 

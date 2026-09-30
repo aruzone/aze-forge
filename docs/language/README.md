@@ -48,7 +48,9 @@ done
 | `12-composition.aze.md` | The `figure` wrapper, the `bibliography` directive, `@`-references and parenthetical groups, citation locators, and endnote-rendered footnotes. |
 | `13-diagnostics.aze.md` | The one intentionally invalid document: representative broken Blocks per family, each naming the exact diagnostic code and remedy the compiler produces. |
 | `14-tex.aze.md` | Every isolated `tex` renderer profile: CircuitikZ, TikZ, PGFPlots, Chemfig and TikZ-CD. It needs the renderer image; see [Local TeX rendering](../development.md#local-tex-rendering). |
+| `15-showcase.aze.md` | Six geometry figures: Thales theorem, two tangent branches, computed triangle marks, an arc and frame-clipped ray, and a frame-scale comparison. |
 | `directive-reference.md` | Generated exhaustive grammar tables for all 26 registered directives, including nested header fields, body record fields, enum values, required fields, and compiler limits. |
+| [`../themes.md`](../themes.md) | Built-in and custom Theme figure colours, native figure colour policy, geometry annotation sizing, frame clipping, and categorical band axes. |
 
 ## Verification status
 
@@ -106,3 +108,105 @@ Implementation consumes these forms without reopening the underlying family,
 language, or numbering contracts. `test/*.test.mjs` extracts specific Blocks by
 `id:` from these documents, so a rewrite must preserve those ids and their
 bodies; see `docs/development.md` for the test seams.
+
+## Examples by category
+
+Each category guide starts with a small form and finishes with examples that
+combine more records, references, layout rules, or validation. Names below
+match the subject of the example rather than requiring readers to decode its
+Block `id`.
+
+### Mathematics
+
+- `equation`: Ohm's law, sample variance, Einstein field equation form,
+  bracketed Hamiltonian, hybrid mode weight, Schrödinger relation chain,
+  rotation matrix and vector, binder catalog, and nested quantifiers.
+- `derivation`: compound interest, linearized enzyme rate, and annuity present
+  value.
+
+### Visualization
+
+- `plot`: logistic growth, measured cooling curve, RC step response, and
+  logarithmic amplifier gain sweep.
+- `chart`: payload mass by stage, grouped benchmark scores, stacked warehouse
+  throughput, request latency histogram, and grain-size distribution.
+
+### Geometry
+
+- Core guide: optics wedge, radar sweep, coordinate triangle, rail midpoint and
+  perpendicular, two-circle survey fix, constructed tangents, brace jig, roof
+  truss, and isosceles altitude.
+- Theorem and rendering showcase: Thales theorem, tangents from an external
+  point, isosceles triangle marks and measurements, arc and frame-clipped ray,
+  frame-filled triangle, and sparse-frame triangle.
+
+### Chemistry
+
+- `formula`: water, ferrocyanide hydrate, and calcium lactate pentahydrate.
+- `reaction`: silver chloride precipitation, Haber equilibrium, and an
+  aluminium oxide skeletal reaction with unspecified coefficients.
+- `structure`: water, fully specified alanine stereochemistry, and a
+  phenethyl fragment with an attachment point and aromatic bonds.
+
+### Electrical engineering
+
+- `circuit`: resistive divider bias network, RC low-pass filter, op-amp
+  transresistance stage, combinational gate network, flip-flop capture stage,
+  clocked logic, intentionally floating clock circuit, and disconnected
+  instructional schematic.
+
+### Digital timing
+
+- `timing`: clock and enable, sampled bus window, clocked bus transaction,
+  pulse budget on a time scale, and the duration-authored twin of the bus
+  transaction.
+
+### Diagrams
+
+- `diagram` flowcharts: water treatment line, library quality control, and a
+  branching process with a cycle.
+- `diagram` graphs and trees: collaboration graph, substation links, specimen
+  tree, and a tree with forward references.
+- `diagram` architecture: build tiers, signalling rooms, and grouped service
+  architecture with ports.
+- `mermaid`: release flow, sensor exchange sequence, and connection states.
+
+### Engineering diagrams
+
+- `control`: open-loop heater, closed-loop pitch controller, and a controller
+  with an intentionally floating trim output.
+- `free-body`: trolley push, block on an inclined plane with a dimension, and
+  cantilever with an end load, reaction moment, axes, and angle.
+
+### Software and data models
+
+- `sequence`: cache lookup, backup rotation, and login exchange with
+  activations, alternatives, a loop, and a note.
+- `state`: parcel lifecycle, culture incubation, and an order lifecycle with
+  composite states and transitions.
+- `entity`: sensor schema, enrollment schema, and shop schema with keys and
+  relationships.
+- `class`: vehicle classes, telemetry classes, and payment classes covering
+  inheritance, implementation, association, aggregation, and composition.
+
+### Structured technical content
+
+- `table`: pilot-line yields, control-loop gains, and cooling measurements with
+  typed columns, grouped headers, quantities, and missing values.
+- `algorithm`: dot product, deviation classification, and binary search using
+  all six statement forms across the set.
+- `statement`: trace definition, even-sum lemma with proof, and triangle
+  inequality theorem.
+- `example`: molar dilution, pendulum period, and a multi-step cooling model.
+
+### Document composition
+
+- `figure`: measured trend table, wrapped Mermaid flowchart, and unnumbered
+  instrument note.
+- References and citations: grouped figure references, TeXbook page and chapter
+  locators, forward Harel article citation, and ISO 32000 section locator.
+- `bibliography`: book, article, and standard records in one document-local
+  reference list.
+- Footnotes: reused instrument-method note and calibration note.
+- `callout`: steady-state note, probe-drift warning, and conductivity shortcut
+  with nested mathematics.
