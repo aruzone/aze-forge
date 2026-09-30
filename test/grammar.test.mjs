@@ -704,6 +704,16 @@ test("the corpus covers every directive family the grammar describes", async () 
   }
 });
 
+test("the generated language reference matches the registered grammar", () => {
+  const result = spawnSync(process.execPath, ["scripts/generate-language-reference.mjs", "--check"], {
+    cwd: ROOT,
+    encoding: "utf8",
+  });
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stdout, "");
+  assert.equal(result.stderr, "");
+});
+
 /* ------------------------------------------------------------------ *
  * Schema fidelity
  * ------------------------------------------------------------------ */

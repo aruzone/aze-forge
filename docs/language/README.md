@@ -1,19 +1,25 @@
-# AzeMark language reference
+# AzeMark language documentation
 
-Canonical, compile-verified AzeMark 2 (`azemark: 2`) example documents. Every
-file here is a complete Source that the shipped compiler parses, validates, and
-renders — not a fragment collection. They are the frozen authoring reference
-implementation consumes, and they are intended for verbatim reuse as the
-preloaded examples in the AzeForge Web authoring app.
+This directory is the authoring reference for AzeMark 2. Start with
+[`00-authoring-azemark.aze.md`](00-authoring-azemark.aze.md), then read the
+category guide for the technical content you need. Use
+[`directive-reference.md`](directive-reference.md) when you need an exact field
+name, enum value, body record, or compiler limit.
 
-Each document is graded: within a section, the first Block is the minimal
-idiomatic form and the last exercises the deepest feature the directive
-registers. Read top to bottom to go from simple to hard. Two sections carry
-fewer or more Blocks than the pattern for structural reasons the language
-imposes: a document declares at most one `bibliography`, and the diagnostics
-sampler devotes a section to a whole family rather than to one directive.
+Every `.aze.md` file is a complete Source. The shipped compiler parses,
+validates, and renders these files, so the examples can be copied into a new
+document without translating pseudocode into real syntax. Within each section,
+the first Block is small and the later Blocks combine more of the directive's
+grammar. The same files can become preloaded examples in AzeForge Web.
 
-Every document except `13-diagnostics.aze.md` validates silently:
+The grammar reference is generated from the compiler's registered grammar
+tables. Category guides carry the explanation and examples; the generated page
+carries the exhaustive field inventory. Keeping those jobs separate makes the
+prose readable without letting the syntax tables drift.
+
+Every document except `13-diagnostics.aze.md` validates successfully. The
+Circuit and control guides contain a few intentional warnings that their prose
+names. Nothing else warns.
 
 ```bash
 for f in docs/language/*.aze.md; do
@@ -22,28 +28,66 @@ for f in docs/language/*.aze.md; do
 done
 ```
 
-Where a document intentionally registers a warning — the floating Circuit's
-unused node, the disconnected subgraphs, the unconnected control port — the
-prose names it. Nothing else warns.
 
 ## Files
 
 | File | Purpose |
 |---|---|
-| `01-document-basics.aze.md` | Front matter, headings, inline emphasis and code, lists, code fences, links, blockquotes and thematic breaks, GFM pipe tables, and the callout directive with its closed variant set. Start here. |
+| `00-authoring-azemark.aze.md` | Start here: Source anatomy, fixed directive fences, indentation, values, identifiers, references, nesting, escape hatches, validation, and an authoring checklist. |
+| `01-document-basics.aze.md` | Front matter, headings, inline emphasis and code, lists, code fences, links, blockquotes and thematic breaks, GFM pipe tables, and the callout directive with its closed variant set. |
 | `02-mathematics.aze.md` | The `equation` and `derivation` directives: unnumbered relations, Greek and binder notation, bounded integrals and sums, `cases(...)` piecewise forms, and annotated multi-step derivations. |
 | `03-visualization.aze.md` | The `plot` and `chart` directives: bounded function series, authored scatter and line series with symmetric and asymmetric error bars, `parameters:`, logarithmic axes, and the four chart types including a histogram with explicit edges. |
 | `04-geometry.aze.md` | The `geometry` directive: the coordinate form and the named-construction form side by side, intersections and tangents with `pick:`, and the angle, length, equal and right-angle marks. |
 | `05-chemistry.aze.md` | The `formula`, `reaction` and `structure` directives, carrying the three preserved information states: specified, explicitly unspecified, and omitted. |
 | `06-circuit.aze.md` | The `circuit` directive under the IEC convention: analog schematics, gate and flip-flop digital schematics, an intentionally floating clocked Circuit, and a disconnected instructional schematic with its warnings. |
 | `07-timing.aze.md` | The `timing` directive: the shared cycle scale with edge and bus wave notation, and the duration-equivalent twin authored on an explicit time scale. |
-| `08-diagrams.aze.md` | The `diagram` directive in all four modes — flowchart, graph, tree, architecture — with nested groups, ports and undirected multi-edges, plus the bounded `mermaid` escape hatch. |
+| `08-diagrams.aze.md` | The `diagram` directive in all four modes: flowchart, graph, tree and architecture. Examples include nested groups, ports and undirected multi-edges, plus the bounded `mermaid` escape hatch. |
 | `09-engineering.aze.md` | The `control` and `free-body` directives: summing junctions and takeoff fan-out, relative-ray force directions, explicit scale versus schematic length, moments, axes and dimensions. |
-| `10-models.aze.md` | The four typed model directives — `sequence`, `state`, `entity` and `class` — covering activations, fragments and notes, composite states, junction tables, and all five relationship forms. |
+| `10-models.aze.md` | The four typed model directives, `sequence`, `state`, `entity` and `class`, covering activations, fragments and notes, composite states, junction tables, and all five relationship forms. |
 | `11-structured-content.aze.md` | The `table`, `algorithm`, `statement` and `example` directives: typed columns with grouped headers and missing values, the six pseudocode statement forms, theorem-family statements with proofs, and worked examples composing nested mathematics. |
 | `12-composition.aze.md` | The `figure` wrapper, the `bibliography` directive, `@`-references and parenthetical groups, citation locators, and endnote-rendered footnotes. |
 | `13-diagnostics.aze.md` | The one intentionally invalid document: representative broken Blocks per family, each naming the exact diagnostic code and remedy the compiler produces. |
-| `14-tex.aze.md` | Every isolated `tex` renderer profile — CircuitikZ, TikZ, PGFPlots, Chemfig, and TikZ-CD. It needs the renderer image; see [Local TeX rendering](../development.md#local-tex-rendering). |
+| `14-tex.aze.md` | Every isolated `tex` renderer profile: CircuitikZ, TikZ, PGFPlots, Chemfig and TikZ-CD. It needs the renderer image; see [Local TeX rendering](../development.md#local-tex-rendering). |
+| `directive-reference.md` | Generated exhaustive grammar tables for all 26 registered directives, including nested header fields, body record fields, enum values, required fields, and compiler limits. |
+
+## Verification status
+
+The compiler currently registers all capabilities named in the product
+capability map: mathematics, visualization, geometry, chemistry, electrical
+engineering, digital timing, general diagrams, engineering diagrams, software
+and data models, structured technical content, and document composition. The
+registered native directives are:
+
+| Category | Registered directives |
+| --- | --- |
+| Mathematics | `equation`, `derivation` |
+| Visualization | `plot`, `chart` |
+| Geometry | `geometry` |
+| Chemistry | `formula`, `reaction`, `structure` |
+| Electrical engineering | `circuit` |
+| Digital timing | `timing` |
+| Diagrams | `diagram`, `mermaid` |
+| Engineering diagrams | `control`, `free-body` |
+| Software and data models | `sequence`, `state`, `entity`, `class` |
+| Structured technical content | `table`, `algorithm`, `statement`, `example` |
+| Document composition | `figure`, `bibliography`, `callout` |
+
+The compiler also registers `tex` as a bounded backend-authored escape hatch.
+It is documented separately because TeX source is not native AzeMark notation.
+
+`test/grammar.test.mjs` proves that the published grammar and registered plugin
+set match, that described fields and record kinds compile, and that the example
+corpus uses only described syntax. `test/capabilities.test.mjs` proves that the
+capability report exposes the registered plugin set. Run both after changing a
+directive contract.
+
+Regenerate the exhaustive reference after a grammar change:
+
+```bash
+npm run build --silent
+node scripts/generate-language-reference.mjs
+node scripts/generate-language-reference.mjs --check
+```
 
 ## Approved constraints
 

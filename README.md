@@ -264,7 +264,7 @@ validators use, so it cannot drift from what compiles:
 
 ```bash
 azeforge grammar --json | jq '.directives | length'
-# 25
+# 26
 azeforge grammar --json --directive plot | jq -c '.directives[0].header.fields | map(.key)'
 # ["id","number","width","height","legend","grid","parameters","x-axis","y-axis"]
 azeforge grammar --json --directive plot | jq -c '[.directives[0].body.records[].kind]'
@@ -277,6 +277,12 @@ azeforge version --json | jq -c '.schemas[] | select(.id=="azeforge.grammar/v1")
 exits `2`; without `--json` the human report goes to stderr and stdout stays
 empty. The JSON document validates against the packaged
 `schemas/grammar.json`.
+
+For human-facing explanations and compile-verified examples, start with the
+[AzeMark authoring guide](docs/language/00-authoring-azemark.aze.md). The
+[language documentation index](docs/language/README.md) links one guide per
+capability family, and the [directive grammar reference](docs/language/directive-reference.md)
+lists every field and limit from the same grammar report.
 
 ## Try it: live rebuild and preview
 

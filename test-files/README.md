@@ -68,7 +68,7 @@ described in [`docs/tex-renderer.md`](../docs/tex-renderer.md).
 |---|---|
 | `invalid/01-equations-invalid.aze.md` | `azeforge.equation#missing-integration-variable` (line-specific), `azeforge.equation#unsupported-notation` (TeX braces, raw TeX in a readable block). |
 | `invalid/02-latex-denied.aze.md` | `azeforge.security#raw-latex-disabled` (passes with `--allow-raw-latex`). |
-| `invalid/03-directives.aze.md` | `azeforge.source#unknown-directive` (with the full `availableTypes` list of all 25 registered directive types plus a did-you-mean suggestion), `azeforge.source#unclosed-directive`. Surrounding valid Blocks survive in `ParsedDocument`; no `AzeDocument`, no Artifact. |
+| `invalid/03-directives.aze.md` | `azeforge.source#unknown-directive` (with the full `availableTypes` list of all 26 registered directive types plus a did-you-mean suggestion), `azeforge.source#unclosed-directive`. Surrounding valid Blocks survive in `ParsedDocument`; no `AzeDocument`, no Artifact. |
 | `invalid/04-identifiers.aze.md` | `azeforge.reference#invalid-id` (`Bad-ID`), `azeforge.reference#duplicate-id` (`shared`, related to first definition). |
 | `invalid/05-raw-html.aze.md` | `azeforge.security#raw-html-disabled`; markup never rendered. |
 | `invalid/06-version.aze.md` | `azeforge.source#version-unsupported`; previous Artifact preserved. |

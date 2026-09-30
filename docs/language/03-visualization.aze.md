@@ -32,6 +32,31 @@ y-axis:
   samples: 240
 ::::
 
+A `line` series joins authored points in their listed order. Use it for sampled
+or computed values when the connecting path matters and no expression should
+be evaluated.
+
+:::: plot
+id: cooling-samples
+number: true
+x-axis:
+  label: elapsed time (min)
+y-axis:
+  label: temperature (degC)
+----
+- kind: line
+  label: measured cooling curve
+  points:
+    - x: 0
+      y: 92
+    - x: 5
+      y: 71
+    - x: 10
+      y: 57
+    - x: 20
+      y: 39
+::::
+
 Measured points sit on the same axes as the curve, and each point carries either one symmetric `error` or an `error-low`/`error-high` pair when the uncertainty is asymmetric.
 
 :::: plot

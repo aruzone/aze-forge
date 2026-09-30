@@ -55,8 +55,8 @@ id: bracketed-hamiltonian
 i hbar frac(partial, partial t) Psi(r, t) = [-frac(hbar^2, 2 m) nabla^2 + V(r, t)] Psi(r, t)
 ::::
 
-The deepest supported form binds a continuous and a discrete variable at once
-and mixes a root, a fraction, and a piecewise branch.
+A dense scalar form binds continuous and discrete variables in one relation and
+mixes a root, a fraction and a piecewise branch.
 
 :::: equation
 id: hybrid-mode-weight
@@ -65,6 +65,66 @@ align: left
 ----
 integral x=0..L of (sqrt(x) + frac(1, 1 + x)) dx = sum k=1..n of cases(w_k x^k when k < m; 0 otherwise)
 ::::
+
+### Native notation grammar
+
+Readable mathematics is a closed expression grammar, not LaTeX with the
+backslashes removed. Operators have fixed precedence. Parentheses and square
+brackets group expressions. A relation may form a left-to-right chain.
+
+Registered symbols include lower and upper Greek names and physics names such
+as `hbar`, `partial`, `nabla`, `infinity` and `emptyset`. One base may carry a
+subscript, a power, or up to two primes. Put the base in parentheses before
+combining those forms, as in `(x')^2`.
+
+This Schrödinger relation combines registered symbols, grouped function
+arguments, a square-bracket group, a fraction, derivatives and a relation
+chain.
+
+:::: equation
+id: schrodinger-relation-chain
+number: true
+----
+i hbar frac(partial, partial t) Psi(x, t) = [-frac(hbar^2, 2 m) nabla^2 + V(x)] Psi(x, t) = -frac(hbar^2, 2 m) frac(partial^2 Psi, partial x^2) + V(x) Psi(x, t)
+::::
+
+Function-like constructs use fixed names and argument shapes. The grammar
+registers `frac`, `sqrt`, `root`, `abs`, `vector`, `matrix`, `pmatrix`,
+`vmatrix` and `cases`. Matrix rows are bracket groups. A one-item `vector` is
+an arrow vector, while a multi-item `vector` is a bold tuple.
+
+:::: equation
+id: rotation-matrix-vector
+number: true
+----
+y_i = R_(i, j) x_j = pmatrix [[cos theta, -sin theta], [sin theta, cos theta]] vector [x, y] = vector [x cos theta - y sin theta, x sin theta + y cos theta]
+::::
+
+The binder forms are `sum`, `product`, `integral`, `limit`, `forall` and
+`exists`. A bounded sum, product or integral writes `name=from..to`, then `of`,
+then its body. An integral closes with a differential whose one-letter name
+matches the bound name. A quantifier writes `name in set of body`.
+
+:::: equation
+id: binder-catalog
+align: left
+----
+S_n = sum i=1..n of i^2 + product k=1..m of k + integral x=0..infinity of exp(-x^2) dx
+::::
+
+Quantifiers may nest. Set relations and operations include `in`, `notin`,
+`subset`, `supset`, `subseteq`, `union`, `intersect` and `equiv`.
+
+:::: equation
+id: nested-quantifiers
+----
+forall e in R of exists M in R of (abs(x) <= M)
+::::
+
+Registered aliases are reserved and cannot become identifiers. Unknown
+two-letter words are read as juxtaposed one-letter names, while unknown words
+of three or more letters are diagnostics. This keeps a typo from silently
+turning into a new function name.
 
 ## Derivation
 
