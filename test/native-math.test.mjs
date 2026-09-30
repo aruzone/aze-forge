@@ -8,6 +8,7 @@ import {
   canonicalSpelling,
   parseNativeMath,
   projectMathNode,
+  projectionToNode,
   treeToTex,
 } from "../dist/math.js";
 
@@ -118,6 +119,52 @@ test("physics: nabla and hbar read as registered symbols", () => {
   assert.equal(tex("hbar"), "\\hbar");
   assert.equal(tex("nabla psi"), "\\nabla \\psi");
   assert.equal(tex("i hbar partial psi / partial t"), "i \\hbar \\partial \\psi / \\partial t");
+});
+
+test("bracketed groups keep square delimiters through spelling, TeX, and projection", () => {
+  assert.equal(tex("[a + b] c"), "\\left[a + b\\right] c");
+  assert.equal(
+    tex("[-frac(hbar^2, 2 m) nabla^2 + V(r t)] psi"),
+    "\\left[-\\frac{\\hbar^{2}}{2 m} \\nabla^{2} + V \\left(r t\\right)\\right] \\psi",
+  );
+  assert.equal(spelling("[a + b] c"), "[a + b] c");
+  assert.equal(spelling("(a + b) c"), "(a + b) c");
+  assert.notDeepEqual(projection("[x]"), projection("(x)"));
+  assert.deepEqual(
+    projectMathNode(projectionToNode(projection("[a + b] c"))),
+    projection("[a + b] c"),
+  );
+  assert.deepEqual(parseProblems("x + [y").map(({ code }) => code), ["unbalanced-grouping"]);
+  assert.equal(problemsIndexed("x + [y", "unbalanced-grouping")[0].message.includes("`]`"), true);
+  assert.deepEqual(parseProblems("[]").map(({ code }) => code), ["missing-operand"]);
+  // vector/matrix bracket spellings stay distinct constructs.
+  assert.equal(tex("vector [a, b]"), "\\mathbf{a, b}");
+});
+
+test("multi-argument groups render one comma-joined delimiter pair", () => {
+  assert.equal(tex("Psi(r, t)"), "\\Psi \\left(r, t\\right)");
+  assert.equal(
+    tex("[-frac(hbar^2, 2 m) nabla^2 + V(r, t)] Psi(r, t)"),
+    "\\left[-\\frac{\\hbar^{2}}{2 m} \\nabla^{2} + V \\left(r, t\\right)\\right] \\Psi \\left(r, t\\right)",
+  );
+  assert.equal(spelling("f(x, y, z)"), "f(x, y, z)");
+  assert.equal(spelling("(a + b, c)"), "(a + b, c)");
+  assert.notDeepEqual(projection("f(x, y)"), projection("f(x)"));
+  assert.deepEqual(
+    projectMathNode(projectionToNode(projection("f(x, y)"))),
+    projection("f(x, y)"),
+  );
+  // Single-argument and nested-expression spellings are unchanged.
+  assert.equal(tex("f(x)"), "f \\left(x\\right)");
+  assert.equal(tex("(x + y)"), "\\left(x + y\\right)");
+  // Trailing commas, doubled commas, and empty braces diagnose.
+  assert.deepEqual(parseProblems("(a,)").map(({ code }) => code), ["missing-operand"]);
+  assert.deepEqual(parseProblems("f(x,,y)").map(({ code }) => code), ["unexpected-token"]);
+  // A bracketed argument list keeps its square delimiters.
+  assert.equal(tex("[a, b]"), "\\left[a, b\\right]");
+  // Registered constructs keep their own comma handling.
+  assert.equal(tex("frac(a + b, c)"), "\\frac{a + b}{c}");
+  assert.equal(tex("root(3, x)"), "\\sqrt[3]{x}");
 });
 
 test("identifiers carry digit suffixes, word subscripts, and primes", () => {

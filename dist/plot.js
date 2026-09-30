@@ -278,8 +278,14 @@ export function evaluateNode(node, scope) {
             }
             return { value: product };
         }
-        case "group":
+        case "group": {
+            // Multi-argument groups (`(r, t)`) are function-argument notation, not
+            // an evaluable expression; refusing beats silently dropping arguments.
+            if (node.items !== undefined) {
+                return nonEvaluable("multi-argument grouping is symbolic-only");
+            }
             return evaluateNode(node.node, scope);
+        }
         case "func": {
             if (node.subscript !== undefined) {
                 return nonEvaluable(`function "${node.name}" with a subscript is symbolic-only`);

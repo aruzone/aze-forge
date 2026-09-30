@@ -45,6 +45,16 @@ id: field-equation-form
 G_(mu, nu) = R_(mu, nu) - 1 / 2 R g_(mu, nu)
 ::::
 
+A bracketed operator is one group under the same grammar, so Hamiltonians and
+commutators keep their square delimiters in the rendered artifact, and a
+comma inside a group lists arguments in evaluation order.
+
+:::: equation
+id: bracketed-hamiltonian
+----
+i hbar frac(partial, partial t) Psi(r, t) = [-frac(hbar^2, 2 m) nabla^2 + V(r, t)] Psi(r, t)
+::::
+
 The deepest supported form binds a continuous and a discrete variable at once
 and mixes a root, a fraction, and a piecewise branch.
 

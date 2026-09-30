@@ -139,7 +139,18 @@ export interface CasesNode {
 }
 export interface GroupNode {
     readonly kind: "group";
+    /**
+     * The grouped expression. For a multi-argument group (`(r, t)`) this is
+     * the first argument; the remaining arguments ride in `items`.
+     */
     readonly node: MathNode;
+    /** Bracketed `[x]` reading; omitted means the default parenthesized `(x)`. */
+    readonly delimiter?: "bracket";
+    /**
+     * Comma-separated arguments after the first (`t` in `(r, t)`), in authored
+     * order. Omitted for the single-expression groups `(x)` and `[x]`.
+     */
+    readonly items?: readonly MathNode[];
 }
 export interface BinderNode {
     readonly kind: "binder";

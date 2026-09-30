@@ -426,7 +426,7 @@ class Parser {
                 BINDER_OPS.includes(token.text));
         }
         if (token.kind === "punct")
-            return token.text === "(";
+            return token.text === "(" || token.text === "[";
         if (token.kind !== "word")
             return false;
         if (token.text.length === 1)
@@ -507,7 +507,7 @@ class Parser {
                     left = { kind: "div", left, right: this.parseUnary() };
                     continue;
                 }
-                if (token.text !== "(")
+                if (token.text !== "(" && token.text !== "[")
                     break;
             }
             if (this.isAtomStart(token)) {
@@ -668,7 +668,7 @@ class Parser {
             return this.parseUnicodeToken(token);
         }
         if (token.kind === "punct") {
-            if (token.text === "(") {
+            if (token.text === "(" || token.text === "[") {
                 return this.parseGroup();
             }
             this.error("unexpected-token", `Unexpected token "${token.text}".`, token);
@@ -767,17 +767,35 @@ class Parser {
     }
     parseGroup() {
         const open = this.advance();
+        const closeText = open.text === "[" ? "]" : ")";
         return this.withDepth(open, () => {
-            if (this.peek().kind === "punct" && this.peek().text === ")") {
+            if (this.peek().kind === "punct" && this.peek().text === closeText) {
                 this.error("missing-operand", "A group cannot be empty.", this.peek());
             }
             const node = this.parseRelation();
+            // A comma before the closer turns the group into an argument list
+            // (`(r, t)`): every argument is a full relation.
+            const items = [];
+            for (;;) {
+                if (!(this.peek().kind === "punct" && this.peek().text === ","))
+                    break;
+                this.advance();
+                if (this.peek().kind === "punct" && this.peek().text === closeText) {
+                    this.error("missing-operand", "A group argument is expected after the comma.", this.peek());
+                }
+                items.push(this.parseRelation());
+            }
             const close = this.peek();
-            if (close.kind !== "punct" || close.text !== ")") {
-                this.errorAtEnd("unbalanced-grouping", "Unbalanced grouping: missing a closing `)`.");
+            if (close.kind !== "punct" || close.text !== closeText) {
+                this.errorAtEnd("unbalanced-grouping", `Unbalanced grouping: missing a closing \`${closeText}\`.`);
             }
             this.advance();
-            return { kind: "group", node };
+            return {
+                kind: "group",
+                node,
+                ...(closeText === "]" ? { delimiter: "bracket" } : {}),
+                ...(items.length === 0 ? {} : { items }),
+            };
         });
     }
     parseSqrt() {
@@ -1288,8 +1306,12 @@ export function canonicalSpelling(node) {
                 ? `${canonicalSpelling(branch.expr)} otherwise`
                 : `${canonicalSpelling(branch.expr)} when ${canonicalSpelling(branch.cond)}`)
                 .join("; ")})`;
-        case "group":
-            return `(${canonicalSpelling(node.node)})`;
+        case "group": {
+            const openText = node.delimiter === "bracket" ? "[" : "(";
+            const closeText = node.delimiter === "bracket" ? "]" : ")";
+            const args = [canonicalSpelling(node.node), ...(node.items ?? []).map(canonicalSpelling)];
+            return `${openText}${args.join(", ")}${closeText}`;
+        }
         case "binder": {
             const name = node.name === undefined ? "" : canonicalSpelling(node.name);
             let clause = name;
@@ -1398,7 +1420,12 @@ export function projectMathNode(node) {
                 })),
             };
         case "group":
-            return { kind: "group", node: projectMathNode(node.node) };
+            return {
+                kind: "group",
+                ...(node.delimiter === undefined ? {} : { delimiter: node.delimiter }),
+                node: projectMathNode(node.node),
+                ...(node.items === undefined ? {} : { items: node.items.map(projectMathNode) }),
+            };
         case "binder":
             return {
                 kind: "binder",
@@ -1495,8 +1522,14 @@ export function treeToTex(node) {
                 .join(" \\\\ ");
             return `\\begin{cases}${rows}\\end{cases}`;
         }
-        case "group":
-            return `\\left(${treeToTex(node.node)}\\right)`;
+        case "group": {
+            // One delimiter pair around the whole argument list: `f(r, t)` renders
+            // as one parenthesized pair, not per-argument parens.
+            const args = [treeToTex(node.node), ...(node.items ?? []).map(treeToTex)].join(", ");
+            return node.delimiter === "bracket"
+                ? `\\left[${args}\\right]`
+                : `\\left(${args}\\right)`;
+        }
         case "binder": {
             const name = node.name === undefined ? "" : treeToTex(node.name);
             let prefix;
@@ -1750,7 +1783,27 @@ export function projectionToNode(value) {
             const node = projectionToNode(obj.node);
             if (node === undefined)
                 return undefined;
-            return { kind: "group", node };
+            const delimiter = obj.delimiter === undefined ? undefined : String(obj.delimiter);
+            if (obj.delimiter !== undefined && delimiter !== "bracket")
+                return undefined;
+            let items;
+            if (obj.items !== undefined) {
+                if (!Array.isArray(obj.items) || obj.items.length === 0)
+                    return undefined;
+                items = [];
+                for (const item of obj.items) {
+                    const decoded = projectionToNode(item);
+                    if (decoded === undefined)
+                        return undefined;
+                    items.push(decoded);
+                }
+            }
+            return {
+                kind: "group",
+                ...(delimiter === undefined ? {} : { delimiter: "bracket" }),
+                node,
+                ...(items === undefined ? {} : { items }),
+            };
         }
         case "binder": {
             const name = obj.name === undefined ? undefined : projectionToNode(obj.name);
