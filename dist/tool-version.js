@@ -1,3 +1,3 @@
 /** Single source of truth for the CLI SemVer reported in every machine envelope. */
-export const TOOL_VERSION = "0.6.1";
+export const TOOL_VERSION = "0.6.2";
 //# sourceMappingURL=tool-version.js.map
