@@ -10,6 +10,7 @@ import {
   projectMathNode,
   projectionToNode,
   treeToTex,
+  treeToTexFromProjection,
 } from "../dist/math.js";
 
 function parseOk(body, label = body) {
@@ -175,6 +176,20 @@ test("identifiers carry digit suffixes, word subscripts, and primes", () => {
   assert.equal(tex("y''"), "y''");
   assert.equal(tex("y'"), "y'");
   assert.notDeepEqual(projection("v0"), projection("v_0"));
+  // Primes survive the projection the rendered artifacts are built from.
+  assert.deepEqual(
+    projectMathNode(projectionToNode(projection("y'"))),
+    projection("y'"),
+  );
+  assert.notDeepEqual(projection("y'"), projection("y"));
+  assert.deepEqual(
+    projectMathNode(projectionToNode(projection("m (x')^2"))),
+    projection("m (x')^2"),
+  );
+  assert.equal(
+    treeToTexFromProjection(projection("y''")),
+    "y''",
+  );
 });
 
 test("registered function applications accept parens or a bare term", () => {

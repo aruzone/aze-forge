@@ -1853,6 +1853,7 @@ export function projectMathNode(node: MathNode): JsonValue {
         ...(node.sub === undefined ? {} : { sub: node.sub }),
         ...(node.subs === undefined ? {} : { subs: [...node.subs] }),
         ...(node.sup === undefined ? {} : { sup: projectMathNode(node.sup) }),
+        ...(node.primes === undefined ? {} : { primes: node.primes }),
       };
     case "chain":
       return {
