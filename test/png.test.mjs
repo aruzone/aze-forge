@@ -11,6 +11,7 @@ import { inflateSync } from "node:zlib";
 import { getBuiltInRegistry } from "../dist/adapters.js";
 import { createCompiler, defaultTheme } from "../dist/index.js";
 import { normalizePng } from "../dist/render-png.js";
+import { cssDimensionsOf } from "../dist/theme.js";
 
 const CLI_PATH = fileURLToPath(new URL("../dist/cli.js", import.meta.url));
 
@@ -155,7 +156,7 @@ test("CLI renders one deterministic whole-Document PNG Artifact", async (context
     chunks[0].data,
   );
   assert.equal(bitDepth, 8);
-  assert.deepEqual(report.artifact.cssDimensions, defaultTheme.geometry);
+  assert.deepEqual(report.artifact.cssDimensions, cssDimensionsOf(defaultTheme));
   assert.equal(width, defaultTheme.geometry.canvasWidthPx * 2);
 
   const svgDirectory = await mkdtemp(join(tmpdir(), "azeforge-png-svg-"));

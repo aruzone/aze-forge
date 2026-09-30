@@ -19,6 +19,7 @@ import { line as d3Line } from "d3-shape";
 import { scaleBand, scaleLinear, scaleLog, } from "d3-scale";
 import { createDiagnostic } from "./diagnostics.js";
 import { parseNativeMath } from "./math.js";
+import { defaultTheme } from "./theme.js";
 import { CHART_BODY_SYNTAX_ID, CHART_BODY_SYNTAX_VERSION, CHART_PLUGIN_TYPE, CHART_PLUGIN_VERSION, chartDataSchema, chartSourceSchema, D3_ARRAY_VERSION, D3_SCALE_VERSION, D3_SHAPE_VERSION, PLOT_BODY_SYNTAX_ID, PLOT_BODY_SYNTAX_VERSION, PLOT_EMITTER_VERSION, PLOT_EVAL_VERSION, PLOT_PLUGIN_TYPE, PLOT_PLUGIN_VERSION, plotDataSchema, plotSourceSchema, } from "./plot-schemas.js";
 /* ------------------------------------------------------------------ *
  * Ceilings (contract §8 — one stable code for all ceilings)
@@ -1883,22 +1884,8 @@ function resolveAxisDomain(axis, fitted, logFallback) {
 /* ------------------------------------------------------------------ *
  * Owned SVG emitter
  * ------------------------------------------------------------------ */
-/**
- * Series colours for the light scheme. The Theme stylesheet redefines the
- * `--aze-plot-series-*` custom properties these feed, so a dark page gets
- * lighter hues that hold every series above 4:1 against its background.
- */
-export const PLOT_SERIES_PALETTE = Object.freeze([
-    "#2563eb", "#dc2626", "#16a34a", "#d97706", "#7c3aed", "#0891b2",
-]);
-/**
- * Axis ink follows the page ink through `currentColor`, so plots and charts
- * read on a light or a dark Theme. The grid is that same ink at reduced
- * opacity, which keeps it behind the data on both.
- */
-const AXIS_COLOR = "currentColor";
-const GRID_COLOR = "currentColor";
-const GRID_OPACITY = "0.25";
+/** Series colour fallback when a Theme supplies an empty palette. */
+const FALLBACK_SERIES_COLOR = "#2563eb";
 const MARGIN = Object.freeze({ left: 64, right: 16, top: 16, bottom: 48 });
 export class PlotSanitizerError extends Error {
     code = "azeforge.plot#sanitizer-compromise";
@@ -1923,9 +1910,10 @@ function geometryOf(width, height) {
         y1: MARGIN.top,
     };
 }
-function seriesColor(index) {
-    const slot = index % PLOT_SERIES_PALETTE.length;
-    return `var(--aze-plot-series-${slot + 1}, ${PLOT_SERIES_PALETTE[slot] ?? "#2563eb"})`;
+function seriesColor(seriesColors, index) {
+    if (seriesColors.length === 0)
+        return FALLBACK_SERIES_COLOR;
+    return seriesColors[index % seriesColors.length] ?? FALLBACK_SERIES_COLOR;
 }
 function tickLabels(scale, count) {
     const ticks = scale.ticks(count);
@@ -1941,37 +1929,37 @@ function tickLabels(scale, count) {
     return ticks.map((value) => ({ value, label: quantize(value) }));
 }
 function renderAxesFrame(options) {
-    const { geo, xScale, yScale, xLabel, yLabel, grid } = options;
+    const { geo, xScale, yScale, xLabel, yLabel, grid, axisInk, gridInk } = options;
     const parts = [];
     const xTicks = options.xNumericTicks === false ? [] : tickLabels(xScale, 6);
     const yTicks = tickLabels(yScale, 6);
     for (const tick of xTicks) {
         const px = quantize(xScale(tick.value));
         if (grid) {
-            parts.push(`<line x1="${px}" y1="${quantize(geo.y1)}" x2="${px}" y2="${quantize(geo.y0)}" stroke="${GRID_COLOR}" stroke-opacity="${GRID_OPACITY}" stroke-width="1"/>`);
+            parts.push(`<line x1="${px}" y1="${quantize(geo.y1)}" x2="${px}" y2="${quantize(geo.y0)}" stroke="${gridInk}" stroke-width="1"/>`);
         }
-        parts.push(`<line x1="${px}" y1="${quantize(geo.y0)}" x2="${px}" y2="${quantize(geo.y0 + 5)}" stroke="${AXIS_COLOR}" stroke-width="1"/>`);
-        parts.push(`<text x="${px}" y="${quantize(geo.y0 + 18)}" text-anchor="middle" font-size="11" fill="${AXIS_COLOR}">${escapeXml(tick.label)}</text>`);
+        parts.push(`<line x1="${px}" y1="${quantize(geo.y0)}" x2="${px}" y2="${quantize(geo.y0 + 5)}" stroke="${axisInk}" stroke-width="1"/>`);
+        parts.push(`<text x="${px}" y="${quantize(geo.y0 + 18)}" text-anchor="middle" font-size="11" fill="${axisInk}">${escapeXml(tick.label)}</text>`);
     }
     for (const tick of yTicks) {
         const py = quantize(yScale(tick.value));
         if (grid) {
-            parts.push(`<line x1="${quantize(geo.x0)}" y1="${py}" x2="${quantize(geo.x1)}" y2="${py}" stroke="${GRID_COLOR}" stroke-opacity="${GRID_OPACITY}" stroke-width="1"/>`);
+            parts.push(`<line x1="${quantize(geo.x0)}" y1="${py}" x2="${quantize(geo.x1)}" y2="${py}" stroke="${gridInk}" stroke-width="1"/>`);
         }
-        parts.push(`<line x1="${quantize(geo.x0 - 5)}" y1="${py}" x2="${quantize(geo.x0)}" y2="${py}" stroke="${AXIS_COLOR}" stroke-width="1"/>`);
-        parts.push(`<text x="${quantize(geo.x0 - 8)}" y="${quantize(Number(py) + 4)}" text-anchor="end" font-size="11" fill="${AXIS_COLOR}">${escapeXml(tick.label)}</text>`);
+        parts.push(`<line x1="${quantize(geo.x0 - 5)}" y1="${py}" x2="${quantize(geo.x0)}" y2="${py}" stroke="${axisInk}" stroke-width="1"/>`);
+        parts.push(`<text x="${quantize(geo.x0 - 8)}" y="${quantize(Number(py) + 4)}" text-anchor="end" font-size="11" fill="${axisInk}">${escapeXml(tick.label)}</text>`);
     }
-    parts.push(`<line x1="${quantize(geo.x0)}" y1="${quantize(geo.y0)}" x2="${quantize(geo.x1)}" y2="${quantize(geo.y0)}" stroke="${AXIS_COLOR}" stroke-width="1.5"/>`);
-    parts.push(`<line x1="${quantize(geo.x0)}" y1="${quantize(geo.y1)}" x2="${quantize(geo.x0)}" y2="${quantize(geo.y0)}" stroke="${AXIS_COLOR}" stroke-width="1.5"/>`);
+    parts.push(`<line x1="${quantize(geo.x0)}" y1="${quantize(geo.y0)}" x2="${quantize(geo.x1)}" y2="${quantize(geo.y0)}" stroke="${axisInk}" stroke-width="1.5"/>`);
+    parts.push(`<line x1="${quantize(geo.x0)}" y1="${quantize(geo.y1)}" x2="${quantize(geo.x0)}" y2="${quantize(geo.y0)}" stroke="${axisInk}" stroke-width="1.5"/>`);
     if (xLabel !== undefined) {
-        parts.push(`<text x="${quantize((geo.x0 + geo.x1) / 2)}" y="${quantize(geo.height - 8)}" text-anchor="middle" font-size="12" fill="${AXIS_COLOR}">${escapeXml(xLabel)}</text>`);
+        parts.push(`<text x="${quantize((geo.x0 + geo.x1) / 2)}" y="${quantize(geo.height - 8)}" text-anchor="middle" font-size="12" fill="${axisInk}">${escapeXml(xLabel)}</text>`);
     }
     if (yLabel !== undefined) {
-        parts.push(`<text x="14" y="${quantize((geo.y1 + geo.y0) / 2)}" text-anchor="middle" font-size="12" fill="${AXIS_COLOR}" transform="rotate(-90 14 ${quantize((geo.y1 + geo.y0) / 2)})">${escapeXml(yLabel)}</text>`);
+        parts.push(`<text x="14" y="${quantize((geo.y1 + geo.y0) / 2)}" text-anchor="middle" font-size="12" fill="${axisInk}" transform="rotate(-90 14 ${quantize((geo.y1 + geo.y0) / 2)})">${escapeXml(yLabel)}</text>`);
     }
     return parts.join("");
 }
-function renderLegend(geo, labels, legend) {
+function renderLegend(geo, labels, legend, ink) {
     if (!legend)
         return "";
     const entries = labels.map((label, index) => ({ label, index })).filter((entry) => entry.label !== undefined);
@@ -1982,8 +1970,8 @@ function renderLegend(geo, labels, legend) {
         const y = geo.y1 + 14 + row * 18;
         const textX = quantize(geo.x1 - 22);
         const swatchX = quantize(geo.x1 - 18);
-        return (`<rect x="${swatchX}" y="${quantize(y - 9)}" width="14" height="10" fill="${seriesColor(entry.index)}"/>` +
-            `<text x="${textX}" y="${quantize(y)}" text-anchor="end" font-size="12" fill="${AXIS_COLOR}">${escapeXml(entry.label ?? "")}</text>`);
+        return (`<rect x="${swatchX}" y="${quantize(y - 9)}" width="14" height="10" fill="${seriesColor(ink.seriesColors, entry.index)}"/>` +
+            `<text x="${textX}" y="${quantize(y)}" text-anchor="end" font-size="12" fill="${ink.axisInk}">${escapeXml(entry.label ?? "")}</text>`);
     })
         .join("");
 }
@@ -2093,7 +2081,8 @@ function pathFromSegments(segments) {
  * Render one plot Block to a static figure: browser-free deterministic SVG —
  * no scripts, no event attributes, no interactivity.
  */
-export function renderPlotFragment(block, _context) {
+export function renderPlotFragment(block, context) {
+    const theme = context.theme ?? defaultTheme;
     const geo = geometryOf(block.width, block.height);
     const sampled = block.series.map((entry) => entry.kind === "function" ? sampleFunctionSeries(entry, block.parameters) : undefined);
     const xFit = [];
@@ -2119,10 +2108,11 @@ export function renderPlotFragment(block, _context) {
     const xScale = makeScale(block.xAxis.scale, [x0, x1], [geo.x0, geo.x1]);
     const yScale = makeScale(block.yAxis.scale, [y0, y1], [geo.y0, geo.y1]);
     const yRange = yLog ? y1 / y0 : y1 - y0;
-    const parts = [renderAxesFrame({ geo, xScale, yScale, xLabel: block.xAxis.label, yLabel: block.yAxis.label, grid: block.grid })];
+    const ink = theme.plot;
+    const parts = [renderAxesFrame({ geo, xScale, yScale, xLabel: block.xAxis.label, yLabel: block.yAxis.label, grid: block.grid, axisInk: ink.axisInk, gridInk: ink.gridInk })];
     const legendLabels = [];
     block.series.forEach((entry, seriesIndex) => {
-        const color = seriesColor(seriesIndex);
+        const color = seriesColor(theme.plot.seriesColors, seriesIndex);
         legendLabels.push(entry.label);
         if (entry.kind === "function") {
             const samples = sampled[seriesIndex];
@@ -2159,7 +2149,7 @@ export function renderPlotFragment(block, _context) {
             parts.push(renderErrorBar(xScale(Number(point.x)), lo, hi, yScale, color));
         }
     });
-    parts.push(renderLegend(geo, legendLabels, block.legend));
+    parts.push(renderLegend(geo, legendLabels, block.legend, ink));
     const figureId = stableFigureId("aze-plot", plotContentSeed(block));
     const title = `Plot${block.id === undefined ? "" : ` ${block.id}`} with ${block.series.length} series: ${block.series
         .map((entry) => entry.label ?? entry.kind)
@@ -2196,7 +2186,9 @@ function histogramCounts(values, edges) {
 /**
  * Render one chart Block to a static figure: browser-free deterministic SVG.
  */
-export function renderChartFragment(block, _context) {
+export function renderChartFragment(block, context) {
+    const theme = context.theme ?? defaultTheme;
+    const ink = theme.plot;
     const geo = geometryOf(block.width, block.height);
     const parts = [];
     const legendLabels = [];
@@ -2218,9 +2210,9 @@ export function renderChartFragment(block, _context) {
         const [y0, y1] = niceLinearDomain(Math.min(0, yAuthoredMin ?? 0), yAuthoredMax ?? (maxCount === 0 ? 1 : maxCount));
         const xScale = scaleLinear().domain([x0, x1]).range([geo.x0, geo.x1]);
         const yScale = scaleLinear().domain([y0, y1]).range([geo.y0, geo.y1]);
-        parts.push(renderAxesFrame({ geo, xScale, yScale, xLabel: block.xLabel, yLabel: block.yLabel, grid: block.grid }));
+        parts.push(renderAxesFrame({ geo, xScale, yScale, xLabel: block.xLabel, yLabel: block.yLabel, grid: block.grid, axisInk: ink.axisInk, gridInk: ink.gridInk }));
         histograms.forEach((entry, seriesIndex) => {
-            const color = seriesColor(seriesIndex);
+            const color = seriesColor(theme.plot.seriesColors, seriesIndex);
             legendLabels.push(entry.label);
             const seriesCounts = counts[seriesIndex] ?? [];
             const binCount = seriesCounts.length;
@@ -2256,16 +2248,16 @@ export function renderChartFragment(block, _context) {
         const band = scaleBand().domain(categories).range([geo.x0, geo.x1]).paddingInner(block.chartType === "bar" && barSeries.length <= 1 ? 0.3 : 0.15).paddingOuter(0.1);
         const yScale = scaleLinear().domain([y0, y1]).range([geo.y0, geo.y1]);
         const xScale = scaleLinear().domain([0, Math.max(1, categories.length)]).range([geo.x0, geo.x1]);
-        parts.push(renderAxesFrame({ geo, xScale, yScale, xLabel: block.xLabel, yLabel: block.yLabel, grid: block.grid, xNumericTicks: false }));
+        parts.push(renderAxesFrame({ geo, xScale, yScale, xLabel: block.xLabel, yLabel: block.yLabel, grid: block.grid, xNumericTicks: false, axisInk: ink.axisInk, gridInk: ink.gridInk }));
         const stacked = block.chartType === "stacked-bar";
         const cumulative = new Map();
         // Category labels on the band axis.
         for (const category of categories) {
             const center = (band(category) ?? 0) + band.bandwidth() / 2;
-            parts.push(`<text x="${quantize(center)}" y="${quantize(geo.y0 + 18)}" text-anchor="middle" font-size="10" fill="${AXIS_COLOR}">${escapeXml(category)}</text>`);
+            parts.push(`<text x="${quantize(center)}" y="${quantize(geo.y0 + 18)}" text-anchor="middle" font-size="10" fill="${ink.axisInk}">${escapeXml(category)}</text>`);
         }
         barSeries.forEach((entry, seriesIndex) => {
-            const color = seriesColor(seriesIndex);
+            const color = seriesColor(theme.plot.seriesColors, seriesIndex);
             legendLabels.push(entry.label);
             const byCategory = new Map(entry.bars.map((bar) => [bar.category, bar]));
             categories.forEach((category) => {
@@ -2296,7 +2288,7 @@ export function renderChartFragment(block, _context) {
             });
         });
     }
-    parts.push(renderLegend(geo, legendLabels, block.legend));
+    parts.push(renderLegend(geo, legendLabels, block.legend, ink));
     const figureId = stableFigureId("aze-chart", chartContentSeed(block));
     const title = `Chart${block.id === undefined ? "" : ` ${block.id}`} (${block.chartType}) with ${block.series.length} series: ${block.series
         .map((entry) => entry.label ?? entry.kind)

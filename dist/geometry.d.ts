@@ -13,7 +13,7 @@
  * `Math.sqrt`; trigonometry appears only in arc parametrization and angle
  * measures.
  */
-import type { AzeBlockPlugin, AzeBlockRenderer, BlockRendererContext, Diagnostic, GeometryBlock, JsonValue, SourceRange } from "./model.js";
+import type { AzeBlockPlugin, FigureBlockRenderer, Diagnostic, GeometryBlock, JsonValue, SourceRange, ThemeFigureRendererContext } from "./model.js";
 export declare const MAX_GEOMETRY_DECLARATIONS = 256;
 export declare const MAX_POLYGON_VERTICES = 64;
 export declare const MAX_EQUAL_MARK_SEGMENTS = 16;
@@ -86,11 +86,11 @@ export declare function assertGeometryFragmentSafe(svg: string): void;
  * SVG — no scripts, no event attributes, no interactivity. Y-up authored
  * coordinates flip to SVG y-down at emission (renderer-derived placement).
  */
-export declare function renderGeometryFragment(block: GeometryBlock, _context: BlockRendererContext): string;
+export declare function renderGeometryFragment(block: GeometryBlock, context: ThemeFigureRendererContext): string;
 /** Fingerprint closure joining the plot/katex/mermaid closures (contract §9). */
 export declare function geometryDependencyClosure(): JsonValue;
 export declare const geometryPlugin: AzeBlockPlugin;
 export declare const GEOMETRY_HTML_BLOCK_RENDERER_ID: "azeforge.geometry.html/v1";
 export declare const GEOMETRY_HTML_BLOCK_RENDERER_VERSION: "1.0.0";
-export declare const geometryHtmlBlockRenderer: AzeBlockRenderer<GeometryBlock>;
+export declare const geometryHtmlBlockRenderer: FigureBlockRenderer<GeometryBlock>;
 export {};

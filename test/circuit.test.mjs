@@ -314,9 +314,15 @@ test("inverted-gate bubbles mask against the Theme background", async () => {
     assert.deepEqual(compiled.diagnostics, []);
     return Buffer.from(compiled.artifact.bytes).toString("utf8");
   };
-  const light = await htmlOf("default");
-  assert.ok(light.includes('fill="var(--aze-circuit-bg,white)"'), "the bubble masks against the page background");
-  assert.ok(light.includes(`--aze-circuit-bg:${defaultTheme.colors.background}`), "the light Theme supplies its own background");
-  const dark = await htmlOf("dark-presentation");
-  assert.ok(dark.includes(`--aze-circuit-bg:${darkPresentationTheme.colors.background}`), "the dark Theme supplies a dark background so the bubble reads as hollow");
+  // The bubble is a disc in the page colour, so it must be the Theme's own
+  // background: a fixed white leaves a bright dot on a dark page.
+  assert.ok(
+    (await htmlOf("default")).includes(`fill="${defaultTheme.colors.background}"`),
+    "the bubble masks with the light Theme background",
+  );
+  assert.ok(
+    (await htmlOf("dark-presentation")).includes(`fill="${darkPresentationTheme.colors.background}"`),
+    "the bubble masks with the dark Theme background",
+  );
+  assert.ok(!(await htmlOf("dark-presentation")).includes('fill="white"'), "no fixed white survives on a dark page");
 });

@@ -22,4 +22,4 @@ export { PNG_DEVICE_SCALE_FACTOR, PNG_RENDERER_ID, PNG_RENDERER_VERSION, PNG_REQ
 export { SVG_RENDERER_ID, SVG_RENDERER_VERSION, svgBlockRenderers, svgRendererDescriptor, } from "./render-svg.js";
 export { TABLE_HTML_BLOCK_RENDERER_ID, TABLE_HTML_BLOCK_RENDERER_VERSION, tableHtmlBlockRenderer, tablePlugin, } from "./table.js";
 export { CHART_HTML_BLOCK_RENDERER_ID, CHART_HTML_BLOCK_RENDERER_VERSION, PLOT_HTML_BLOCK_RENDERER_ID, PLOT_HTML_BLOCK_RENDERER_VERSION, PlotSanitizerError, assertPlotFragmentSafe, chartHtmlBlockRenderer, chartPlugin, plotDependencyClosure, plotHtmlBlockRenderer, plotPlugin, renderChartFragment, renderPlotFragment, } from "./plot.js";
-export type { AnyBlockRenderer, AzeBlockPlugin, AzeBlockRenderer, BlockRendererContext, BlockRendererDescriptor, PluginDescriptor, RendererDescriptor, } from "./model.js";
+export type { AnyBlockRenderer, AzeBlockPlugin, AzeBlockRenderer, BlockRendererContext, BlockRendererDescriptor, FigureBlockRenderer, PluginDescriptor, RendererDescriptor, ThemeFigureRendererContext, } from "./model.js";

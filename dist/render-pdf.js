@@ -20,6 +20,7 @@ import { assetManifestHash } from "./assets.js";
 import { artifactBytesHash, canonicalJson, sha256 } from "./hash.js";
 import { CHROME_HEADLESS_SHELL_VERSION, launchPinnedBrowser, throwIfDeniedBrowserRequest, } from "./mermaid-browser.js";
 import { mermaidHtmlBlockRenderer } from "./mermaid.js";
+import { cssDimensionsOf } from "./theme.js";
 import { tableHtmlBlockRenderer } from "./table.js";
 export const PDF_RENDERER_ID = "pdf";
 export const PDF_RENDERER_VERSION = "1.0.0";
@@ -570,7 +571,7 @@ export async function renderPdf(layout, contentHash, theme, assetManifest, brows
             rendererFingerprint,
             artifactHash: artifactBytesHash(bytes),
             theme: { id: theme.id, version: theme.version },
-            cssDimensions: { ...theme.geometry },
+            cssDimensions: cssDimensionsOf(theme),
             pageCount,
             pageGeometry,
             requiredCapabilities: PDF_REQUIRED_CAPABILITIES,

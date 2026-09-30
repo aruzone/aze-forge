@@ -124,6 +124,8 @@ export type {
   AzeBlockRenderer,
   BlockRendererContext,
   BlockRendererDescriptor,
+  FigureBlockRenderer,
   PluginDescriptor,
   RendererDescriptor,
+  ThemeFigureRendererContext,
 } from "./model.js";

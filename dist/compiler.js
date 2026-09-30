@@ -138,9 +138,19 @@ function sameFormatMeaning(before, after) {
     return (beforeCodes.length === afterCodes.length &&
         beforeCodes.every((code, index) => code === afterCodes[index]));
 }
+/** A Theme colour token is a plain hex value, so it can never escape an attribute. */
+const THEME_COLOR = /^#[0-9a-f]{6}$/i;
 function validateTheme(theme) {
     const validScheme = theme.colorScheme === "light" || theme.colorScheme === "dark";
-    const validColors = Object.values(theme.colors).every((color) => /^#[0-9a-f]{6}$/i.test(color));
+    const validColors = Object.values(theme.colors).every((color) => THEME_COLOR.test(color));
+    const validFigureColors = [
+        theme.geometry.ink,
+        theme.geometry.guide,
+        theme.geometry.mark,
+        theme.plot.axisInk,
+        theme.plot.gridInk,
+        ...theme.plot.seriesColors,
+    ].every((color) => THEME_COLOR.test(color));
     const { canvasWidthPx, contentWidthPx, paddingPx } = theme.geometry;
     const validGeometry = Number.isInteger(canvasWidthPx) &&
         canvasWidthPx > 0 &&
@@ -161,7 +171,7 @@ function validateTheme(theme) {
         theme.typography.bodyFontWeight === 400 &&
         theme.typography.headingFontWeight === 700 &&
         theme.typography.proseFontFamily === "Inter";
-    if (!validScheme || !validColors || !validGeometry || !validTypography) {
+    if (!validScheme || !validColors || !validFigureColors || !validGeometry || !validTypography) {
         throw new CompilerConfigurationError("AZE_CONFIG_THEME_VALUES", `Theme "${theme.id}" contains unsafe or invalid tokens.`);
     }
 }

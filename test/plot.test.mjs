@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { createCompiler } from "../dist/index.js";
-import { darkPresentationTheme } from "../dist/theme.js";
+import { darkPresentationTheme, defaultTheme } from "../dist/theme.js";
 
 const RC_SOURCE = `---
 azemark: 2
@@ -688,26 +688,32 @@ y-axis:
 ::::
 `;
 
-test("plot ink and grid follow the page ink instead of a baked-in slate", async () => {
+test("plot ink and grid come from the Theme without outshining the data", async () => {
   const compiler = createCompiler();
   const compiled = await compiler.compile(GRIDDED_SOURCE, { format: "html" });
   assert.deepEqual(compiled.diagnostics, []);
   const html = Buffer.from(compiled.artifact.bytes).toString("utf8");
   const start = html.indexOf('<figure class="aze-plot"');
   const figure = html.slice(start, html.indexOf("</figure>", start));
-  // Axes, ticks and axis labels draw in the page ink, so the figure reads on a
-  // light or a dark Theme without a colour token.
-  assert.ok(figure.includes('stroke="currentColor" stroke-width="1.5"'), "axes draw in the page ink");
-  assert.ok(figure.includes('fill="currentColor"'), "labels draw in the page ink");
+  assert.ok(figure.includes(`stroke="${defaultTheme.plot.axisInk}"`), "axes draw in the Theme axis ink");
+  assert.ok(figure.includes(`fill="${defaultTheme.plot.axisInk}"`), "labels draw in the Theme axis ink");
+  assert.ok(figure.includes(`stroke="${defaultTheme.plot.gridInk}"`), "grid lines draw in the Theme grid ink");
+  // The grid token is fainter than the axis token on the Theme's own page, and
+  // no baked-in slate survives for a dark page to inherit.
   assert.ok(!html.includes("#374151"), "no dark-slate axis ink is emitted");
-  assert.ok(!html.includes("#d1d5db"), "no pale grid ink is emitted");
-  // The grid is the same ink, held behind the data by opacity rather than by a
-  // pale colour that outshines the series on a dark page.
-  const grid = [...figure.matchAll(/<line [^>]*stroke="currentColor" stroke-opacity="0\.25"/g)];
-  assert.ok(grid.length > 0, "grid lines are drawn at reduced opacity");
+  assert.ok(
+    contrastOn(defaultTheme.colors.background, defaultTheme.plot.gridInk) <
+      contrastOn(defaultTheme.colors.background, defaultTheme.plot.axisInk),
+    "the grid sits behind the axis on a light page",
+  );
+  assert.ok(
+    contrastOn(darkPresentationTheme.colors.background, darkPresentationTheme.plot.gridInk) <
+      contrastOn(darkPresentationTheme.colors.background, darkPresentationTheme.plot.axisInk),
+    "the grid sits behind the axis on a dark page",
+  );
 });
 
-test("a plot figure carries no scheme-specific markup", async () => {
+test("a plot figure differs between Themes only in its themed colours", async () => {
   const compiler = createCompiler();
   const figureOf = async (theme) => {
     const compiled = await compiler.compile(GRIDDED_SOURCE, { format: "html", theme });
@@ -715,9 +721,14 @@ test("a plot figure carries no scheme-specific markup", async () => {
     const start = html.indexOf('<figure class="aze-plot"');
     return html.slice(start, html.indexOf("</figure>", start));
   };
-  // Ink is inherited rather than baked, so only the stylesheet moves between
-  // schemes and no axis or series can be lost on one of them.
-  assert.equal(await figureOf("default"), await figureOf("dark-presentation"));
+  const light = await figureOf("default");
+  const dark = await figureOf("dark-presentation");
+  assert.notEqual(light, dark, "the themed colours do change");
+  assert.equal(
+    light.replace(/#[0-9a-f]{6}/g, "#"),
+    dark.replace(/#[0-9a-f]{6}/g, "#"),
+    "sampling, ids and label placement are identical across schemes",
+  );
 });
 
 const CATEGORICAL_SOURCE = `---
@@ -756,32 +767,33 @@ function contrastOn(background, hex) {
 
 test("the series palette is chosen per scheme so no series is dim on a dark page", async () => {
   const compiler = createCompiler();
-  const paletteOf = async (theme) => {
-    const compiled = await compiler.compile(CATEGORICAL_SOURCE, { format: "html", theme });
-    const html = Buffer.from(compiled.artifact.bytes).toString("utf8");
-    return new Map(
-      [...html.matchAll(/--aze-plot-series-(\d):(#[0-9a-f]{6})/g)].map((match) => [Number(match[1]), match[2]]),
-    );
-  };
-  const light = await paletteOf("default");
-  const dark = await paletteOf("dark-presentation");
   assert.deepEqual(
-    [...light.values()],
+    [...defaultTheme.plot.seriesColors],
     ["#2563eb", "#dc2626", "#16a34a", "#d97706", "#7c3aed", "#0891b2"],
     "the light scheme keeps the authored palette",
   );
-  assert.equal(dark.size, light.size, "every series slot is restated for the dark scheme");
-  for (const [slot, color] of dark) {
-    assert.notEqual(color, light.get(slot), `slot ${slot} differs between schemes`);
+  assert.equal(
+    darkPresentationTheme.plot.seriesColors.length,
+    defaultTheme.plot.seriesColors.length,
+    "every series slot is restated for the dark scheme",
+  );
+  darkPresentationTheme.plot.seriesColors.forEach((color, index) => {
+    assert.notEqual(color, defaultTheme.plot.seriesColors[index], `slot ${index + 1} differs between schemes`);
     assert.ok(
       contrastOn(darkPresentationTheme.colors.background, color) >= 4,
-      `dark slot ${slot} (${color}) holds at least 4:1 against the dark page`,
+      `dark slot ${index + 1} (${color}) holds at least 4:1 against the dark page`,
     );
-  }
-  // The figure reads the palette through the stylesheet rather than a literal.
-  const compiled = await compiler.compile(CATEGORICAL_SOURCE, { format: "html" });
-  const html = Buffer.from(compiled.artifact.bytes).toString("utf8");
-  assert.ok(html.includes("var(--aze-plot-series-1, #2563eb)"), "series colours resolve from the stylesheet");
+  });
+  // The figure paints with the palette of the Theme it was compiled under.
+  const compile = async (theme) => {
+    const compiled = await compiler.compile(CATEGORICAL_SOURCE, { format: "html", theme });
+    return Buffer.from(compiled.artifact.bytes).toString("utf8");
+  };
+  assert.ok((await compile("default")).includes(`fill="${defaultTheme.plot.seriesColors[0]}"`), "light bars use the light palette");
+  assert.ok(
+    (await compile("dark-presentation")).includes(`fill="${darkPresentationTheme.plot.seriesColors[0]}"`),
+    "dark bars use the dark palette",
+  );
 });
 
 test("a categorical bar chart labels its bands without numeric x ticks", async () => {
@@ -803,4 +815,20 @@ test("a categorical bar chart labels its bands without numeric x ticks", async (
     "no numeric tick label collides with a category label",
   );
   assert.ok(labels.includes("launch stage"), "the axis title still renders");
+});
+
+test("a custom Theme restyles the series palette", async () => {
+  const mono = {
+    ...defaultTheme,
+    id: "mono",
+    plot: { ...defaultTheme.plot, seriesColors: ["#111827", "#4b5563"] },
+  };
+  const compiler = createCompiler({ themes: [mono], defaultTheme: "mono" });
+  const compiled = await compiler.compile(CATEGORICAL_SOURCE, { format: "html" });
+  assert.deepEqual(compiled.diagnostics, []);
+  const html = Buffer.from(compiled.artifact.bytes).toString("utf8");
+  const start = html.indexOf('<figure class="aze-chart"');
+  const figure = html.slice(start, html.indexOf("</figure>", start));
+  assert.ok(figure.includes('fill="#111827"'), "bars paint with the Theme palette");
+  assert.ok(!figure.includes(defaultTheme.plot.seriesColors[0]), "the built-in palette is not baked in");
 });

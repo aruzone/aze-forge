@@ -14,6 +14,7 @@ import {
   PdfArtifactLimitError,
 } from "../dist/adapters.js";
 import { defaultTheme } from "../dist/index.js";
+import { cssDimensionsOf } from "../dist/theme.js";
 import { canonicalizePdf } from "../dist/render-pdf.js";
 
 const CLI_PATH = fileURLToPath(new URL("../dist/cli.js", import.meta.url));
@@ -172,7 +173,7 @@ test("CLI renders one deterministic paged PDF Artifact", async (context) => {
     heightPt: 841.92,
     marginPt: 51.024,
   });
-  assert.deepEqual(report.artifact.cssDimensions, defaultTheme.geometry);
+  assert.deepEqual(report.artifact.cssDimensions, cssDimensionsOf(defaultTheme));
 
   const inferred = runCli(["render", "report.aze.md", "--output", "inferred.pdf"], directory);
   assert.equal(inferred.status, 0, inferred.stderr.toString("utf8"));

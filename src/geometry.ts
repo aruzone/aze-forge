@@ -18,15 +18,16 @@ import { advanceMetricDependencyClosure, advanceWidth } from "./advance-metric.j
 import { createDiagnostic } from "./diagnostics.js";
 import type {
   AzeBlockPlugin,
-  AzeBlockRenderer,
-  BlockRendererContext,
+  FigureBlockRenderer,
   Diagnostic,
   GeometryBlock,
   GeometryBounds,
   GeometryDeclaration,
   JsonValue,
   SourceRange,
+  ThemeFigureRendererContext,
 } from "./model.js";
+import { defaultTheme } from "./theme.js";
 import {
   GEOMETRY_BODY_SYNTAX_ID,
   GEOMETRY_BODY_SYNTAX_VERSION,
@@ -1530,15 +1531,6 @@ function geometryContentSeed(block: GeometryBlock): string {
   });
 }
 
-/**
- * Ink follows the Theme through the stylesheet, so the figure reads on a light
- * or a dark page. The literal after the comma keeps a figure legible when the
- * SVG is lifted out of its Artifact and the custom properties are absent.
- */
-const GEOMETRY_STROKE = "var(--aze-geometry-ink, #1f2937)";
-const GUIDE_STROKE = "var(--aze-geometry-guide, #9ca3af)";
-const MARK_STROKE = "var(--aze-geometry-mark, #b45309)";
-
 function renderMeasuredLength(block: GeometryBlock, resolved: ResolvedGeometry, declaration: GeometryDeclaration): string | undefined {
   const at = (name: string): Point | undefined => resolved.points.get(name);
   if (declaration.segment !== undefined) {
@@ -1782,7 +1774,8 @@ function labelMarkup(box: ScreenBox, labelSize: number, fill: string, text: stri
  * SVG — no scripts, no event attributes, no interactivity. Y-up authored
  * coordinates flip to SVG y-down at emission (renderer-derived placement).
  */
-export function renderGeometryFragment(block: GeometryBlock, _context: BlockRendererContext): string {
+export function renderGeometryFragment(block: GeometryBlock, context: ThemeFigureRendererContext): string {
+  const { ink, guide: guideInk, mark } = (context.theme ?? defaultTheme).geometry;
   const resolved = resolveGeometry(block);
   const width = block.width;
   const height = block.height;
@@ -1902,7 +1895,7 @@ export function renderGeometryFragment(block: GeometryBlock, _context: BlockRend
   void linePath;
 
   const strokeFor = (declaration: GeometryDeclaration): string =>
-    declaration.visible === false ? GUIDE_STROKE : GEOMETRY_STROKE;
+    declaration.visible === false ? guideInk : ink;
   const dashFor = (declaration: GeometryDeclaration): string =>
     declaration.style === "dashed" ? ` stroke-dasharray="${dashPattern}"` : "";
 
@@ -2037,7 +2030,7 @@ export function renderGeometryFragment(block: GeometryBlock, _context: BlockRend
             anchorX: Number(projected.x),
             anchorY: Number(projected.y),
             clearance: labelGap,
-            fill: MARK_STROKE,
+            fill: mark,
           });
         }
         break;
@@ -2068,7 +2061,7 @@ export function renderGeometryFragment(block: GeometryBlock, _context: BlockRend
           anchorX: Number(projected.x),
           anchorY: Number(projected.y),
           clearance: labelGap,
-          fill: MARK_STROKE,
+          fill: mark,
         });
         break;
       }
@@ -2083,7 +2076,7 @@ export function renderGeometryFragment(block: GeometryBlock, _context: BlockRend
           const projected = project(mid);
           const x = Number(projected.x);
           const y = Number(projected.y);
-          parts.push(`<line x1="${quantize(x - tickSize)}" y1="${quantize(y - tickSize * 1.25)}" x2="${quantize(x + tickSize)}" y2="${quantize(y + tickSize * 1.25)}" stroke="${MARK_STROKE}" stroke-width="${quantize(lineWidth)}"/>`);
+          parts.push(`<line x1="${quantize(x - tickSize)}" y1="${quantize(y - tickSize * 1.25)}" x2="${quantize(x + tickSize)}" y2="${quantize(y + tickSize * 1.25)}" stroke="${mark}" stroke-width="${quantize(lineWidth)}"/>`);
           obstacles.push({ kind: "segment", x1: x - tickSize, y1: y - tickSize * 1.25, x2: x + tickSize, y2: y + tickSize * 1.25 });
         });
         break;
@@ -2111,7 +2104,7 @@ export function renderGeometryFragment(block: GeometryBlock, _context: BlockRend
         const onFirst = { x: vx + firstArm.x * size, y: vy + firstArm.y * size };
         const opposite = { x: onFirst.x + thirdArm.x * size, y: onFirst.y + thirdArm.y * size };
         const onThird = { x: vx + thirdArm.x * size, y: vy + thirdArm.y * size };
-        parts.push(`<path d="M ${quantize(onFirst.x)} ${quantize(onFirst.y)} L ${quantize(opposite.x)} ${quantize(opposite.y)} L ${quantize(onThird.x)} ${quantize(onThird.y)}" fill="none" stroke="${MARK_STROKE}" stroke-width="${quantize(lineWidth)}"/>`);
+        parts.push(`<path d="M ${quantize(onFirst.x)} ${quantize(onFirst.y)} L ${quantize(opposite.x)} ${quantize(opposite.y)} L ${quantize(onThird.x)} ${quantize(onThird.y)}" fill="none" stroke="${mark}" stroke-width="${quantize(lineWidth)}"/>`);
         obstacles.push(
           { kind: "segment", x1: onFirst.x, y1: onFirst.y, x2: opposite.x, y2: opposite.y },
           { kind: "segment", x1: opposite.x, y1: opposite.y, x2: onThird.x, y2: onThird.y },
@@ -2194,9 +2187,9 @@ const blockRendererDescriptor = Object.freeze({
   rendererVersionRange: "1.0.0",
 });
 
-export const geometryHtmlBlockRenderer: AzeBlockRenderer<GeometryBlock> = Object.freeze({
+export const geometryHtmlBlockRenderer: FigureBlockRenderer<GeometryBlock> = Object.freeze({
   descriptor: blockRendererDescriptor,
-  render(block: GeometryBlock, context: BlockRendererContext): string {
+  render(block: GeometryBlock, context: ThemeFigureRendererContext): string {
     return renderGeometryFragment(block, context);
   },
 });

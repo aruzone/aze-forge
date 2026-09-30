@@ -18,7 +18,7 @@
  * an `id` (ids are positional, so two Blocks with the same names cannot
  * collide in one Document).
  */
-import type { DiagramBlock, DiagramBlockRenderer, JsonValue, Theme } from "./model.js";
+import type { DiagramBlock, DiagramBlockRenderer, JsonValue, ThemeFigureRendererContext } from "./model.js";
 export declare const DIAGRAM_HTML_BLOCK_RENDERER_ID: "azeforge.diagram.html/v1";
 export declare const DIAGRAM_HTML_BLOCK_RENDERER_VERSION: "1.0.0";
 export declare const DIAGRAM_EMITTER_VERSION: "1.0.0";
@@ -35,11 +35,7 @@ export declare class DiagramRenderError extends Error {
  * Render one diagram Block: a static, browser-free, deterministic figure over
  * the pinned ELK layout projection. This is the family's only async boundary.
  */
-export declare function renderDiagramFragment(block: DiagramBlock, context: Readonly<{
-    sourceName?: string;
-    ordinal?: number;
-    theme?: Theme;
-}>): Promise<string>;
+export declare function renderDiagramFragment(block: DiagramBlock, context: ThemeFigureRendererContext): Promise<string>;
 /**
  * Fingerprint closure for the rendered-artifact hash (contract §12): the
  * layout language, the pinned engine, the emitter, the Advance metric and its

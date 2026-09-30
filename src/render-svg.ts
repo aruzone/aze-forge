@@ -47,6 +47,7 @@ import type {
   RendererDescriptor,
   Theme,
 } from "./model.js";
+import { cssDimensionsOf } from "./theme.js";
 import type { HtmlLayout } from "./render-html.js";
 import { tableHtmlBlockRenderer } from "./table.js";
 
@@ -350,7 +351,7 @@ export async function renderSvg(
       rendererFingerprint,
       artifactHash: artifactBytesHash(bytes),
       theme: { id: theme.id, version: theme.version },
-      cssDimensions: { ...theme.geometry },
+      cssDimensions: cssDimensionsOf(theme),
       pixelDimensions: { width, height },
       requiredCapabilities: SVG_REQUIRED_CAPABILITIES,
     },

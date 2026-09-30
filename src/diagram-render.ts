@@ -51,6 +51,7 @@ import type {
   DiagramShape,
   JsonValue,
   Theme,
+  ThemeFigureRendererContext,
 } from "./model.js";
 
 export const DIAGRAM_HTML_BLOCK_RENDERER_ID = "azeforge.diagram.html/v1" as const;
@@ -589,7 +590,7 @@ function emitDiagramFragment(
  */
 export async function renderDiagramFragment(
   block: DiagramBlock,
-  context: Readonly<{ sourceName?: string; ordinal?: number; theme?: Theme }>,
+  context: ThemeFigureRendererContext,
 ): Promise<string> {
   const ordinal = context.ordinal ?? 0;
   const theme = context.theme ?? defaultTheme;

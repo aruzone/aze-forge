@@ -3,7 +3,7 @@ import { renderCalloutFragment } from "./callout.js";
 import { getKatexCss } from "./equation.js";
 import { KATEX_VERSION } from "./equation-schemas.js";
 import { MERMAID_VERSION } from "./mermaid-schemas.js";
-import { PLOT_SERIES_PALETTE, plotDependencyClosure, renderChartFragment, renderPlotFragment } from "./plot.js";
+import { plotDependencyClosure, renderChartFragment, renderPlotFragment } from "./plot.js";
 import { geometryDependencyClosure, renderGeometryFragment } from "./geometry.js";
 import {
   chemistryDependencyClosure,
@@ -52,7 +52,9 @@ import type {
   DiagramBlock,
   TimingBlock,
   Sha256Hash,
+  ThemeFigureRendererContext,
 } from "./model.js";
+import { cssDimensionsOf } from "./theme.js";
 import { renderTableFragment } from "./table.js";
 import { renderAlgorithmFragment } from "./algorithm.js";
 import { renderStatementFragment } from "./statement.js";
@@ -87,15 +89,15 @@ export interface HtmlPluginRenderers {
   ) => string;
   readonly renderPlot?: (
     block: PlotBlock,
-    context: BlockRendererContext,
+    context: ThemeFigureRendererContext,
   ) => string;
   readonly renderChart?: (
     block: ChartBlock,
-    context: BlockRendererContext,
+    context: ThemeFigureRendererContext,
   ) => string;
   readonly renderGeometry?: (
     block: GeometryBlock,
-    context: BlockRendererContext,
+    context: ThemeFigureRendererContext,
   ) => string;
   readonly renderFormula?: (
     block: FormulaBlock,
@@ -111,7 +113,7 @@ export interface HtmlPluginRenderers {
   ) => string;
   readonly renderCircuit?: (
     block: CircuitBlock,
-    context: BlockRendererContext,
+    context: ThemeFigureRendererContext,
   ) => string;
   readonly renderTiming?: (
     block: TimingBlock,
@@ -138,6 +140,7 @@ export interface HtmlPluginRenderers {
 
 interface RenderContext {
   readonly sourceName?: string;
+  readonly theme: Theme;
   readonly equationFragments: ReadonlyMap<EquationBlock, string>;
   readonly derivationFragments: ReadonlyMap<DerivationBlock, string>;
   readonly mermaidFragments: ReadonlyMap<MermaidBlock, string>;
@@ -153,15 +156,15 @@ interface RenderContext {
   ) => string;
   readonly renderPlot: (
     block: PlotBlock,
-    context: BlockRendererContext,
+    context: ThemeFigureRendererContext,
   ) => string;
   readonly renderChart: (
     block: ChartBlock,
-    context: BlockRendererContext,
+    context: ThemeFigureRendererContext,
   ) => string;
   readonly renderGeometry: (
     block: GeometryBlock,
-    context: BlockRendererContext,
+    context: ThemeFigureRendererContext,
   ) => string;
   readonly renderFormula: (
     block: FormulaBlock,
@@ -177,7 +180,7 @@ interface RenderContext {
   ) => string;
   readonly renderCircuit: (
     block: CircuitBlock,
-    context: BlockRendererContext,
+    context: ThemeFigureRendererContext,
   ) => string;
   readonly renderTiming: (
     block: TimingBlock,
@@ -332,17 +335,17 @@ function renderBlockBody(block: AzeBlock, context: RenderContext): string {
     case "plot":
       return context.renderPlot(block, {
         ...(context.sourceName === undefined ? {} : { sourceName: context.sourceName }),
-        renderBlocks: (children) => renderBlocks(children, context),
+        theme: context.theme,
       });
     case "chart":
       return context.renderChart(block, {
         ...(context.sourceName === undefined ? {} : { sourceName: context.sourceName }),
-        renderBlocks: (children) => renderBlocks(children, context),
+        theme: context.theme,
       });
     case "geometry":
       return context.renderGeometry(block, {
         ...(context.sourceName === undefined ? {} : { sourceName: context.sourceName }),
-        renderBlocks: (children) => renderBlocks(children, context),
+        theme: context.theme,
       });
     case "formula":
       return context.renderFormula(block, {
@@ -357,7 +360,7 @@ function renderBlockBody(block: AzeBlock, context: RenderContext): string {
     case "circuit":
       return context.renderCircuit(block, {
         ...(context.sourceName === undefined ? {} : { sourceName: context.sourceName }),
-        renderBlocks: (children) => renderBlocks(children, context),
+        theme: context.theme,
       });
     case "timing":
       return context.renderTiming(block, {
@@ -563,29 +566,10 @@ function compositionCss(): string {
   ].join("");
 }
 
-/**
- * Series colours per scheme. The light palette is the authored default; a dark
- * page needs lighter hues, because the same six colours fall to 3.1-5.6:1
- * against `#0f172a` while these hold 4.7-9.9:1.
- */
-const DARK_SERIES_PALETTE: readonly string[] = Object.freeze([
-  "#3b82f6", "#ef4444", "#22c55e", "#f59e0b", "#a78bfa", "#22d3ee",
-]);
-
-function plotSeriesVars(dark: boolean): string {
-  return PLOT_SERIES_PALETTE
-    .map((color, index) => `--aze-plot-series-${index + 1}:${dark ? (DARK_SERIES_PALETTE[index] ?? color) : color};`)
-    .join("");
-}
-
 function themeCss(theme: Theme): string {
   const { colors, geometry, typography } = theme;
   const colorScheme = theme.colorScheme;
-  // Geometry ink follows the Theme instead of a baked-in slate, so the figure
-  // prints on both schemes. The mark keeps its accent, which needs a lighter
-  // amber on a dark background, so it is the one value chosen per scheme.
-  const geometryInk = `--aze-geometry-ink:${colors.foreground};--aze-geometry-guide:${colors.muted};--aze-geometry-mark:${colorScheme === "dark" ? "#fbbf24" : "#b45309"};--aze-circuit-bg:${colors.background};${plotSeriesVars(colorScheme === "dark")}`;
-  return `:root{${geometryInk}color-scheme:${colorScheme};background:${colors.background};color:${colors.foreground};font-family:${typography.proseFontFamily};font-weight:${typography.bodyFontWeight};line-height:${typography.lineHeight};font-size:11pt}}*{box-sizing:border-box}body{margin:0;background:${colors.background}}main{max-width:${geometry.canvasWidthPx}px;margin:0 auto;padding:${geometry.paddingPx}px}article{max-width:${geometry.contentWidthPx}px;margin:0 auto}h1,h2,h3,h4,h5,h6{font-weight:${typography.headingFontWeight};line-height:${typography.headingLineHeight}}h1{font-size:20pt;margin:.9em 0 .45em}h2{font-size:16pt;margin:1em 0 .5em}h3{font-size:13pt;margin:1em 0 .5em}h4,h5,h6{font-size:11pt;margin:1.1em 0 .55em}p{margin:${typography.paragraphSpacingEm}em 0;color:${colors.foreground}}a{color:inherit}img{max-width:100%;height:auto}hr{border:none;border-top:1px solid ${colors.muted};margin:1.5em 0}blockquote{margin:1em 0;padding:0 0 0 1em;border-left:3px solid ${colors.muted}}ul,ol{margin:1em 0;padding-left:2em}li{margin:0.25em 0}li>p{margin:0.25em 0}pre{margin:1em 0;padding:1em;overflow-x:auto;background:rgba(127,127,127,.08)}pre code{font-family:"JetBrains Mono",Inter}code{font-family:"JetBrains Mono",Inter;font-size:.9em}table{border-collapse:collapse;margin:1em 0;width:100%}caption{caption-side:top;text-align:left;font-weight:${typography.headingFontWeight};padding:.5em 0}th,td{border:1px solid ${colors.muted};padding:.5em .75em;text-align:left}thead th{background:rgba(127,127,127,.08)}figure.aze-table{margin:1em 0}.aze-callout{margin:1em 0;padding:.75em 1em;border:1px solid ${colors.muted};border-left-width:4px}.aze-callout-title{margin:0 0 .5em;font-weight:${typography.headingFontWeight}}.aze-callout-body>:first-child{margin-top:0}.aze-callout-body>:last-child{margin-bottom:0}`;
+  return `:root{color-scheme:${colorScheme};background:${colors.background};color:${colors.foreground};font-family:${typography.proseFontFamily};font-weight:${typography.bodyFontWeight};line-height:${typography.lineHeight};font-size:11pt}}*{box-sizing:border-box}body{margin:0;background:${colors.background}}main{max-width:${geometry.canvasWidthPx}px;margin:0 auto;padding:${geometry.paddingPx}px}article{max-width:${geometry.contentWidthPx}px;margin:0 auto}h1,h2,h3,h4,h5,h6{font-weight:${typography.headingFontWeight};line-height:${typography.headingLineHeight}}h1{font-size:20pt;margin:.9em 0 .45em}h2{font-size:16pt;margin:1em 0 .5em}h3{font-size:13pt;margin:1em 0 .5em}h4,h5,h6{font-size:11pt;margin:1.1em 0 .55em}p{margin:${typography.paragraphSpacingEm}em 0;color:${colors.foreground}}a{color:inherit}img{max-width:100%;height:auto}hr{border:none;border-top:1px solid ${colors.muted};margin:1.5em 0}blockquote{margin:1em 0;padding:0 0 0 1em;border-left:3px solid ${colors.muted}}ul,ol{margin:1em 0;padding-left:2em}li{margin:0.25em 0}li>p{margin:0.25em 0}pre{margin:1em 0;padding:1em;overflow-x:auto;background:rgba(127,127,127,.08)}pre code{font-family:"JetBrains Mono",Inter}code{font-family:"JetBrains Mono",Inter;font-size:.9em}table{border-collapse:collapse;margin:1em 0;width:100%}caption{caption-side:top;text-align:left;font-weight:${typography.headingFontWeight};padding:.5em 0}th,td{border:1px solid ${colors.muted};padding:.5em .75em;text-align:left}thead th{background:rgba(127,127,127,.08)}figure.aze-table{margin:1em 0}.aze-callout{margin:1em 0;padding:.75em 1em;border:1px solid ${colors.muted};border-left-width:4px}.aze-callout-title{margin:0 0 .5em;font-weight:${typography.headingFontWeight}}.aze-callout-body>:first-child{margin-top:0}.aze-callout-body>:last-child{margin-bottom:0}`;
 }
 
 export interface HtmlLayout {
@@ -622,11 +606,11 @@ export function createHtmlLayout(
     ((block: TableBlock, context: BlockRendererContext): string =>
       renderTableFragment(block, context));
   const renderPlot =
-    pluginRenderers.renderPlot ?? ((block: PlotBlock, context: BlockRendererContext): string => renderPlotFragment(block, context));
+    pluginRenderers.renderPlot ?? ((block: PlotBlock, context: ThemeFigureRendererContext): string => renderPlotFragment(block, context));
   const renderChart =
-    pluginRenderers.renderChart ?? ((block: ChartBlock, context: BlockRendererContext): string => renderChartFragment(block, context));
+    pluginRenderers.renderChart ?? ((block: ChartBlock, context: ThemeFigureRendererContext): string => renderChartFragment(block, context));
   const renderGeometry =
-    pluginRenderers.renderGeometry ?? ((block: GeometryBlock, context: BlockRendererContext): string => renderGeometryFragment(block, context));
+    pluginRenderers.renderGeometry ?? ((block: GeometryBlock, context: ThemeFigureRendererContext): string => renderGeometryFragment(block, context));
   const renderFormula =
     pluginRenderers.renderFormula ?? ((block: FormulaBlock, context: BlockRendererContext): string => renderFormulaFragment(block, context));
   const renderReaction =
@@ -634,7 +618,7 @@ export function createHtmlLayout(
   const renderStructure =
     pluginRenderers.renderStructure ?? ((block: StructureBlock, context: BlockRendererContext): string => renderStructureFragment(block, context));
   const renderCircuit =
-    pluginRenderers.renderCircuit ?? ((block: CircuitBlock, context: BlockRendererContext): string => renderCircuitFragment(block, context));
+    pluginRenderers.renderCircuit ?? ((block: CircuitBlock, context: ThemeFigureRendererContext): string => renderCircuitFragment(block, context));
   const renderTiming =
     pluginRenderers.renderTiming ?? ((block: TimingBlock, context: BlockRendererContext): string => renderTimingFragment(block, context));
   const renderAlgorithm =
@@ -651,6 +635,7 @@ export function createHtmlLayout(
     ((block: BibliographyBlock, context: BlockRendererContext): string =>
       renderBibliographyFragment(block, context, citationStyle));
   const context: RenderContext = {
+    theme,
     equationFragments,
     derivationFragments,
     mermaidFragments,
@@ -800,7 +785,7 @@ export async function renderHtml(
       rendererFingerprint,
       artifactHash,
       theme: { id: theme.id, version: theme.version },
-      cssDimensions: { ...theme.geometry },
+      cssDimensions: cssDimensionsOf(theme),
     },
   };
 }

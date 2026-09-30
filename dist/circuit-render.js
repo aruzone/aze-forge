@@ -1,3 +1,4 @@
+import { defaultTheme } from "./theme.js";
 export const CIRCUIT_HTML_BLOCK_RENDERER_ID = "azeforge.circuit.html/v1";
 export const CIRCUIT_HTML_BLOCK_RENDERER_VERSION = "1.0.0";
 function q(value) {
@@ -115,10 +116,10 @@ function terminalBoundaries(component, convention, ports) {
         case "switch": return [side(component.terminals[0], -25), side(component.terminals[1], 25)];
     }
 }
-function body(component, convention) {
+function body(component, convention, background) {
     const kind = component.kind;
     const inverted = kind === "nand" || kind === "nor" || kind === "xnor";
-    const bubble = inverted || kind === "not" ? `<circle cx="53" cy="0" r="5" fill="var(--aze-circuit-bg,white)"/>` : "";
+    const bubble = inverted || kind === "not" ? `<circle cx="53" cy="0" r="5" fill="${background}"/>` : "";
     if (kind === "and" || kind === "or" || kind === "nand" || kind === "nor" || kind === "xor" || kind === "xnor") {
         const fanIn = component.terminals.filter((terminal) => terminal.startsWith("in")).length;
         const fanInLabel = `<text class="aze-circuit-fan-in" x="0" y="16" text-anchor="middle" font-size="8" fill="currentColor" stroke="none">${fanIn}</text>`;
@@ -152,7 +153,7 @@ function body(component, convention) {
         case "mosfet": return `<path d="M-26 0h18m8-22v44m0-18h28m-18-26v52m-10-18h10"/>`;
     }
 }
-function componentShape(component, convention, position, svgId) {
+function componentShape(component, convention, position, svgId, background) {
     const degrees = rotation(component.orientation);
     const localPorts = portOffsets(component);
     const localBoundaries = terminalBoundaries(component, convention, localPorts);
@@ -166,9 +167,10 @@ function componentShape(component, convention, position, svgId) {
     }).join("");
     const label = component.name ?? component.value;
     const transform = degrees === 0 ? `translate(${q(position.x)} ${q(position.y)})` : `translate(${q(position.x)} ${q(position.y)}) rotate(${degrees})`;
-    return { ports, markup: `<g id="${svgId}-component-${safeId(component.ref)}" class="aze-circuit-component" aria-label="${escapeXml(`${component.ref}: ${component.kind}`)}" stroke="currentColor" fill="none" stroke-width="1.5" transform="${transform}">${stubs}${body(component, convention)}${textElement(component.ref, 0, -39, 11)}${label === undefined ? "" : textRuns(label, 0, 46)}</g>` };
+    return { ports, markup: `<g id="${svgId}-component-${safeId(component.ref)}" class="aze-circuit-component" aria-label="${escapeXml(`${component.ref}: ${component.kind}`)}" stroke="currentColor" fill="none" stroke-width="1.5" transform="${transform}">${stubs}${body(component, convention, background)}${textElement(component.ref, 0, -39, 11)}${label === undefined ? "" : textRuns(label, 0, 46)}</g>` };
 }
-export function renderCircuitFragment(block, _context) {
+export function renderCircuitFragment(block, context) {
+    const theme = context.theme ?? defaultTheme;
     const across = block.flow === "left-to-right" ? 4 : 3;
     const stepX = block.flow === "left-to-right" ? 168 : 144;
     const stepY = block.flow === "left-to-right" ? 124 : 152;
@@ -179,7 +181,7 @@ export function renderCircuitFragment(block, _context) {
     const nodeY = height - 34;
     const nodePositions = new Map(block.nodes.map((node, index) => [node.ref, { x: 48 + index % 6 * ((width - 96) / 5), y: nodeY - Math.floor(index / 6) * 28 }]));
     const svgId = `aze-circuit-${safeId(block.id ?? `${textValue(block.title)}-${block.components.map(({ ref }) => ref).join("-")}`)}`;
-    const rendered = new Map(block.components.map((component) => [component.ref, componentShape(component, block.symbolConvention, positions.get(component.ref), svgId)]));
+    const rendered = new Map(block.components.map((component) => [component.ref, componentShape(component, block.symbolConvention, positions.get(component.ref), svgId, theme.colors.background)]));
     const portByRelation = new Map(block.relations.map((relation) => [`${relation.componentRef}\u0000${relation.terminal}`, rendered.get(relation.componentRef)?.ports.find((port) => port.terminal === relation.terminal)]));
     const wires = block.relations.map((relation, index) => {
         const port = portByRelation.get(`${relation.componentRef}\u0000${relation.terminal}`);

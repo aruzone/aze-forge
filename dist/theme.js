@@ -20,6 +20,14 @@ export const defaultTheme = Object.freeze({
         canvasWidthPx: 960,
         contentWidthPx: 800,
         paddingPx: 48,
+        ink: "#171717",
+        guide: "#5f6368",
+        mark: "#b45309",
+    }),
+    plot: Object.freeze({
+        axisInk: "#171717",
+        gridInk: "#d1d5db",
+        seriesColors: Object.freeze(["#2563eb", "#dc2626", "#16a34a", "#d97706", "#7c3aed", "#0891b2"]),
     }),
     diagram: Object.freeze({
         nodeFill: "#ffffff",
@@ -161,6 +169,14 @@ export const academicTheme = Object.freeze({
         canvasWidthPx: 880,
         contentWidthPx: 700,
         paddingPx: 56,
+        ink: "#1c1917",
+        guide: "#78716c",
+        mark: "#b45309",
+    }),
+    plot: Object.freeze({
+        axisInk: "#1c1917",
+        gridInk: "#e2ddd3",
+        seriesColors: Object.freeze(["#2563eb", "#dc2626", "#16a34a", "#d97706", "#7c3aed", "#0891b2"]),
     }),
     diagram: Object.freeze({
         nodeFill: "#ffffff",
@@ -302,6 +318,14 @@ export const darkPresentationTheme = Object.freeze({
         canvasWidthPx: 1280,
         contentWidthPx: 1024,
         paddingPx: 64,
+        ink: "#e2e8f0",
+        guide: "#94a3b8",
+        mark: "#fbbf24",
+    }),
+    plot: Object.freeze({
+        axisInk: "#e2e8f0",
+        gridInk: "#334155",
+        seriesColors: Object.freeze(["#3b82f6", "#ef4444", "#22c55e", "#f59e0b", "#a78bfa", "#22d3ee"]),
     }),
     diagram: Object.freeze({
         nodeFill: "#1e293b",
@@ -426,6 +450,14 @@ export const builtInThemes = Object.freeze([
     academicTheme,
     darkPresentationTheme,
 ]);
+/**
+ * The layout dimensions an Artifact reports. Named explicitly so a Theme's
+ * colour tokens never leak into the capacity report.
+ */
+export function cssDimensionsOf(theme) {
+    const { canvasWidthPx, contentWidthPx, paddingPx } = theme.geometry;
+    return { canvasWidthPx, contentWidthPx, paddingPx };
+}
 export function copyAndFreezeTheme(theme) {
     return Object.freeze({
         id: theme.id,
@@ -435,6 +467,7 @@ export function copyAndFreezeTheme(theme) {
         colors: Object.freeze({ ...theme.colors }),
         typography: Object.freeze({ ...theme.typography }),
         geometry: Object.freeze({ ...theme.geometry }),
+        plot: Object.freeze({ ...theme.plot, seriesColors: Object.freeze([...theme.plot.seriesColors]) }),
         diagram: Object.freeze({ ...theme.diagram }),
         models: Object.freeze({ ...theme.models }),
         control: Object.freeze({ ...theme.control }),

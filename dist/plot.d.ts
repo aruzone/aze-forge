@@ -16,7 +16,7 @@
  * coordinate is quantized to 3 decimals through the owned ASCII formatter.
  */
 import { type MathNode } from "./math.js";
-import type { AzeBlockPlugin, AzeBlockRenderer, BlockRendererContext, ChartBlock, Diagnostic, JsonValue, PlotBlock, PlotFunctionSeries, SourceRange } from "./model.js";
+import type { AzeBlockPlugin, FigureBlockRenderer, ChartBlock, Diagnostic, JsonValue, PlotBlock, PlotFunctionSeries, SourceRange, ThemeFigureRendererContext } from "./model.js";
 export declare const MAX_PLOT_SERIES = 16;
 /** Shared per-Block series ceiling (contract §8: 16 for plots and charts alike). */
 export declare const MAX_CHART_SERIES = 16;
@@ -134,12 +134,6 @@ export declare function validateChartBlock(options: {
     readonly sourceName: string | undefined;
     readonly defaults?: PlotBlockDefaults;
 }): ValidatedChart;
-/**
- * Series colours for the light scheme. The Theme stylesheet redefines the
- * `--aze-plot-series-*` custom properties these feed, so a dark page gets
- * lighter hues that hold every series above 4:1 against its background.
- */
-export declare const PLOT_SERIES_PALETTE: readonly string[];
 export declare class PlotSanitizerError extends Error {
     readonly code: "azeforge.plot#sanitizer-compromise";
     constructor(message: string);
@@ -150,11 +144,11 @@ export declare function assertPlotFragmentSafe(svg: string): void;
  * Render one plot Block to a static figure: browser-free deterministic SVG —
  * no scripts, no event attributes, no interactivity.
  */
-export declare function renderPlotFragment(block: PlotBlock, _context: BlockRendererContext): string;
+export declare function renderPlotFragment(block: PlotBlock, context: ThemeFigureRendererContext): string;
 /**
  * Render one chart Block to a static figure: browser-free deterministic SVG.
  */
-export declare function renderChartFragment(block: ChartBlock, _context: BlockRendererContext): string;
+export declare function renderChartFragment(block: ChartBlock, context: ThemeFigureRendererContext): string;
 /** Renderer fingerprint slice: emitter + evaluator + pinned d3 modules (contract §11). */
 export declare function plotDependencyClosure(): JsonValue;
 export declare const plotPlugin: AzeBlockPlugin;
@@ -165,8 +159,8 @@ export declare const CHART_HTML_BLOCK_RENDERER_ID: "azeforge.chart.html/v1";
 export declare const CHART_HTML_BLOCK_RENDERER_VERSION: "1.0.0";
 export declare const PLOT_HTML_RENDERER_ID: "html";
 export declare const PLOT_HTML_RENDERER_VERSION: "1.0.0";
-export declare const plotHtmlBlockRenderer: AzeBlockRenderer<PlotBlock>;
-export declare const chartHtmlBlockRenderer: AzeBlockRenderer<ChartBlock>;
+export declare const plotHtmlBlockRenderer: FigureBlockRenderer<PlotBlock>;
+export declare const chartHtmlBlockRenderer: FigureBlockRenderer<ChartBlock>;
 export interface PlotBlockDefaults {
     readonly legend?: boolean;
     readonly grid?: boolean;

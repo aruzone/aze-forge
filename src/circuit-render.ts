@@ -1,10 +1,11 @@
 import type {
-  AzeBlockRenderer,
-  BlockRendererContext,
+  FigureBlockRenderer,
   CircuitBlock,
   CircuitComponent,
   CircuitText,
+  ThemeFigureRendererContext,
 } from "./model.js";
+import { defaultTheme } from "./theme.js";
 
 export const CIRCUIT_HTML_BLOCK_RENDERER_ID = "azeforge.circuit.html/v1" as const;
 export const CIRCUIT_HTML_BLOCK_RENDERER_VERSION = "1.0.0" as const;
@@ -111,10 +112,10 @@ function terminalBoundaries(component: CircuitComponent, convention: CircuitBloc
   }
 }
 
-function body(component: CircuitComponent, convention: CircuitBlock["symbolConvention"]): string {
+function body(component: CircuitComponent, convention: CircuitBlock["symbolConvention"], background: string): string {
   const kind = component.kind;
   const inverted = kind === "nand" || kind === "nor" || kind === "xnor";
-  const bubble = inverted || kind === "not" ? `<circle cx="53" cy="0" r="5" fill="var(--aze-circuit-bg,white)"/>` : "";
+  const bubble = inverted || kind === "not" ? `<circle cx="53" cy="0" r="5" fill="${background}"/>` : "";
   if (kind === "and" || kind === "or" || kind === "nand" || kind === "nor" || kind === "xor" || kind === "xnor") {
     const fanIn = component.terminals.filter((terminal) => terminal.startsWith("in")).length;
     const fanInLabel = `<text class="aze-circuit-fan-in" x="0" y="16" text-anchor="middle" font-size="8" fill="currentColor" stroke="none">${fanIn}</text>`;
@@ -147,7 +148,7 @@ function body(component: CircuitComponent, convention: CircuitBlock["symbolConve
   }
 }
 
-function componentShape(component: CircuitComponent, convention: CircuitBlock["symbolConvention"], position: Point, svgId: string): { readonly markup: string; readonly ports: readonly Port[] } {
+function componentShape(component: CircuitComponent, convention: CircuitBlock["symbolConvention"], position: Point, svgId: string, background: string): { readonly markup: string; readonly ports: readonly Port[] } {
   const degrees = rotation(component.orientation);
   const localPorts = portOffsets(component);
   const localBoundaries = terminalBoundaries(component, convention, localPorts);
@@ -161,10 +162,11 @@ function componentShape(component: CircuitComponent, convention: CircuitBlock["s
   }).join("");
   const label = component.name ?? component.value;
   const transform = degrees === 0 ? `translate(${q(position.x)} ${q(position.y)})` : `translate(${q(position.x)} ${q(position.y)}) rotate(${degrees})`;
-  return { ports, markup: `<g id="${svgId}-component-${safeId(component.ref)}" class="aze-circuit-component" aria-label="${escapeXml(`${component.ref}: ${component.kind}`)}" stroke="currentColor" fill="none" stroke-width="1.5" transform="${transform}">${stubs}${body(component, convention)}${textElement(component.ref, 0, -39, 11)}${label === undefined ? "" : textRuns(label, 0, 46)}</g>` };
+  return { ports, markup: `<g id="${svgId}-component-${safeId(component.ref)}" class="aze-circuit-component" aria-label="${escapeXml(`${component.ref}: ${component.kind}`)}" stroke="currentColor" fill="none" stroke-width="1.5" transform="${transform}">${stubs}${body(component, convention, background)}${textElement(component.ref, 0, -39, 11)}${label === undefined ? "" : textRuns(label, 0, 46)}</g>` };
 }
 
-export function renderCircuitFragment(block: CircuitBlock, _context: BlockRendererContext): string {
+export function renderCircuitFragment(block: CircuitBlock, context: ThemeFigureRendererContext): string {
+  const theme = context.theme ?? defaultTheme;
   const across = block.flow === "left-to-right" ? 4 : 3;
   const stepX = block.flow === "left-to-right" ? 168 : 144;
   const stepY = block.flow === "left-to-right" ? 124 : 152;
@@ -175,7 +177,7 @@ export function renderCircuitFragment(block: CircuitBlock, _context: BlockRender
   const nodeY = height - 34;
   const nodePositions = new Map(block.nodes.map((node, index) => [node.ref, { x: 48 + index % 6 * ((width - 96) / 5), y: nodeY - Math.floor(index / 6) * 28 }]));
   const svgId = `aze-circuit-${safeId(block.id ?? `${textValue(block.title)}-${block.components.map(({ ref }) => ref).join("-")}`)}`;
-  const rendered = new Map(block.components.map((component) => [component.ref, componentShape(component, block.symbolConvention, positions.get(component.ref)!, svgId)]));
+  const rendered = new Map(block.components.map((component) => [component.ref, componentShape(component, block.symbolConvention, positions.get(component.ref)!, svgId, theme.colors.background)]));
   const portByRelation = new Map(block.relations.map((relation) => [`${relation.componentRef}\u0000${relation.terminal}`, rendered.get(relation.componentRef)?.ports.find((port) => port.terminal === relation.terminal)]));
   const wires = block.relations.map((relation, index) => {
     const port = portByRelation.get(`${relation.componentRef}\u0000${relation.terminal}`);
@@ -202,7 +204,7 @@ export function renderCircuitFragment(block: CircuitBlock, _context: BlockRender
   return `<figure class="aze-circuit" id="${svgId}" data-circuit-convention="${block.symbolConvention}"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${q(width)} ${q(height)}" role="img" aria-labelledby="${svgId}-title ${svgId}-desc"><title id="${svgId}-title">${escapeXml(textValue(block.title))}</title><desc id="${svgId}-desc">${escapeXml(description)}</desc><g class="aze-circuit-wires" stroke="currentColor" fill="none" stroke-width="1.25">${wires}${annotations}</g>${block.components.map((component) => rendered.get(component.ref)!.markup).join("")}<g class="aze-circuit-nodes" fill="currentColor">${nodes}</g></svg></figure>`;
 }
 
-export const circuitHtmlBlockRenderer: AzeBlockRenderer<CircuitBlock> = Object.freeze({
+export const circuitHtmlBlockRenderer: FigureBlockRenderer<CircuitBlock> = Object.freeze({
   descriptor: Object.freeze({
     id: CIRCUIT_HTML_BLOCK_RENDERER_ID,
     version: CIRCUIT_HTML_BLOCK_RENDERER_VERSION,
@@ -211,7 +213,7 @@ export const circuitHtmlBlockRenderer: AzeBlockRenderer<CircuitBlock> = Object.f
     rendererId: "html",
     rendererVersionRange: "1.0.0",
   }),
-  render(block: CircuitBlock, context: BlockRendererContext): string {
+  render(block: CircuitBlock, context: ThemeFigureRendererContext): string {
     return renderCircuitFragment(block, context);
   },
 });

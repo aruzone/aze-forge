@@ -45,6 +45,7 @@ import type {
   RendererDescriptor,
   Theme,
 } from "./model.js";
+import { cssDimensionsOf } from "./theme.js";
 import type { HtmlLayout } from "./render-html.js";
 import { tableHtmlBlockRenderer } from "./table.js";
 
@@ -692,7 +693,7 @@ export async function renderPdf(
       rendererFingerprint,
       artifactHash: artifactBytesHash(bytes),
       theme: { id: theme.id, version: theme.version },
-      cssDimensions: { ...theme.geometry },
+      cssDimensions: cssDimensionsOf(theme),
       pageCount,
       pageGeometry,
       requiredCapabilities: PDF_REQUIRED_CAPABILITIES,

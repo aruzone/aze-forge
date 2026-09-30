@@ -1,5 +1,5 @@
 import type { EmbeddedFontFace } from "./font.js";
-import type { Artifact, AssetManifestEntry, AzeBlock, AzeDocument, AlgorithmBlock, BibliographyBlock, BlockRendererContext, CalloutBlock, ChartBlock, ExampleBlock, GeometryBlock, FormulaBlock, ReactionBlock, StatementBlock, StructureBlock, ContentHash, DerivationBlock, EquationBlock, JsonValue, TableBlock, PlotBlock, MermaidBlock, TexBlock, Theme, CircuitBlock, DiagramBlock, TimingBlock, Sha256Hash } from "./model.js";
+import type { Artifact, AssetManifestEntry, AzeBlock, AzeDocument, AlgorithmBlock, BibliographyBlock, BlockRendererContext, CalloutBlock, ChartBlock, ExampleBlock, GeometryBlock, FormulaBlock, ReactionBlock, StatementBlock, StructureBlock, ContentHash, DerivationBlock, EquationBlock, JsonValue, TableBlock, PlotBlock, MermaidBlock, TexBlock, Theme, CircuitBlock, DiagramBlock, TimingBlock, Sha256Hash, ThemeFigureRendererContext } from "./model.js";
 export declare const HTML_MIME_TYPE = "text/html; charset=utf-8";
 export declare const HTML_PROFILE = "azeforge.html.self-contained/v1";
 export declare const HTML_SERIALIZER: "azeforge-html/v2";
@@ -11,13 +11,13 @@ export declare class ArtifactLimitError extends Error {
 export interface HtmlPluginRenderers {
     readonly renderCallout?: (block: CalloutBlock, context: BlockRendererContext) => string;
     readonly renderTable?: (block: TableBlock, context: BlockRendererContext) => string;
-    readonly renderPlot?: (block: PlotBlock, context: BlockRendererContext) => string;
-    readonly renderChart?: (block: ChartBlock, context: BlockRendererContext) => string;
-    readonly renderGeometry?: (block: GeometryBlock, context: BlockRendererContext) => string;
+    readonly renderPlot?: (block: PlotBlock, context: ThemeFigureRendererContext) => string;
+    readonly renderChart?: (block: ChartBlock, context: ThemeFigureRendererContext) => string;
+    readonly renderGeometry?: (block: GeometryBlock, context: ThemeFigureRendererContext) => string;
     readonly renderFormula?: (block: FormulaBlock, context: BlockRendererContext) => string;
     readonly renderReaction?: (block: ReactionBlock, context: BlockRendererContext) => string;
     readonly renderStructure?: (block: StructureBlock, context: BlockRendererContext) => string;
-    readonly renderCircuit?: (block: CircuitBlock, context: BlockRendererContext) => string;
+    readonly renderCircuit?: (block: CircuitBlock, context: ThemeFigureRendererContext) => string;
     readonly renderTiming?: (block: TimingBlock, context: BlockRendererContext) => string;
     readonly renderAlgorithm?: (block: AlgorithmBlock, context: BlockRendererContext) => string;
     readonly renderStatement?: (block: StatementBlock, context: BlockRendererContext) => string;

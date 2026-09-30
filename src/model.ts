@@ -1571,6 +1571,23 @@ export interface Theme {
     canvasWidthPx: number;
     contentWidthPx: number;
     paddingPx: number;
+    /** Figure ink: strokes, point markers and labels. */
+    ink: string;
+    /** Ink for a `visible: false` guide, held faint but readable. */
+    guide: string;
+    /** Accent ink for marks: right angles, equal ticks, measures. */
+    mark: string;
+  }>;
+  /**
+   * Plot and chart tokens. `seriesColors` is the cycle the renderer walks for
+   * successive series, so a Theme supplies as many slots as it needs.
+   */
+  readonly plot: Readonly<{
+    /** Axis frame, ticks and every axis or legend label. */
+    axisInk: string;
+    /** Grid rule ink, fainter than `axisInk` on the Theme's own background. */
+    gridInk: string;
+    readonly seriesColors: readonly string[];
   }>;
   /**
    * General-diagram tokens. The three label typography sets are layout
@@ -1948,11 +1965,7 @@ export interface DiagramBlockRenderer {
   readonly descriptor: BlockRendererDescriptor;
   readonly render: (
     block: DiagramBlock,
-    context: Readonly<{
-      sourceName?: string;
-      ordinal?: number;
-      theme?: Theme;
-    }>,
+    context: ThemeFigureRendererContext,
   ) => string | Promise<string>;
 }
 
@@ -1965,6 +1978,17 @@ export interface AzeBlockRenderer<TBlock extends object = AzeBlock> {
 }
 
 /**
+ * Context for a figure renderer that needs the resolved Theme. These families
+ * render from their own Block body and never render child Blocks, so no
+ * `renderBlocks` is offered.
+ */
+export interface ThemeFigureRendererContext {
+  readonly sourceName?: string;
+  readonly ordinal?: number;
+  readonly theme?: Theme;
+}
+
+/**
  * A Block renderer whose figure needs the Document-wide per-kind ordinal and
  * the resolved Theme, i.e. families that emit positional ids. The engineering
  * family's two directives both receive the ordinal assigned by the fragment
@@ -1974,11 +1998,7 @@ export interface FigureBlockRenderer<TBlock extends object> {
   readonly descriptor: BlockRendererDescriptor;
   readonly render: (
     block: TBlock,
-    context: Readonly<{
-      sourceName?: string;
-      ordinal?: number;
-      theme?: Theme;
-    }>,
+    context: ThemeFigureRendererContext,
   ) => string | Promise<string>;
 }
 

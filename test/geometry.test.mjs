@@ -119,6 +119,18 @@ function bodySource(body, header = "") {
 
 const point = (name, x, y) => `- kind: point\n  name: ${name}\n  x: ${x}\n  y: ${y}`;
 
+function relativeLuminance(hex) {
+  const parts = [1, 3, 5].map((offset) => Number.parseInt(hex.slice(offset, offset + 2), 16) / 255);
+  const linear = parts.map((value) => (value <= 0.03928 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4));
+  return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2];
+}
+
+function contrastOn(background, hex) {
+  const first = relativeLuminance(background);
+  const second = relativeLuminance(hex);
+  return (Math.max(first, second) + 0.05) / (Math.min(first, second) + 0.05);
+}
+
 /** Label boxes as the emitter claims them: measured advance by nominal height. */
 function labelBoxes(html) {
   return [...html.matchAll(/<text x="([\d.-]+)" y="([\d.-]+)" text-anchor="middle" font-size="([\d.]+)"[^>]*>([^<]*)<\/text>/g)]
@@ -240,7 +252,7 @@ test("right-angle mark opens into the angle its arms name", async () => {
   const points = [...html.matchAll(/<circle cx="([\d.-]+)" cy="([\d.-]+)" r="[\d.]+" fill=/g)]
     .map((match) => [Number(match[1]), Number(match[2])]);
   assert.equal(points.length, 3);
-  const mark = html.match(/<path d="M ([\d.-]+) ([\d.-]+) L ([\d.-]+) ([\d.-]+) L ([\d.-]+) ([\d.-]+)"[^>]*stroke="var\(--aze-geometry-mark/);
+  const mark = html.match(/<path d="M ([\d.-]+) ([\d.-]+) L ([\d.-]+) ([\d.-]+) L ([\d.-]+) ([\d.-]+)"[^>]*stroke="#[0-9a-f]{6}"/);
   assert.ok(mark, "right-angle mark renders a three-point square");
   const [v, a, b] = points;
   // Without an oriented square the mark lands up-left of the vertex, outside
@@ -368,7 +380,7 @@ test("a crowded marker is an obstacle for a neighbouring label", async () => {
   }
 });
 
-test("geometry ink follows the Theme instead of a baked-in colour", async () => {
+test("geometry colours come from the Theme and read on both schemes", async () => {
   const compiler = createCompiler();
   const source = bodySource([
     point("a", 0, 0),
@@ -378,19 +390,34 @@ test("geometry ink follows the Theme instead of a baked-in colour", async () => 
     "- kind: segment\n  name: ac\n  from: a\n  to: c",
     "- kind: right-angle-mark\n  first: b\n  second: a\n  third: c",
   ].join("\n"));
-  const render = async (theme) =>
-    Buffer.from((await compiler.compile(source, { format: "html", theme })).artifact.bytes).toString("utf8");
-  const light = await render("default");
-  const dark = await render("dark-presentation");
-  // A figure that carries no baked-in ink cannot go invisible on one scheme.
-  assert.ok(light.includes('stroke="var(--aze-geometry-ink, #1f2937)"'), "geometry ink reads from the stylesheet");
-  assert.ok(!light.includes('stroke="#1f2937"'), "no baked-in ink reaches the figure");
-  assert.ok(light.includes(`--aze-geometry-ink:${defaultTheme.colors.foreground}`), "the light Theme inks the figure with its foreground");
-  assert.ok(dark.includes(`--aze-geometry-ink:${darkPresentationTheme.colors.foreground}`), "the dark Theme inks the figure with its light foreground");
-  assert.notEqual(
-    light.match(/--aze-geometry-mark:(#[0-9a-f]{6})/)?.[1],
-    dark.match(/--aze-geometry-mark:(#[0-9a-f]{6})/)?.[1],
-    "the mark accent is chosen per scheme so marks stay visible on both",
+  const figureOf = async (theme) => {
+    const compiled = await compiler.compile(source, { format: "html", theme });
+    assert.deepEqual(compiled.diagnostics, []);
+    const html = Buffer.from(compiled.artifact.bytes).toString("utf8");
+    const start = html.indexOf('<figure class="aze-geometry"');
+    return html.slice(start, html.indexOf("</figure>", start));
+  };
+  const light = await figureOf("default");
+  const dark = await figureOf("dark-presentation");
+  // Ink and mark are carried by the figure itself, not by a stylesheet lookup.
+  assert.ok(!light.includes("var(--"), "the figure carries no stylesheet reference");
+  assert.ok(light.includes(`stroke="${defaultTheme.geometry.ink}"`), "the light Theme inks the figure with its own token");
+  assert.ok(light.includes(`stroke="${defaultTheme.geometry.mark}"`), "the light Theme marks with its own token");
+  assert.ok(dark.includes(`stroke="${darkPresentationTheme.geometry.ink}"`), "the dark Theme inks the figure with its own token");
+  assert.ok(dark.includes(`stroke="${darkPresentationTheme.geometry.mark}"`), "the dark Theme marks with its own token");
+  // The dark token is chosen so the figure reads against the dark page, which
+  // the light token does not.
+  assert.ok(
+    contrastOn(darkPresentationTheme.colors.background, darkPresentationTheme.geometry.ink) >= 4,
+    "the dark Theme ink holds at least 4:1 against its own page",
+  );
+  assert.ok(
+    contrastOn(darkPresentationTheme.colors.background, defaultTheme.geometry.ink) < 2,
+    "the light Theme ink would not read on the dark page",
+  );
+  assert.ok(
+    contrastOn(darkPresentationTheme.colors.background, darkPresentationTheme.geometry.mark) >= 4,
+    "the dark Theme mark holds at least 4:1 against its own page",
   );
 });
 
@@ -499,4 +526,48 @@ test("capabilities reports the versioned geometry evaluator and limits", async (
     maxCoordinateMagnitude: 1000000,
     maxDimensionPx: 4096,
   });
+});
+
+test("a custom Theme restyles the figure through its tokens", async () => {
+  const blueprint = {
+    ...defaultTheme,
+    id: "blueprint",
+    geometry: { ...defaultTheme.geometry, ink: "#1d4ed8", guide: "#93c5fd", mark: "#c2410c" },
+  };
+  const compiler = createCompiler({ themes: [blueprint], defaultTheme: "blueprint" });
+  const source = bodySource([
+    point("a", 0, 0),
+    point("b", 4, 0),
+    point("c", 0, 4),
+    "- kind: segment\n  name: ab\n  from: a\n  to: b",
+    "- kind: segment\n  name: ac\n  from: a\n  to: c",
+    "- kind: right-angle-mark\n  first: b\n  second: a\n  third: c",
+  ].join("\n"));
+  const compiled = await compiler.compile(source, { format: "html" });
+  assert.deepEqual(compiled.diagnostics, []);
+  const html = Buffer.from(compiled.artifact.bytes).toString("utf8");
+  const start = html.indexOf('<figure class="aze-geometry"');
+  const figure = html.slice(start, html.indexOf("</figure>", start));
+  assert.ok(figure.includes('stroke="#1d4ed8"'), "the figure inks with the Theme token");
+  assert.ok(figure.includes('stroke="#c2410c"'), "the mark uses the Theme token");
+  assert.ok(!figure.includes(defaultTheme.geometry.ink), "the built-in ink is not baked into a themed figure");
+});
+
+test("a Theme colour token that is not a plain hex value is refused", () => {
+  assert.throws(
+    () =>
+      createCompiler({
+        themes: [
+          {
+            ...defaultTheme,
+            id: "escaped",
+            geometry: { ...defaultTheme.geometry, ink: 'red" onload="alert(1)' },
+          },
+        ],
+      }),
+    (error) => {
+      assert.equal(error.code, "AZE_CONFIG_THEME_VALUES");
+      return true;
+    },
+  );
 });

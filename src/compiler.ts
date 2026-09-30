@@ -53,6 +53,7 @@ import type {
   ParseResult,
   TableBlock,
   Theme,
+  ThemeFigureRendererContext,
   PlotBlock,
   SourceRange,
   TexRendererFailureCategory,
@@ -293,11 +294,22 @@ function sameFormatMeaning(
   );
 }
 
+/** A Theme colour token is a plain hex value, so it can never escape an attribute. */
+const THEME_COLOR = /^#[0-9a-f]{6}$/i;
+
 function validateTheme(theme: Theme): void {
   const validScheme = theme.colorScheme === "light" || theme.colorScheme === "dark";
   const validColors = Object.values(theme.colors).every((color) =>
-    /^#[0-9a-f]{6}$/i.test(color),
+    THEME_COLOR.test(color),
   );
+  const validFigureColors = [
+    theme.geometry.ink,
+    theme.geometry.guide,
+    theme.geometry.mark,
+    theme.plot.axisInk,
+    theme.plot.gridInk,
+    ...theme.plot.seriesColors,
+  ].every((color) => THEME_COLOR.test(color));
   const { canvasWidthPx, contentWidthPx, paddingPx } = theme.geometry;
   const validGeometry =
     Number.isInteger(canvasWidthPx) &&
@@ -320,7 +332,7 @@ function validateTheme(theme: Theme): void {
     theme.typography.bodyFontWeight === 400 &&
     theme.typography.headingFontWeight === 700 &&
     theme.typography.proseFontFamily === "Inter";
-  if (!validScheme || !validColors || !validGeometry || !validTypography) {
+  if (!validScheme || !validColors || !validFigureColors || !validGeometry || !validTypography) {
     throw new CompilerConfigurationError(
       "AZE_CONFIG_THEME_VALUES",
       `Theme "${theme.id}" contains unsafe or invalid tokens.`,
@@ -2272,15 +2284,15 @@ interface PluginAdapterResolution {
   ) => string;
   readonly renderPlot?: (
     block: PlotBlock,
-    context: BlockRendererContext,
+    context: ThemeFigureRendererContext,
   ) => string;
   readonly renderChart?: (
     block: ChartBlock,
-    context: BlockRendererContext,
+    context: ThemeFigureRendererContext,
   ) => string;
   readonly renderGeometry?: (
     block: GeometryBlock,
-    context: BlockRendererContext,
+    context: ThemeFigureRendererContext,
   ) => string;
   readonly renderFormula?: (
     block: FormulaBlock,
@@ -2296,7 +2308,7 @@ interface PluginAdapterResolution {
   ) => string;
   readonly renderCircuit?: (
     block: CircuitBlock,
-    context: BlockRendererContext,
+    context: ThemeFigureRendererContext,
   ) => string;
   readonly renderTiming?: (
     block: TimingBlock,
@@ -2355,13 +2367,13 @@ function checkPluginAdapters(
     | ((block: ExampleBlock, context: BlockRendererContext) => string)
     | undefined;
   let renderPlot:
-    | ((block: PlotBlock, context: BlockRendererContext) => string)
+    | ((block: PlotBlock, context: ThemeFigureRendererContext) => string)
     | undefined;
   let renderChart:
-    | ((block: ChartBlock, context: BlockRendererContext) => string)
+    | ((block: ChartBlock, context: ThemeFigureRendererContext) => string)
     | undefined;
   let renderGeometry:
-    | ((block: GeometryBlock, context: BlockRendererContext) => string)
+    | ((block: GeometryBlock, context: ThemeFigureRendererContext) => string)
     | undefined;
   let renderFormula:
     | ((block: FormulaBlock, context: BlockRendererContext) => string)
@@ -2373,7 +2385,7 @@ function checkPluginAdapters(
     | ((block: StructureBlock, context: BlockRendererContext) => string)
     | undefined;
   let renderCircuit:
-    | ((block: CircuitBlock, context: BlockRendererContext) => string)
+    | ((block: CircuitBlock, context: ThemeFigureRendererContext) => string)
     | undefined;
   let renderTiming:
     | ((block: TimingBlock, context: BlockRendererContext) => string)
@@ -2536,7 +2548,7 @@ function checkPluginAdapters(
     } else if (entry.blockType === "plot") {
       const render = chosen.render as (
         block: PlotBlock,
-        context: BlockRendererContext,
+        context: ThemeFigureRendererContext,
       ) => string | Promise<string>;
       renderPlot = (block, context) => {
         const result = render(block, context);
@@ -2548,7 +2560,7 @@ function checkPluginAdapters(
     } else if (entry.blockType === "chart") {
       const render = chosen.render as (
         block: ChartBlock,
-        context: BlockRendererContext,
+        context: ThemeFigureRendererContext,
       ) => string | Promise<string>;
       renderChart = (block, context) => {
         const result = render(block, context);
@@ -2560,7 +2572,7 @@ function checkPluginAdapters(
     } else if (entry.blockType === "geometry") {
       const render = chosen.render as (
         block: GeometryBlock,
-        context: BlockRendererContext,
+        context: ThemeFigureRendererContext,
       ) => string | Promise<string>;
       renderGeometry = (block, context) => {
         const result = render(block, context);
@@ -2608,7 +2620,7 @@ function checkPluginAdapters(
     } else if (entry.blockType === "circuit") {
       const render = chosen.render as (
         block: CircuitBlock,
-        context: BlockRendererContext,
+        context: ThemeFigureRendererContext,
       ) => string | Promise<string>;
       renderCircuit = (block, context) => {
         const result = render(block, context);
