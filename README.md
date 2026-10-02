@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/assets/azeforge-logo-03-2.jpg" alt="AzeForge" width="160">
+  <img src="docs/assets/azeforge-logo-transparent.png" alt="AzeForge" width="160">
 </p>
 
 <h1 align="center">AzeForge</h1>

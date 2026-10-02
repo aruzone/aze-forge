@@ -36,7 +36,7 @@ test("packed installation exposes the supported CLI and ignores installation pat
   assert.deepEqual(packageJson.files, [
     "dist",
     "schemas",
-    "docs/assets/azeforge-logo-03-2.jpg",
+    "docs/assets/azeforge-logo-transparent.png",
   ]);
   assert.equal(packageJson.engines.node, ">=22 <23 || >=24 <25");
 
