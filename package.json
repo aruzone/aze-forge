@@ -32,7 +32,7 @@
   },
   "type": "module",
   "bin": {
-    "azeforge": "./dist/cli.js"
+    "azeforge": "dist/cli.js"
   },
   "exports": {
     ".": {
