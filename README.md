@@ -6,10 +6,21 @@
 
 <p align="center"><strong>AzeMark: one language for technical notation.</strong></p>
 
-AzeForge is a deterministic technical publishing compiler. It turns readable,
-Markdown-like **AzeMark** source into self-contained **HTML**, **SVG**, **PNG**,
-and **PDF** Artifacts. No build chain or runtime dependencies travel with the
-output.
+AzeMark is the readable, typed language for technical Source. AzeForge validates
+that Source and compiles self-contained **HTML**, **SVG**, **PNG**, and **PDF**
+Artifacts.
+
+<p align="center">
+  <a href="https://azeforge.com/docs/0.6.4/">Documentation</a> ·
+  <a href="https://azeforge.com/playground">Playground</a> ·
+  <a href="#install">Install</a>
+</p>
+
+The hosted playground requires an access token. Use `azeforge serve` for a
+local browser preview.
+
+AzeForge is a deterministic technical publishing compiler. No build chain or
+runtime dependencies travel with the output.
 
 **Reproducible by design.** Same source. Same Artifact. Every time.
 

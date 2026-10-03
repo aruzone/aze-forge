@@ -1,7 +1,7 @@
 {
   "name": "@aruzone/aze-forge",
-  "version": "0.6.3",
-  "description": "Deterministic AzeMark compiler: readable source in, self-contained HTML, SVG, PNG, and PDF artifacts out.",
+  "version": "0.6.4",
+  "description": "AzeForge compiles readable AzeMark technical documents into deterministic, self-contained HTML, SVG, PNG, and PDF artifacts.",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -9,10 +9,23 @@
   },
   "keywords": [
     "azemark",
+    "technical-publishing",
+    "technical-documentation",
+    "document-compiler",
+    "markdown-compiler",
     "markdown",
-    "publishing",
-    "pdf",
-    "svg"
+    "documentation",
+    "technical-writing",
+    "scientific-writing",
+    "engineering",
+    "diagram",
+    "equation",
+    "latex",
+    "mermaid",
+    "html",
+    "svg",
+    "png",
+    "pdf"
   ],
   "publishConfig": {
     "access": "public"

@@ -1,3 +1,3 @@
 /** Single source of truth for the CLI SemVer reported in every machine envelope. */
-export declare const TOOL_VERSION: "0.6.3";
+export declare const TOOL_VERSION: "0.6.4";
 export type ToolVersion = typeof TOOL_VERSION;
